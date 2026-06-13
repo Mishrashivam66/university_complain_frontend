@@ -53,7 +53,7 @@ const ManageStudents = () => {
       const token = localStorage.getItem("token");
 
       const { data } = await axios.get(
-        "http://localhost:5000/api/admin/students",
+        "http://https://complaine-backend.vercel.app/api/admin/students",
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -94,11 +94,14 @@ const ManageStudents = () => {
     try {
       const token = localStorage.getItem("token");
 
-      await axios.delete(`http://localhost:5000/api/admin/students/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      await axios.delete(
+        `http://https://complaine-backend.vercel.app/api/admin/students/${id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       toast.success("Student removed successfully");
 

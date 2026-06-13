@@ -40,7 +40,7 @@ const HostelComplaints = () => {
       const token = localStorage.getItem("token");
 
       const { data } = await axios.get(
-        "http://localhost:5000/api/warden/complaints",
+        "http://https://complaine-backend.vercel.app/api/warden/complaints",
 
         {
           headers: {
@@ -66,7 +66,7 @@ const HostelComplaints = () => {
       const token = localStorage.getItem("token");
 
       await axios.put(
-        `http://localhost:5000/api/warden/complaints/status/${id}`,
+        `http://https://complaine-backend.vercel.app/api/warden/complaints/status/${id}`,
 
         { status },
 
@@ -92,7 +92,7 @@ const HostelComplaints = () => {
       const token = localStorage.getItem("token");
 
       await axios.put(
-        `http://localhost:5000/api/warden/complaints/escalate/${id}`,
+        `http://https://complaine-backend.vercel.app/api/warden/complaints/escalate/${id}`,
 
         {},
 

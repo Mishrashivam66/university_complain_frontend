@@ -59,7 +59,7 @@ const AddInventory = () => {
       setLoading(true);
 
       const response = await axios.post(
-        "http://localhost:5000/api/store/inventory/add",
+        "http://https://complaine-backend.vercel.app/api/store/inventory/add",
 
         formData,
       );

@@ -39,7 +39,7 @@ const ComplaintEscalation = () => {
       const token = localStorage.getItem("token");
 
       const { data } = await axios.get(
-        "http://localhost:5000/api/warden/complaints",
+        "http://https://complaine-backend.vercel.app/api/warden/complaints",
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -72,7 +72,7 @@ const ComplaintEscalation = () => {
       const token = localStorage.getItem("token");
 
       await axios.put(
-        `http://localhost:5000/api/warden/complaints/${id}/status`,
+        `http://https://complaine-backend.vercel.app/api/warden/complaints/${id}/status`,
 
         {
           status: "RESOLVED",

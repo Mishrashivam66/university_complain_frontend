@@ -34,7 +34,7 @@ const RequestManagement = () => {
       setLoading(true);
 
       const { data } = await axios.get(
-        "http://localhost:5000/api/store/requests/all",
+        "http://https://complaine-backend.vercel.app/api/store/requests/all",
       );
 
       setRequests(data.requests || []);
@@ -64,7 +64,7 @@ const RequestManagement = () => {
   const updateStatus = async (item, status) => {
     try {
       const { data } = await axios.put(
-        `http://localhost:5000/api/store/requests/update/${item._id}`,
+        `http://https://complaine-backend.vercel.app/api/store/requests/update/${item._id}`,
 
         { status },
       );
@@ -75,7 +75,7 @@ const RequestManagement = () => {
 
       if (status === "Approved") {
         await axios.post(
-          "http://localhost:5000/api/store/issued-items/issue",
+          "http://https://complaine-backend.vercel.app/api/store/issued-items/issue",
 
           {
             requestId: item._id,

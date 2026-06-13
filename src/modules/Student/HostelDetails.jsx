@@ -37,7 +37,7 @@ const HostelDetails = () => {
       const token = localStorage.getItem("token");
 
       const res = await api.get(
-        "http://localhost:5000/api/student/hostel/details",
+        "http://https://complaine-backend.vercel.app/api/student/hostel/details",
 
         {
           headers: {

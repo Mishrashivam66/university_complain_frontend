@@ -52,7 +52,7 @@ const Reports = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://localhost:5000/api/reports/all",
+        "http://https://complaine-backend.vercel.app/api/reports/all",
 
         {
           headers: {
@@ -80,7 +80,7 @@ const Reports = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://localhost:5000/api/reports/export/excel",
+        "http://https://complaine-backend.vercel.app/api/reports/export/excel",
 
         {
           responseType: "blob",
@@ -120,7 +120,7 @@ const Reports = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://localhost:5000/api/reports/export/pdf",
+        "http://https://complaine-backend.vercel.app/api/reports/export/pdf",
 
         {
           responseType: "blob",

@@ -61,7 +61,7 @@ const ManageWardens = () => {
       const token = localStorage.getItem("token");
 
       const { data } = await axios.get(
-        "http://localhost:5000/api/admin/wardens",
+        "http://https://complaine-backend.vercel.app/api/admin/wardens",
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -99,11 +99,14 @@ const ManageWardens = () => {
 
       const token = localStorage.getItem("token");
 
-      await axios.delete(`http://localhost:5000/api/admin/wardens/${id}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      await axios.delete(
+        `http://https://complaine-backend.vercel.app/api/admin/wardens/${id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       toast.success("Warden removed successfully");
 
@@ -124,7 +127,7 @@ const ManageWardens = () => {
       const token = localStorage.getItem("token");
 
       await axios.put(
-        `http://localhost:5000/api/admin/wardens/${selectedWarden._id}`,
+        `http://https://complaine-backend.vercel.app/api/admin/wardens/${selectedWarden._id}`,
 
         editForm,
 

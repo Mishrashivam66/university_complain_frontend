@@ -45,7 +45,7 @@ const MyComplaints = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://localhost:5000/api/student/complaints/my-complaints",
+        "http://https://complaine-backend.vercel.app/api/student/complaints/my-complaints",
 
         {
           headers: {
@@ -82,7 +82,7 @@ const MyComplaints = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.post(
-        "http://localhost:5000/api/maintenance/reopen-complaints/create",
+        "http://https://complaine-backend.vercel.app/api/maintenance/reopen-complaints/create",
 
         {
           complaintId,

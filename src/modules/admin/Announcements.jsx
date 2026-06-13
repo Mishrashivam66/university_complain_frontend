@@ -21,230 +21,166 @@ const Announcements = () => {
   // STATES
   // ======================================
 
-  const [showModal, setShowModal] =
-    useState(false);
+  const [showModal, setShowModal] = useState(false);
 
-  const [loading, setLoading] =
-    useState(true);
+  const [loading, setLoading] = useState(true);
 
-  const [announcements, setAnnouncements] =
-    useState([]);
+  const [announcements, setAnnouncements] = useState([]);
 
-  const [formData, setFormData] =
-    useState({
+  const [formData, setFormData] = useState({
+    title: "",
 
-      title: "",
+    message: "",
 
-      message: "",
+    hostel: "All Hostels",
 
-      hostel: "All Hostels",
-
-      type: "INFO",
-    });
+    type: "INFO",
+  });
 
   // ======================================
   // FETCH ANNOUNCEMENTS
   // ======================================
 
   useEffect(() => {
-
     fetchAnnouncements();
-
   }, []);
 
-  const fetchAnnouncements =
-    async () => {
+  const fetchAnnouncements = async () => {
+    try {
+      setLoading(true);
 
-      try {
+      const token = localStorage.getItem("token");
 
-        setLoading(true);
+      const response = await axios.get(
+        "http://https://complaine-backend.vercel.app/api/announcements/all",
 
-        const token =
-          localStorage.getItem(
-            "token",
-          );
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
 
-        const response =
-          await axios.get(
+      setAnnouncements(response?.data?.announcements || []);
+    } catch (error) {
+      console.log(error);
 
-            "http://localhost:5000/api/announcements/all",
-
-            {
-              headers: {
-                Authorization:
-                  `Bearer ${token}`,
-              },
-            },
-          );
-
-        setAnnouncements(
-
-          response?.data
-            ?.announcements || [],
-        );
-
-      } catch (error) {
-
-        console.log(error);
-
-        toast.error(
-          "Failed to fetch announcements",
-        );
-
-      } finally {
-
-        setLoading(false);
-      }
-    };
+      toast.error("Failed to fetch announcements");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // ======================================
   // CREATE ANNOUNCEMENT
   // ======================================
 
-  const handleCreate =
-    async () => {
+  const handleCreate = async () => {
+    try {
+      const token = localStorage.getItem("token");
 
-      try {
+      await axios.post(
+        "http://https://complaine-backend.vercel.app/api/announcements/create",
 
-        const token =
-          localStorage.getItem(
-            "token",
-          );
+        formData,
 
-        await axios.post(
-
-          "http://localhost:5000/api/announcements/create",
-
-          formData,
-
-          {
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
           },
-        );
+        },
+      );
 
-        toast.success(
-          "Announcement published",
-        );
+      toast.success("Announcement published");
 
-        setShowModal(false);
+      setShowModal(false);
 
-        setFormData({
+      setFormData({
+        title: "",
 
-          title: "",
+        message: "",
 
-          message: "",
+        hostel: "All Hostels",
 
-          hostel: "All Hostels",
+        type: "INFO",
+      });
 
-          type: "INFO",
-        });
+      fetchAnnouncements();
+    } catch (error) {
+      console.log(error);
 
-        fetchAnnouncements();
-
-      } catch (error) {
-
-        console.log(error);
-
-        toast.error(
-          error?.response?.data
-            ?.message ||
-            "Failed to publish announcement",
-        );
-      }
-    };
+      toast.error(
+        error?.response?.data?.message || "Failed to publish announcement",
+      );
+    }
+  };
 
   // ======================================
   // DELETE
   // ======================================
 
-  const handleDelete =
-    async (id) => {
+  const handleDelete = async (id) => {
+    try {
+      const token = localStorage.getItem("token");
 
-      try {
+      await axios.delete(
+        `http://https://complaine-backend.vercel.app/api/announcements/delete/${id}`,
 
-        const token =
-          localStorage.getItem(
-            "token",
-          );
-
-        await axios.delete(
-
-          `http://localhost:5000/api/announcements/delete/${id}`,
-
-          {
-            headers: {
-              Authorization:
-                `Bearer ${token}`,
-            },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
           },
-        );
+        },
+      );
 
-        toast.success(
-          "Announcement deleted",
-        );
+      toast.success("Announcement deleted");
 
-        fetchAnnouncements();
+      fetchAnnouncements();
+    } catch (error) {
+      console.log(error);
 
-      } catch (error) {
-
-        console.log(error);
-
-        toast.error(
-          "Delete failed",
-        );
-      }
-    };
+      toast.error("Delete failed");
+    }
+  };
 
   // ======================================
   // TYPE COLOR
   // ======================================
 
-  const getTypeColor =
-    (type) => {
-
-      switch (type) {
-
-        case "INFO":
-
-          return `
+  const getTypeColor = (type) => {
+    switch (type) {
+      case "INFO":
+        return `
             bg-blue-100
             text-blue-700
           `;
 
-        case "WARNING":
-
-          return `
+      case "WARNING":
+        return `
             bg-yellow-100
             text-yellow-700
           `;
 
-        case "EMERGENCY":
-
-          return `
+      case "EMERGENCY":
+        return `
             bg-red-100
             text-red-700
           `;
 
-        default:
-
-          return `
+      default:
+        return `
             bg-gray-100
             text-gray-700
           `;
-      }
-    };
+    }
+  };
 
   // ======================================
   // LOADING
   // ======================================
 
   if (loading) {
-
     return (
-
       <div
         className="
           flex
@@ -265,12 +201,10 @@ const Announcements = () => {
   }
 
   return (
-
     <div className="space-y-6 w-full overflow-hidden">
       {/* HEADER */}
 
       <div
-
         className="
           bg-gradient-to-r
           from-[#001B54]
@@ -290,7 +224,6 @@ const Announcements = () => {
           relative
           overflow-hidden
         "
-
       >
         {/* GLOW */}
 
@@ -308,7 +241,6 @@ const Announcements = () => {
 
         <div className="relative z-10">
           <div className="flex items-center gap-4">
-
             <div
               className="
                 bg-white/10
@@ -322,9 +254,7 @@ const Announcements = () => {
             </div>
 
             <div>
-
               <h1
-
                 className="
                   text-2xl
                   sm:text-3xl
@@ -333,13 +263,11 @@ const Announcements = () => {
 
                   font-extrabold
                 "
-
               >
                 Announcements
               </h1>
 
               <p
-
                 className="
                   mt-2
 
@@ -348,11 +276,9 @@ const Announcements = () => {
                   text-sm
                   md:text-base
                 "
-
               >
-                Send notices and important
-                announcements to students
-                and wardens.
+                Send notices and important announcements to students and
+                wardens.
               </p>
             </div>
           </div>
@@ -362,11 +288,7 @@ const Announcements = () => {
       {/* CREATE BUTTON */}
 
       <button
-
-        onClick={() =>
-          setShowModal(true)
-        }
-
+        onClick={() => setShowModal(true)}
         className="
           bg-gradient-to-r
           from-[#001B54]
@@ -390,29 +312,18 @@ const Announcements = () => {
 
           shadow-xl
         "
-
       >
         <Plus size={22} />
 
-        <span className="font-semibold">
-          Create Announcement
-        </span>
+        <span className="font-semibold">Create Announcement</span>
       </button>
 
       {/* ANNOUNCEMENT CARDS */}
 
       <div className="space-y-5">
-        {
-
-          announcements.length === 0
-
-          ?
-
-          (
-
-            <div
-
-              className="
+        {announcements.length === 0 ? (
+          <div
+            className="
                 bg-white
 
                 rounded-3xl
@@ -423,41 +334,31 @@ const Announcements = () => {
 
                 text-center
               "
-
-            >
-              <Megaphone
-                size={60}
-                className="
+          >
+            <Megaphone
+              size={60}
+              className="
                   mx-auto
                   text-gray-300
                 "
-              />
+            />
 
-              <h2
-                className="
+            <h2
+              className="
                   text-2xl
                   font-bold
                   text-gray-500
                   mt-5
                 "
-              >
-                No announcements found
-              </h2>
-            </div>
-
-          )
-
-          :
-
-          (
-
-            announcements.map((item) => (
-
-              <div
-
-                key={item._id}
-
-                className="
+            >
+              No announcements found
+            </h2>
+          </div>
+        ) : (
+          announcements.map((item) => (
+            <div
+              key={item._id}
+              className="
                   bg-white
 
                   rounded-2xl
@@ -477,13 +378,11 @@ const Announcements = () => {
                   p-5
                   md:p-6
                 "
+            >
+              {/* TOP */}
 
-              >
-                {/* TOP */}
-
-                <div
-
-                  className="
+              <div
+                className="
                     flex
                     flex-col
                     md:flex-row
@@ -493,13 +392,10 @@ const Announcements = () => {
 
                     gap-4
                   "
-
-                >
-                  <div className="flex items-start gap-4">
-
-                    <div
-
-                      className={`
+              >
+                <div className="flex items-start gap-4">
+                  <div
+                    className={`
 
                         ${getTypeColor(item.type)}
 
@@ -512,42 +408,29 @@ const Announcements = () => {
                         items-center
                         justify-center
                       `}
+                  >
+                    {item.type === "INFO" ? (
+                      <Info size={28} />
+                    ) : (
+                      <ShieldAlert size={28} />
+                    )}
+                  </div>
 
-                    >
-                      {
-
-                        item.type === "INFO"
-
-                        ?
-
-                        <Info size={28} />
-
-                        :
-
-                        <ShieldAlert size={28} />
-
-                      }
-                    </div>
-
-                    <div>
-
-                      <h2
-
-                        className="
+                  <div>
+                    <h2
+                      className="
                           text-xl
                           md:text-2xl
 
                           font-bold
                           text-[#001B54]
                         "
+                    >
+                      {item.title}
+                    </h2>
 
-                      >
-                        {item.title}
-                      </h2>
-
-                      <p
-
-                        className="
+                    <p
+                      className="
                           text-gray-600
 
                           mt-2
@@ -557,22 +440,17 @@ const Announcements = () => {
 
                           leading-7
                         "
-
-                      >
-                        {item.message}
-                      </p>
-                    </div>
+                    >
+                      {item.message}
+                    </p>
                   </div>
+                </div>
 
-                  {/* DELETE */}
+                {/* DELETE */}
 
-                  <button
-
-                    onClick={() =>
-                      handleDelete(item._id)
-                    }
-
-                    className="
+                <button
+                  onClick={() => handleDelete(item._id)}
+                  className="
                       bg-red-100
                       text-red-700
 
@@ -589,17 +467,15 @@ const Announcements = () => {
 
                       transition-all
                     "
+                >
+                  <Trash2 size={18} />
+                </button>
+              </div>
 
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
+              {/* FOOTER */}
 
-                {/* FOOTER */}
-
-                <div
-
-                  className="
+              <div
+                className="
                     flex
                     flex-col
                     sm:flex-row
@@ -611,59 +487,35 @@ const Announcements = () => {
 
                     mt-6
                   "
+              >
+                {/* HOSTEL */}
 
-                >
-                  {/* HOSTEL */}
+                <div className="flex items-center gap-3">
+                  <Building2 size={18} className="text-[#001B54]" />
 
-                  <div className="flex items-center gap-3">
+                  <p className="text-sm text-gray-600">{item.hostel}</p>
+                </div>
 
-                    <Building2
-                      size={18}
-                      className="text-[#001B54]"
-                    />
+                {/* DATE */}
 
-                    <p className="text-sm text-gray-600">
+                <div className="flex items-center gap-3">
+                  <CalendarDays size={18} className="text-[#001B54]" />
 
-                      {item.hostel}
-
-                    </p>
-                  </div>
-
-                  {/* DATE */}
-
-                  <div className="flex items-center gap-3">
-
-                    <CalendarDays
-                      size={18}
-                      className="text-[#001B54]"
-                    />
-
-                    <p className="text-sm text-gray-600">
-
-                      {
-                        new Date(
-                          item.createdAt,
-                        ).toLocaleDateString()
-                      }
-
-                    </p>
-                  </div>
+                  <p className="text-sm text-gray-600">
+                    {new Date(item.createdAt).toLocaleDateString()}
+                  </p>
                 </div>
               </div>
-            ))
-          )
-        }
+            </div>
+          ))
+        )}
       </div>
 
       {/* MODAL */}
 
-      {
-
-        showModal && (
-
-          <div
-
-            className="
+      {showModal && (
+        <div
+          className="
               fixed
               inset-0
 
@@ -677,11 +529,9 @@ const Announcements = () => {
 
               p-4
             "
-
-          >
-            <div
-
-              className="
+        >
+          <div
+            className="
                 bg-white
 
                 rounded-2xl
@@ -695,205 +545,155 @@ const Announcements = () => {
                 p-5
                 md:p-6
               "
+          >
+            {/* TITLE */}
 
-            >
-              {/* TITLE */}
-
-              <h2
-
-                className="
+            <h2
+              className="
                   text-2xl
 
                   font-bold
 
                   text-[#001B54]
                 "
+            >
+              Create Announcement
+            </h2>
 
-              >
-                Create Announcement
-              </h2>
+            {/* FORM */}
 
-              {/* FORM */}
+            <div className="space-y-4 mt-6">
+              {/* TITLE */}
 
-              <div className="space-y-4 mt-6">
-                {/* TITLE */}
+              <input
+                type="text"
+                placeholder="Announcement Title"
+                value={formData.title}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
 
-                <input
-
-                  type="text"
-
-                  placeholder="Announcement Title"
-
-                  value={formData.title}
-
-                  onChange={(e) =>
-                    setFormData({
-
-                      ...formData,
-
-                      title:
-                        e.target.value,
-                    })
-                  }
-
-                  className="
-                    w-full
-
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-4
-                    py-4
-
-                    focus:outline-none
-                    focus:ring-2
-                    focus:ring-[#001B54]
-                  "
-
-                />
-
-                {/* MESSAGE */}
-
-                <textarea
-
-                  rows="5"
-
-                  placeholder="Write announcement..."
-
-                  value={formData.message}
-
-                  onChange={(e) =>
-                    setFormData({
-
-                      ...formData,
-
-                      message:
-                        e.target.value,
-                    })
-                  }
-
-                  className="
-                    w-full
-
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-4
-                    py-4
-
-                    focus:outline-none
-                    focus:ring-2
-                    focus:ring-[#001B54]
-                  "
-
-                />
-
-                {/* HOSTEL */}
-
-                <select
-
-                  value={formData.hostel}
-
-                  onChange={(e) =>
-                    setFormData({
-
-                      ...formData,
-
-                      hostel:
-                        e.target.value,
-                    })
-                  }
-
-                  className="
-                    w-full
-
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-4
-                    py-4
-                  "
-
-                >
-                  <option>
-                    All Hostels
-                  </option>
-
-                  <option>
-                    H1
-                  </option>
-
-                  <option>
-                    H2
-                  </option>
-
-                  <option>
-                    H3
-                  </option>
-
-                  <option>
-                    H4
-                  </option>
-
-                  <option>
-                    H5
-                  </option>
-                </select>
-
-                {/* TYPE */}
-
-                <select
-
-                  value={formData.type}
-
-                  onChange={(e) =>
-                    setFormData({
-
-                      ...formData,
-
-                      type:
-                        e.target.value,
-                    })
-                  }
-
-                  className="
-                    w-full
-
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-4
-                    py-4
-                  "
-
-                >
-                  <option value="INFO">
-                    INFO
-                  </option>
-
-                  <option value="WARNING">
-                    WARNING
-                  </option>
-
-                  <option value="EMERGENCY">
-                    EMERGENCY
-                  </option>
-                </select>
-              </div>
-
-              {/* BUTTONS */}
-
-              <div
-
+                    title: e.target.value,
+                  })
+                }
                 className="
+                    w-full
+
+                    border
+                    border-gray-200
+
+                    rounded-2xl
+
+                    px-4
+                    py-4
+
+                    focus:outline-none
+                    focus:ring-2
+                    focus:ring-[#001B54]
+                  "
+              />
+
+              {/* MESSAGE */}
+
+              <textarea
+                rows="5"
+                placeholder="Write announcement..."
+                value={formData.message}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+
+                    message: e.target.value,
+                  })
+                }
+                className="
+                    w-full
+
+                    border
+                    border-gray-200
+
+                    rounded-2xl
+
+                    px-4
+                    py-4
+
+                    focus:outline-none
+                    focus:ring-2
+                    focus:ring-[#001B54]
+                  "
+              />
+
+              {/* HOSTEL */}
+
+              <select
+                value={formData.hostel}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+
+                    hostel: e.target.value,
+                  })
+                }
+                className="
+                    w-full
+
+                    border
+                    border-gray-200
+
+                    rounded-2xl
+
+                    px-4
+                    py-4
+                  "
+              >
+                <option>All Hostels</option>
+
+                <option>H1</option>
+
+                <option>H2</option>
+
+                <option>H3</option>
+
+                <option>H4</option>
+
+                <option>H5</option>
+              </select>
+
+              {/* TYPE */}
+
+              <select
+                value={formData.type}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+
+                    type: e.target.value,
+                  })
+                }
+                className="
+                    w-full
+
+                    border
+                    border-gray-200
+
+                    rounded-2xl
+
+                    px-4
+                    py-4
+                  "
+              >
+                <option value="INFO">INFO</option>
+
+                <option value="WARNING">WARNING</option>
+
+                <option value="EMERGENCY">EMERGENCY</option>
+              </select>
+            </div>
+
+            {/* BUTTONS */}
+
+            <div
+              className="
                   flex
                   flex-col
                   sm:flex-row
@@ -902,17 +702,12 @@ const Announcements = () => {
 
                   mt-6
                 "
+            >
+              {/* CANCEL */}
 
-              >
-                {/* CANCEL */}
-
-                <button
-
-                  onClick={() =>
-                    setShowModal(false)
-                  }
-
-                  className="
+              <button
+                onClick={() => setShowModal(false)}
+                className="
                     flex-1
 
                     bg-gray-200
@@ -923,18 +718,15 @@ const Announcements = () => {
 
                     font-semibold
                   "
+              >
+                Cancel
+              </button>
 
-                >
-                  Cancel
-                </button>
+              {/* PUBLISH */}
 
-                {/* PUBLISH */}
-
-                <button
-
-                  onClick={handleCreate}
-
-                  className="
+              <button
+                onClick={handleCreate}
+                className="
                     flex-1
 
                     bg-gradient-to-r
@@ -954,15 +746,13 @@ const Announcements = () => {
                     transition-all
                     duration-300
                   "
-
-                >
-                  Publish Announcement
-                </button>
-              </div>
+              >
+                Publish Announcement
+              </button>
             </div>
           </div>
-        )
-      }
+        </div>
+      )}
     </div>
   );
 };

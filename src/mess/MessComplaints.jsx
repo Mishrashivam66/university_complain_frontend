@@ -41,21 +41,18 @@ const MessComplaints = () => {
     fetchComplaints();
   }, []);
 
-  const fetchComplaints = async () => {
+  const fetchAnalytics = async () => {
     try {
-      setLoading(true);
-
       const token = localStorage.getItem("token");
+      const baseUrl =
+        import.meta.env.VITE_BACKEND_URL ||
+        "http://https://complaine-backend.vercel.app";
 
-      const { data } = await axios.get(
-        "http://localhost:5000/api/student/mess/complaints",
-
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      const { data } = await axios.get(`${baseUrl}/api/mess/analytics`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-      );
+      });
 
       setComplaints(data.complaints || []);
     } catch (error) {
@@ -80,7 +77,7 @@ const MessComplaints = () => {
       const token = localStorage.getItem("token");
 
       await axios.post(
-        "http://localhost:5000/api/student/mess/complaint/create",
+        "http://https://complaine-backend.vercel.app/api/student/mess/complaint/create",
 
         formData,
 
@@ -124,7 +121,7 @@ const MessComplaints = () => {
       const token = localStorage.getItem("token");
 
       await axios.delete(
-        `http://localhost:5000/api/student/mess/complaints/${id}`,
+        `http://https://complaine-backend.vercel.app/api/student/mess/complaints/${id}`,
 
         {
           headers: {

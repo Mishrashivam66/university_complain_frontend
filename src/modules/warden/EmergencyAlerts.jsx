@@ -59,7 +59,7 @@ const EmergencyAlerts = () => {
       const token = localStorage.getItem("token");
 
       const { data } = await axios.get(
-        "http://localhost:5000/api/warden/emergency-alerts",
+        "http://https://complaine-backend.vercel.app/api/warden/emergency-alerts",
 
         {
           headers: {
@@ -105,7 +105,7 @@ const EmergencyAlerts = () => {
       const token = localStorage.getItem("token");
 
       await axios.post(
-        "http://localhost:5000/api/warden/emergency-alerts/create",
+        "http://https://complaine-backend.vercel.app/api/warden/emergency-alerts/create",
 
         formData,
 
@@ -147,7 +147,7 @@ const EmergencyAlerts = () => {
       const token = localStorage.getItem("token");
 
       await axios.put(
-        `http://localhost:5000/api/warden/emergency-alerts/${id}/status`,
+        `http://https://complaine-backend.vercel.app/api/warden/emergency-alerts/${id}/status`,
 
         { status },
 
@@ -177,7 +177,7 @@ const EmergencyAlerts = () => {
       const token = localStorage.getItem("token");
 
       await axios.delete(
-        `http://localhost:5000/api/warden/emergency-alerts/${id}`,
+        `http://https://complaine-backend.vercel.app/api/warden/emergency-alerts/${id}`,
 
         {
           headers: {

@@ -50,7 +50,7 @@ const JobCards = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://localhost:5000/api/maintenance/job-cards",
+        "http://https://complaine-backend.vercel.app/api/maintenance/job-cards",
 
         {
           headers: {
@@ -82,7 +82,7 @@ const JobCards = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.put(
-        `http://localhost:5000/api/maintenance/job-cards/update-status/${id}`,
+        `http://https://complaine-backend.vercel.app/api/maintenance/job-cards/update-status/${id}`,
 
         {
           status,

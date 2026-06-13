@@ -50,7 +50,7 @@ const OverdueComplaints = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://localhost:5000/api/maintenance/overdue-complaints",
+        "http://https://complaine-backend.vercel.app/api/maintenance/overdue-complaints",
 
         {
           headers: {
@@ -90,7 +90,7 @@ const OverdueComplaints = () => {
       const token = localStorage.getItem("token");
 
       await axios.put(
-        `http://localhost:5000/api/maintenance/overdue-complaints/escalate/${complaint._id}`,
+        `http://https://complaine-backend.vercel.app/api/maintenance/overdue-complaints/escalate/${complaint._id}`,
 
         {},
 

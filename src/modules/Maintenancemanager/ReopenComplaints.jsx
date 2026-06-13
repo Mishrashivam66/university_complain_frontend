@@ -53,7 +53,7 @@ const ReopenComplaints = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://localhost:5000/api/maintenance/reopen-complaints",
+        "http://https://complaine-backend.vercel.app/api/maintenance/reopen-complaints",
 
         {
           headers: {
@@ -83,7 +83,7 @@ const ReopenComplaints = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://localhost:5000/api/maintenance/worker/workers",
+        "http://https://complaine-backend.vercel.app/api/maintenance/worker/workers",
 
         {
           headers: {
@@ -111,7 +111,7 @@ const ReopenComplaints = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.put(
-        `http://localhost:5000/api/maintenance/reopen-complaints/reassign/${reopenId}`,
+        `http://https://complaine-backend.vercel.app/api/maintenance/reopen-complaints/reassign/${reopenId}`,
 
         {
           workerId,

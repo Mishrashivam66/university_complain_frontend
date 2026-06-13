@@ -34,7 +34,7 @@ const MessDashboard = () => {
       const token = localStorage.getItem("token");
 
       const { data } = await axios.get(
-        "http://localhost:5000/api/student/mess/all",
+        "http://https://complaine-backend.vercel.app/api/student/mess/all",
 
         {
           headers: {

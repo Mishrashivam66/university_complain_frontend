@@ -34,16 +34,15 @@ const MessAnalytics = () => {
   const fetchAnalytics = async () => {
     try {
       const token = localStorage.getItem("token");
+      const baseUrl =
+        import.meta.env.VITE_BACKEND_URL ||
+        "http://https://complaine-backend.vercel.app";
 
-      const { data } = await axios.get(
-        "http://localhost:5000/api/mess/analytics",
-
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      const { data } = await axios.get(`${baseUrl}/api/mess/analytics`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-      );
+      });
 
       setAnalytics(data.analytics);
     } catch (error) {
