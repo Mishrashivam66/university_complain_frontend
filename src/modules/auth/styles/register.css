@@ -1,0 +1,306 @@
+.register-page {
+  min-height: 100vh;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  padding: 40px;
+
+  background-image:
+    linear-gradient(rgba(15, 76, 129, 0.22), rgba(122, 0, 25, 0.18)),
+    url("../../../assets/hostel_h5.webp");
+
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.register-form-panel {
+  width: 100%;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.register-card {
+  width: min(720px, 100%);
+
+  background: rgba(255, 255, 255, 0.18);
+
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+
+  border: 1px solid rgba(255, 255, 255, 0.25);
+
+  border-radius: 32px;
+
+  padding: 50px;
+
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.25);
+
+  position: relative;
+
+  overflow: hidden;
+}
+
+.register-card::before {
+  content: "";
+
+  position: absolute;
+
+  top: 0;
+  left: 0;
+
+  width: 100%;
+  height: 4px;
+
+  background: linear-gradient(90deg, #0f4c81, #f4c430, #7a0019);
+}
+
+.register-badge {
+  display: inline-block;
+
+  padding: 10px 22px;
+
+  border-radius: 999px;
+
+  background: linear-gradient(135deg, #0f4c81, #7a0019);
+
+  color: white;
+
+  font-size: 15px;
+  font-weight: 800;
+
+  letter-spacing: 2px;
+
+  margin-bottom: 24px;
+}
+
+.register-heading h2 {
+  font-size: 54px;
+
+  font-weight: 900;
+
+  line-height: 1;
+
+  margin-bottom: 14px;
+
+  background: linear-gradient(90deg, #0f4c81, #4b3f72, #7a0019);
+
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.register-heading p {
+  color: #374151;
+
+  font-size: 18px;
+
+  margin-bottom: 30px;
+}
+
+.register-alert {
+  padding: 15px;
+
+  border-radius: 14px;
+
+  margin-bottom: 22px;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.register-alert.success {
+  background: #dcfce7;
+
+  color: #166534;
+}
+
+.register-alert.error {
+  background: #fee2e2;
+
+  color: #991b1b;
+}
+
+.register-form {
+  display: flex;
+  flex-direction: column;
+
+  gap: 22px;
+}
+
+.register-grid {
+  display: grid;
+
+  grid-template-columns: repeat(2, 1fr);
+
+  gap: 18px;
+}
+
+.register-field {
+  display: flex;
+  flex-direction: column;
+
+  gap: 8px;
+}
+
+.register-field--wide {
+  grid-column: 1/-1;
+}
+
+.register-field label,
+.register-field span {
+  font-size: 16px;
+
+  font-weight: 700;
+
+  color: #111827;
+}
+
+.register-input-wrap {
+  display: flex;
+  align-items: center;
+
+  gap: 12px;
+
+  height: 60px;
+
+  border-radius: 18px;
+
+  padding: 0 18px;
+
+  background: rgba(255, 255, 255, 0.25);
+
+  border: 1px solid rgba(255, 255, 255, 0.35);
+
+  transition: all 0.3s ease;
+}
+
+.register-input-wrap:focus-within {
+  border-color: #0f4c81;
+
+  box-shadow: 0 0 0 4px rgba(15, 76, 129, 0.12);
+}
+
+.register-input-wrap input {
+  width: 100%;
+
+  border: none;
+  outline: none;
+
+  background: transparent;
+
+  font-size: 16px;
+
+  color: #111827;
+}
+
+.register-input-wrap input::placeholder {
+  color: #6b7280;
+}
+
+.register-checkbox {
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+}
+
+.register-checkbox input {
+  width: 18px;
+  height: 18px;
+
+  accent-color: #7a0019;
+}
+
+.register-hostel-panel {
+  display: grid;
+
+  grid-template-columns: repeat(2, 1fr);
+
+  gap: 16px;
+
+  padding: 18px;
+
+  border-radius: 18px;
+
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.register-hostel-panel input,
+.register-hostel-panel select {
+  height: 54px;
+
+  border-radius: 14px;
+
+  border: 1px solid #d1d5db;
+
+  padding: 0 14px;
+
+  outline: none;
+}
+
+.register-btn--primary {
+  width: 100%;
+
+  height: 58px;
+
+  border: none;
+
+  border-radius: 16px;
+
+  background: linear-gradient(90deg, #7a0019, #8a0f2b, #0f4c81);
+
+  color: white;
+
+  font-size: 18px;
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition: all 0.3s ease;
+
+  box-shadow: 0 10px 25px rgba(122, 0, 25, 0.25);
+}
+
+.register-btn--primary:hover {
+  transform: translateY(-3px);
+
+  box-shadow: 0 15px 35px rgba(15, 76, 129, 0.3);
+}
+
+.register-login-prompt {
+  text-align: center;
+
+  color: #374151;
+}
+
+.register-login-prompt a {
+  color: #0f4c81;
+
+  font-weight: 800;
+
+  text-decoration: none;
+}
+
+.register-login-prompt a:hover {
+  color: #7a0019;
+}
+
+@media (max-width: 768px) {
+  .register-card {
+    padding: 30px;
+  }
+
+  .register-grid,
+  .register-hostel-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .register-heading h2 {
+    font-size: 40px;
+  }
+}

@@ -1,0 +1,482 @@
+import { useState } from "react";
+
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
+
+import {
+  LayoutDashboard,
+  Users,
+  ClipboardList,
+  AlertTriangle,
+  BellRing,
+  Bell,
+  FileBarChart2,
+  LogOut,
+  Menu,
+  X,
+  User,
+  ShieldAlert,
+  Clock3,
+  Building2,
+  History,
+  BedDouble,
+  UtensilsCrossed,
+} from "lucide-react";
+
+// ==========================================
+// REALTIME NOTIFICATION BELL
+// ==========================================
+
+import NotificationBell from "../../modules/notifications/components/NotificationBell";
+
+const WardenLayout = () => {
+  const navigate = useNavigate();
+
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  const user = JSON.parse(localStorage.getItem("user")) || {};
+
+  // ==========================================
+  // MENU
+  // ==========================================
+
+  const menuItems = [
+    {
+      name: "Dashboard",
+      path: "/warden/dashboard",
+      icon: LayoutDashboard,
+    },
+
+    {
+      name: "Manage Students",
+      path: "/warden/manage-students",
+      icon: Users,
+    },
+
+    {
+      name: "Hostel Complaints",
+      path: "/warden/complaints",
+      icon: ClipboardList,
+    },
+
+    {
+      name: "Pending Students",
+      path: "/warden/pending-students",
+      icon: Clock3,
+    },
+
+    {
+      name: "Emergency Alerts",
+      path: "/warden/emergency-alerts",
+      icon: ShieldAlert,
+    },
+
+    {
+      name: "Complaint Escalation",
+      path: "/warden/escalation",
+      icon: AlertTriangle,
+    },
+
+    {
+      name: "Warden Reports",
+      path: "/warden/reports",
+      icon: FileBarChart2,
+    },
+
+    {
+      name: "Hostel Notices",
+
+      path: "/warden/notices",
+
+      icon: BellRing,
+    },
+
+    {
+      name: "Mess Complaints",
+      path: "/warden/mess-complaints",
+      icon: UtensilsCrossed,
+    },
+
+    {
+      name: "Student History",
+      path: "/warden/student-history",
+      icon: History,
+    },
+
+    {
+      name: "Room Allocation",
+      path: "/warden/room-allocation",
+      icon: BedDouble,
+    },
+
+    {
+      name: "Notifications",
+      path: "/warden/notifications",
+      icon: Bell,
+    },
+  ];
+
+  // ==========================================
+  // LOGOUT
+  // ==========================================
+
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+
+    localStorage.removeItem("user");
+
+    navigate("/", {
+      replace: true,
+    });
+  };
+
+  return (
+    <div className="flex min-h-screen bg-[#EEF3FF]">
+      {/* ========================================== */}
+      {/* MOBILE OVERLAY */}
+      {/* ========================================== */}
+
+      {sidebarOpen && (
+        <div
+          className="
+              fixed
+              inset-0
+              bg-black/40
+              z-40
+              md:hidden
+            "
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* ========================================== */}
+      {/* SIDEBAR */}
+      {/* ========================================== */}
+
+      <aside
+        className={`
+
+          fixed
+          top-0
+          left-0
+          z-50
+
+          h-screen
+
+          w-80
+
+          bg-gradient-to-b
+          from-[#001B54]
+          via-[#002B7F]
+          to-[#7A0019]
+
+          text-white
+
+          shadow-2xl
+
+          transform
+          transition-transform
+          duration-300
+
+          flex
+          flex-col
+
+          ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+          }
+
+        `}
+      >
+        {/* ========================================== */}
+        {/* LOGO */}
+        {/* ========================================== */}
+
+        <div
+          className="
+            px-7
+            pt-7
+            pb-5
+
+            border-b
+            border-white/10
+          "
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <h1
+                className="
+                  text-[30px]
+                  font-extrabold
+                  tracking-wide
+                  leading-tight
+                "
+              >
+                CAMPUSPULSE
+              </h1>
+
+              <p className="text-yellow-300 text-sm mt-1">Smart Campus ERP</p>
+            </div>
+
+            <button onClick={() => setSidebarOpen(false)} className="md:hidden">
+              <X size={24} />
+            </button>
+          </div>
+        </div>
+
+        {/* ========================================== */}
+        {/* NAVIGATION */}
+        {/* ========================================== */}
+
+        <div
+          className="
+            flex-1
+
+            overflow-y-auto
+
+            px-5
+            py-5
+
+            space-y-2
+          "
+        >
+          {menuItems.map((item) => (
+            <NavLink
+              key={item.path}
+              to={item.path}
+              onClick={() => setSidebarOpen(false)}
+              className={({ isActive }) =>
+                `
+
+                  flex
+                  items-center
+                  gap-4
+
+                  px-5
+                  py-4
+
+                  rounded-2xl
+
+                  font-medium
+
+                  transition-all
+                  duration-300
+
+                  ${
+                    isActive
+                      ? `
+                      bg-yellow-400
+                      text-[#001B54]
+                      shadow-xl
+                    `
+                      : `
+                      hover:bg-white/10
+                    `
+                  }
+
+                  `
+              }
+            >
+              <item.icon size={22} />
+
+              <span className="text-[15px]">{item.name}</span>
+            </NavLink>
+          ))}
+        </div>
+
+        {/* ========================================== */}
+        {/* USER CARD */}
+        {/* ========================================== */}
+
+        <div
+          className="
+            px-5
+            pt-4
+          "
+        >
+          <div
+            className="
+              bg-white/10
+
+              rounded-3xl
+
+              p-4
+
+              flex
+              items-center
+              gap-4
+            "
+          >
+            <div
+              className="
+                h-14
+                w-14
+
+                rounded-full
+
+                bg-white/20
+
+                flex
+                items-center
+                justify-center
+
+                text-xl
+                font-bold
+              "
+            >
+              {user?.name?.charAt(0)}
+            </div>
+
+            <div className="flex-1">
+              <h3 className="font-bold text-lg">{user?.name || "Warden"}</h3>
+
+              <p className="text-sm text-gray-300">Hostel Warden</p>
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================== */}
+        {/* LOGOUT */}
+        {/* ========================================== */}
+
+        <div className="p-5">
+          <button
+            onClick={handleLogout}
+            className="
+              w-full
+
+              bg-red-500
+
+              hover:bg-red-600
+
+              transition-all
+
+              rounded-2xl
+
+              px-5
+              py-4
+
+              flex
+              items-center
+              justify-center
+              gap-3
+
+              font-semibold
+            "
+          >
+            <LogOut size={20} />
+            Logout
+          </button>
+        </div>
+      </aside>
+
+      {/* ========================================== */}
+      {/* MAIN */}
+      {/* ========================================== */}
+
+      <div className="flex-1 flex flex-col md:ml-80">
+        {/* ========================================== */}
+        {/* TOPBAR */}
+        {/* ========================================== */}
+
+        <header
+          className="
+            sticky
+            top-0
+            z-30
+
+            bg-white/90
+            backdrop-blur-md
+
+            border-b
+            border-gray-200
+
+            px-6
+            py-4
+
+            flex
+            items-center
+            justify-between
+
+            shadow-sm
+          "
+        >
+          {/* LEFT */}
+
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSidebarOpen(true)} className="md:hidden">
+              <Menu size={26} />
+            </button>
+
+            <div>
+              <h2
+                className="
+                  text-3xl
+                  font-bold
+                  text-[#001B54]
+                "
+              >
+                Warden Panel
+              </h2>
+
+              <p className="text-gray-500 text-sm">Hostel Management System</p>
+            </div>
+          </div>
+
+          {/* RIGHT */}
+
+          <div className="flex items-center gap-5">
+            {/* ========================================== */}
+            {/* REALTIME NOTIFICATION */}
+            {/* ========================================== */}
+
+            <NotificationBell />
+
+            {/* ========================================== */}
+            {/* USER */}
+            {/* ========================================== */}
+
+            <div className="hidden md:flex items-center gap-3">
+              <div
+                className="
+                  bg-[#001B54]
+                  text-white
+
+                  p-3
+
+                  rounded-full
+                "
+              >
+                <User size={18} />
+              </div>
+
+              <div>
+                <p className="font-bold text-[#001B54]">
+                  {user?.name || "Warden"}
+                </p>
+
+                <p className="text-xs text-gray-500">Hostel Warden</p>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* ========================================== */}
+        {/* PAGE CONTENT */}
+        {/* ========================================== */}
+
+        <main
+          className="
+            flex-1
+
+            p-6
+
+            overflow-auto
+          "
+        >
+          <Outlet />
+        </main>
+      </div>
+    </div>
+  );
+};
+
+export default WardenLayout;
