@@ -39,7 +39,7 @@ const Reports = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/maintenance/reports",
+        "https://complaine-backend.vercel.app/api/maintenance/reports",
 
         {
           headers: {

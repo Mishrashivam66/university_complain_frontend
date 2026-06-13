@@ -42,7 +42,7 @@ const WorkerPerformance = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/maintenance/performance",
+        "https://complaine-backend.vercel.app/api/maintenance/performance",
 
         {
           headers: {

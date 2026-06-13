@@ -36,7 +36,7 @@ const IssuedItems = () => {
       setLoading(true);
 
       const { data } = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/store/issued-items/all",
+        "https://complaine-backend.vercel.app/api/store/issued-items/all",
       );
 
       setIssuedItems(data.issuedItems || []);
@@ -66,7 +66,7 @@ const IssuedItems = () => {
   const updateStatus = async (id) => {
     try {
       await axios.put(
-        `http://https://complaine-backend.vercel.app/api/store/issued-items/deliver/${id}`,
+        `https://complaine-backend.vercel.app/api/store/issued-items/deliver/${id}`,
       );
 
       toast.success("Item delivered successfully");

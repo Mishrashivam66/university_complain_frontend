@@ -52,7 +52,7 @@ const Announcements = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/announcements/all",
+        "https://complaine-backend.vercel.app/api/announcements/all",
 
         {
           headers: {
@@ -80,7 +80,7 @@ const Announcements = () => {
       const token = localStorage.getItem("token");
 
       await axios.post(
-        "http://https://complaine-backend.vercel.app/api/announcements/create",
+        "https://complaine-backend.vercel.app/api/announcements/create",
 
         formData,
 
@@ -124,7 +124,7 @@ const Announcements = () => {
       const token = localStorage.getItem("token");
 
       await axios.delete(
-        `http://https://complaine-backend.vercel.app/api/announcements/delete/${id}`,
+        `https://complaine-backend.vercel.app/api/announcements/delete/${id}`,
 
         {
           headers: {

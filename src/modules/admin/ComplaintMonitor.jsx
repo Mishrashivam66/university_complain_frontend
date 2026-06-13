@@ -48,7 +48,7 @@ const ComplaintMonitor = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/complaints/all",
+        "https://complaine-backend.vercel.app/api/complaints/all",
 
         {
           headers: {
@@ -157,7 +157,7 @@ const ComplaintMonitor = () => {
       const token = localStorage.getItem("token");
 
       await axios.patch(
-        `http://https://complaine-backend.vercel.app/api/complaints/resolve/${id}`,
+        `https://complaine-backend.vercel.app/api/complaints/resolve/${id}`,
 
         {},
 
@@ -187,7 +187,7 @@ const ComplaintMonitor = () => {
       const token = localStorage.getItem("token");
 
       await axios.patch(
-        `http://https://complaine-backend.vercel.app/api/complaints/escalate/${id}`,
+        `https://complaine-backend.vercel.app/api/complaints/escalate/${id}`,
 
         {
           reason: "Urgent issue escalation",

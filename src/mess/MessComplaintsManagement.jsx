@@ -38,7 +38,7 @@ const MessComplaintsManagement = () => {
       const token = localStorage.getItem("token");
 
       const { data } = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/student/mess/all",
+        "https://complaine-backend.vercel.app/api/student/mess/all",
 
         {
           headers: {
@@ -66,7 +66,7 @@ const MessComplaintsManagement = () => {
       const token = localStorage.getItem("token");
 
       await axios.put(
-        `http://https://complaine-backend.vercel.app/api/student/mess/${id}/status`,
+        `https://complaine-backend.vercel.app/api/student/mess/${id}/status`,
 
         {
           status,

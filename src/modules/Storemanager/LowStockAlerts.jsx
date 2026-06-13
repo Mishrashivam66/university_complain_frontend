@@ -35,7 +35,7 @@ const LowStockAlerts = () => {
       setLoading(true);
 
       const { data } = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/store/inventory/low-stock",
+        "https://complaine-backend.vercel.app/api/store/inventory/low-stock",
       );
 
       setItems(data.lowStockItems || []);

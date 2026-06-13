@@ -41,7 +41,7 @@ const MessMenu = () => {
       const token = localStorage.getItem("token");
 
       const { data } = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/mess/menu",
+        "https://complaine-backend.vercel.app/api/mess/menu",
 
         {
           headers: {
@@ -85,7 +85,7 @@ const MessMenu = () => {
       );
 
       const { data } = await axios.post(
-        "http://https://complaine-backend.vercel.app/api/mess/menu/upload",
+        "https://complaine-backend.vercel.app/api/mess/menu/upload",
 
         formData,
 
@@ -125,7 +125,7 @@ const MessMenu = () => {
       const token = localStorage.getItem("token");
 
       await axios.delete(
-        `http://https://complaine-backend.vercel.app/api/mess/menu/${id}`,
+        `https://complaine-backend.vercel.app/api/mess/menu/${id}`,
 
         {
           headers: {

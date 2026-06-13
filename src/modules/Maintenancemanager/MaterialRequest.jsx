@@ -71,7 +71,7 @@ const MaterialRequest = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/maintenance/material-requests",
+        "https://complaine-backend.vercel.app/api/maintenance/material-requests",
 
         {
           headers: {
@@ -99,7 +99,7 @@ const MaterialRequest = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/maintenance/job-cards",
+        "https://complaine-backend.vercel.app/api/maintenance/job-cards",
 
         {
           headers: {
@@ -125,7 +125,7 @@ const MaterialRequest = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.post(
-        "http://https://complaine-backend.vercel.app/api/maintenance/material-requests/create",
+        "https://complaine-backend.vercel.app/api/maintenance/material-requests/create",
 
         {
           jobCardId,
@@ -173,7 +173,7 @@ const MaterialRequest = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.put(
-        `http://https://complaine-backend.vercel.app/api/maintenance/material-requests/update-status/${id}`,
+        `https://complaine-backend.vercel.app/api/maintenance/material-requests/update-status/${id}`,
 
         {
           status,

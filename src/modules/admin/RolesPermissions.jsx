@@ -50,7 +50,7 @@ const RolesPermissions = () => {
       setLoading(true);
 
       const response = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/roles/all",
+        "https://complaine-backend.vercel.app/api/roles/all",
       );
 
       setRoles(response.data.roles);
@@ -70,7 +70,7 @@ const RolesPermissions = () => {
   const handleCreateRole = async () => {
     try {
       await axios.post(
-        "http://https://complaine-backend.vercel.app/api/roles/create",
+        "https://complaine-backend.vercel.app/api/roles/create",
 
         {
           roleName: formData.roleName,
@@ -109,7 +109,7 @@ const RolesPermissions = () => {
   const handleEditRole = async () => {
     try {
       await axios.put(
-        `http://https://complaine-backend.vercel.app/api/roles/update/${editRoleId}`,
+        `https://complaine-backend.vercel.app/api/roles/update/${editRoleId}`,
 
         {
           roleName: formData.roleName,
@@ -148,7 +148,7 @@ const RolesPermissions = () => {
   const handleDelete = async (id) => {
     try {
       await axios.delete(
-        `http://https://complaine-backend.vercel.app/api/roles/delete/${id}`,
+        `https://complaine-backend.vercel.app/api/roles/delete/${id}`,
       );
 
       toast.success("Role Deleted");

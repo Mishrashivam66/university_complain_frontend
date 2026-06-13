@@ -53,7 +53,7 @@ const InventoryManagement = () => {
       setLoading(true);
 
       const response = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/inventory/all",
+        "https://complaine-backend.vercel.app/api/inventory/all",
       );
 
       setItems(response.data.items);
@@ -73,7 +73,7 @@ const InventoryManagement = () => {
   const handleAddInventory = async () => {
     try {
       await axios.post(
-        "http://https://complaine-backend.vercel.app/api/inventory/add",
+        "https://complaine-backend.vercel.app/api/inventory/add",
 
         formData,
       );
@@ -111,7 +111,7 @@ const InventoryManagement = () => {
   const handleDelete = async (id) => {
     try {
       await axios.delete(
-        `http://https://complaine-backend.vercel.app/api/inventory/delete/${id}`,
+        `https://complaine-backend.vercel.app/api/inventory/delete/${id}`,
       );
 
       toast.success("Inventory Deleted");

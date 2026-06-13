@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://https://complaine-backend.vercel.app/api",
+  baseURL: "https://complaine-backend.vercel.app/api",
 });
 
 // ==========================================

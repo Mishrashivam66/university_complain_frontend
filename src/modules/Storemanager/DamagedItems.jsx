@@ -39,7 +39,7 @@ const DamagedItems = () => {
       setLoading(true);
 
       const { data } = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/store/damaged-items/all",
+        "https://complaine-backend.vercel.app/api/store/damaged-items/all",
       );
 
       setDamagedItems(data.damagedItems || []);
@@ -69,7 +69,7 @@ const DamagedItems = () => {
   const deleteItem = async (id) => {
     try {
       const { data } = await axios.delete(
-        `http://https://complaine-backend.vercel.app/api/store/damaged-items/delete/${id}`,
+        `https://complaine-backend.vercel.app/api/store/damaged-items/delete/${id}`,
       );
 
       toast.success(data.message);
@@ -89,7 +89,7 @@ const DamagedItems = () => {
   const updateStatus = async (id, condition) => {
     try {
       const { data } = await axios.put(
-        `http://https://complaine-backend.vercel.app/api/store/damaged-items/update/${id}`,
+        `https://complaine-backend.vercel.app/api/store/damaged-items/update/${id}`,
 
         { condition },
       );

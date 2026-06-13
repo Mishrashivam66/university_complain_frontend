@@ -42,7 +42,7 @@ const AuditLogs = () => {
       setLoading(true);
 
       const response = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/audit-logs/all",
+        "https://complaine-backend.vercel.app/api/audit-logs/all",
       );
 
       setLogs(response.data.logs);

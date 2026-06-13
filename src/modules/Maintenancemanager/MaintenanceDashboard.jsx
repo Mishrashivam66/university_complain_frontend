@@ -65,7 +65,7 @@ const MaintenanceDashboard = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/maintenance/dashboard",
+        "https://complaine-backend.vercel.app/api/maintenance/dashboard",
         {
           headers: {
             Authorization: `Bearer ${token}`,

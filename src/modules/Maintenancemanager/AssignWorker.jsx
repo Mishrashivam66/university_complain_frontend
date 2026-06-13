@@ -55,7 +55,7 @@ const AssignWorker = () => {
       // ======================================
 
       const complaintsRes = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/maintenance/assign-worker/complaints",
+        "https://complaine-backend.vercel.app/api/maintenance/assign-worker/complaints",
 
         {
           headers: {
@@ -69,7 +69,7 @@ const AssignWorker = () => {
       // ======================================
 
       const workersRes = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/maintenance/assign-worker/workers",
+        "https://complaine-backend.vercel.app/api/maintenance/assign-worker/workers",
 
         {
           headers: {
@@ -111,7 +111,7 @@ const AssignWorker = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.put(
-        "http://https://complaine-backend.vercel.app/api/maintenance/assign-worker/assign",
+        "https://complaine-backend.vercel.app/api/maintenance/assign-worker/assign",
 
         {
           complaintId,

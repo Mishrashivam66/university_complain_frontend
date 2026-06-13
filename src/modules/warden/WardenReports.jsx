@@ -100,7 +100,7 @@ const WardenReports = () => {
       const token = localStorage.getItem("token");
 
       await axios.post(
-        "http://https://complaine-backend.vercel.app/api/warden/reports/create",
+        "https://complaine-backend.vercel.app/api/warden/reports/create",
 
         formData,
 
@@ -142,7 +142,7 @@ const WardenReports = () => {
       const token = localStorage.getItem("token");
 
       await axios.delete(
-        `http://https://complaine-backend.vercel.app/api/warden/reports/${id}`,
+        `https://complaine-backend.vercel.app/api/warden/reports/${id}`,
 
         {
           headers: {

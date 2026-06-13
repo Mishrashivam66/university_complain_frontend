@@ -49,7 +49,7 @@ const AdminDashboard = () => {
       setLoading(true);
 
       const response = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/dashboard/stats",
+        "https://complaine-backend.vercel.app/api/dashboard/stats",
       );
 
       setDashboardData(response.data);

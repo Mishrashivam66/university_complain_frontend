@@ -43,7 +43,7 @@ const InventoryManagement = () => {
       setLoading(true);
 
       const { data } = await axios.get(
-        "http://https://complaine-backend.vercel.app/api/store/inventory/all",
+        "https://complaine-backend.vercel.app/api/store/inventory/all",
       );
 
       setInventory(data.items || []);
@@ -67,7 +67,7 @@ const InventoryManagement = () => {
       if (!confirmDelete) return;
 
       await axios.delete(
-        `http://https://complaine-backend.vercel.app/api/store/inventory/delete/${id}`,
+        `https://complaine-backend.vercel.app/api/store/inventory/delete/${id}`,
       );
 
       fetchInventory();
@@ -95,7 +95,7 @@ const InventoryManagement = () => {
   const updateStock = async () => {
     try {
       await axios.put(
-        `http://https://complaine-backend.vercel.app/api/store/inventory/update/${selectedItem._id}`,
+        `https://complaine-backend.vercel.app/api/store/inventory/update/${selectedItem._id}`,
 
         {
           currentStock: Number(editStock),
