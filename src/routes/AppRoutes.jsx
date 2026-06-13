@@ -33,7 +33,7 @@ import Maintencemangerroutes from "./maintencemangerroutes";
 
 import StoreManagerRoutes from "./StoreManagerRoutes";
 
-import MessManagerLayout from "../layouts/mess/MessManagerLayout";
+import MessManagerLayout from "../layouts/mess/MessManagerLayout.jsx";
 import MessDashboard from "../mess/MessDashboard";
 
 import MessAnalytics from "../mess/MessAnalytics";
