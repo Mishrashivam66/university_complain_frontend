@@ -56,7 +56,9 @@ export const NotificationProvider = ({ children }) => {
     } catch (error) {
       console.log(error);
 
-      toast.error("Failed to load notifications");
+      if (user?._id) {
+        toast.error("Failed to load notifications");
+      }
     } finally {
       setLoading(false);
     }
@@ -281,7 +283,9 @@ export const NotificationProvider = ({ children }) => {
   // ==========================================
 
   useEffect(() => {
-    fetchNotifications();
+    if (user?._id) {
+      fetchNotifications();
+    }
   }, []);
 
   // ==========================================

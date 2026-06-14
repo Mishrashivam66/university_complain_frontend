@@ -1,11 +1,10 @@
 import { io } from "socket.io-client";
 
 const socket = io(
-  import.meta.env.VITE_BACKEND_URL ||
-    "http://https://complaine-backend.vercel.app",
+  import.meta.env.VITE_SOCKET_URL || "https://complaine-backend.vercel.app",
 
   {
-    transports: ["websocket"],
+    transports: ["websocket", "polling"],
 
     autoConnect: true,
   },
