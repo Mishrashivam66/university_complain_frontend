@@ -13,6 +13,7 @@ import Header from "../components/Header";
 
 import LandingHero from "../components/LandingHero";
 
+import ContactSection from "../components/ContactSection";
 import FeaturesSelector from "../components/FeaturesSelection";
 
 import PortalDemo from "../components/PortalDemo";
@@ -626,6 +627,9 @@ export default function LandingPage() {
             </div>
           </div>
         </section>
+        {/* CONTACT SECTION */}
+
+        <ContactSection />
 
         <DevelopersSection />
       </main>

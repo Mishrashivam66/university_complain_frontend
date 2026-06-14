@@ -239,7 +239,7 @@ export default function Header() {
             {[
               {
                 label: "Solutions",
-                id: "solutions",
+                id: "features",
               },
 
               {
@@ -252,10 +252,12 @@ export default function Header() {
                 id: "features",
               },
 
-              {
-                label: "Contact",
-                id: "contact",
-              },
+            <button
+                onClick={() => scrollToSection("contact")}
+                className="text-left text-white font-semibold"
+              >
+                Contact
+              </button>
             ].map((item, index) => (
               <button
                 key={index}
@@ -455,7 +457,15 @@ export default function Header() {
           >
             <div className="flex flex-col gap-5">
               <button
-                onClick={() => scrollToSection("solutions")}
+                onClick={() => {
+                  const section = document.getElementById("features");
+
+                  if (section) {
+                    section.scrollIntoView({
+                      behavior: "smooth",
+                    });
+                  }
+                }}
                 className="text-left text-white font-semibold"
               >
                 Solutions

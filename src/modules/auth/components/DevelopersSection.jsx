@@ -231,19 +231,21 @@ export default function DevelopersSection() {
 
         {/* MENTOR */}
 
+        {/* MENTOR */}
+
         <div className="mb-24">
-          <div className="text-center mb-10">
+          <div className="text-center mb-14">
             <h3
               className="
-                text-3xl
-                md:text-4xl
+        text-3xl
+        md:text-4xl
 
-                font-black
+        font-black
 
-                text-white
+        text-white
 
-                mb-3
-              "
+        mb-3
+      "
             >
               Project Mentor
             </h3>
@@ -256,177 +258,383 @@ export default function DevelopersSection() {
           <div className="flex justify-center">
             <div
               className="
-                group
+        group
 
-                relative
+        relative
 
-                overflow-hidden
+        h-[720px]
+        w-full
+        max-w-2xl
 
-                rounded-[40px]
-
-                border
-                border-yellow-400/20
-
-                bg-white/[0.04]
-
-                backdrop-blur-2xl
-
-                p-10
-
-                w-full
-                max-w-2xl
-
-                shadow-[0_20px_80px_rgba(0,0,0,.45)]
-
-                hover:border-yellow-400/40
-
-                hover:shadow-[0_35px_120px_rgba(244,196,48,.18)]
-
-                transition-all
-                duration-500
-              "
+        [perspective:2000px]
+      "
             >
-              {/* GLOW */}
-
               <div
                 className="
-                  absolute
-                  -top-10
-                  -right-10
+          relative
 
-                  h-60
-                  w-60
+          h-full
+          w-full
 
-                  rounded-full
+          transition-transform
+          duration-1000
 
-                  bg-yellow-400/20
+          [transform-style:preserve-3d]
 
-                  blur-[100px]
+          group-hover:[transform:rotateY(180deg)]
+        "
+              >
+                {/* FRONT SIDE */}
 
-                  opacity-40
+                <div
+                  className="
+            absolute
+            inset-0
 
-                  group-hover:opacity-80
+            rounded-[40px]
 
-                  transition-all
-                  duration-500
-                "
-              />
+            border
+            border-yellow-400/20
 
-              <div className="relative text-center">
-                {/* IMAGE */}
+            bg-black/90
 
-                <div className="flex justify-center mb-8">
+            backdrop-blur-2xl
+
+            p-10
+
+            flex
+            flex-col
+            items-center
+            justify-center
+
+            shadow-[0_20px_80px_rgba(0,0,0,.45)]
+
+            hover:border-yellow-400/40
+
+            hover:shadow-[0_35px_120px_rgba(244,196,48,.18)]
+
+            transition-all
+            duration-500
+
+            [backface-visibility:hidden]
+
+            overflow-hidden
+          "
+                >
+                  {/* FREE BADGE */}
+
                   <div
                     className="
-                      h-56
-                      w-56
+              absolute
+              top-6
+              right-6
 
-                      rounded-full
+              px-4
+              py-2
 
-                      p-[5px]
+              rounded-full
 
-                      bg-gradient-to-br
-                      from-[#2563EB]
-                      via-[#60A5FA]
-                      to-[#F4C430]
+              bg-emerald-500/20
 
-                      shadow-[0_25px_80px_rgba(37,99,235,.35)]
-                    "
+              border
+              border-emerald-400/30
+
+              text-emerald-300
+
+              text-sm
+              font-bold
+
+              shadow-[0_0_20px_rgba(16,185,129,.25)]
+            "
+                  >
+                    FREE
+                  </div>
+
+                  {/* GLOW */}
+
+                  <div
+                    className="
+              absolute
+              -top-10
+              -right-10
+
+              h-60
+              w-60
+
+              rounded-full
+
+              bg-yellow-400/20
+
+              blur-[100px]
+
+              opacity-40
+
+              group-hover:opacity-80
+
+              transition-all
+              duration-500
+            "
+                  />
+
+                  {/* IMAGE */}
+
+                  <div
+                    className="
+              relative
+
+              h-64
+              w-64
+
+              rounded-full
+
+              p-[5px]
+
+              bg-gradient-to-br
+              from-[#2563EB]
+              via-[#60A5FA]
+              to-[#F4C430]
+
+              shadow-[0_25px_80px_rgba(37,99,235,.35)]
+
+              mb-10
+            "
                   >
                     <img
                       src="/dineshsir.jpeg"
                       alt="Dr. Dinesh Sharma"
                       className="
-                        h-full
-                        w-full
+                h-full
+                w-full
 
-                        rounded-full
+                rounded-full
 
-                        object-cover
+                object-cover
 
-                        border-[5px]
-                        border-black
-                      "
+                border-[5px]
+                border-black
+              "
                     />
                   </div>
+
+                  {/* BADGE */}
+
+                  <div
+                    className="
+              inline-flex
+              items-center
+              gap-2
+
+              px-5
+              py-2
+
+              rounded-full
+
+              border
+              border-yellow-400/20
+
+              bg-yellow-400/10
+
+              text-yellow-300
+
+              font-semibold
+
+              mb-6
+            "
+                  >
+                    <GraduationCap size={18} />
+                    Mentor
+                  </div>
+
+                  {/* NAME */}
+
+                  <h2
+                    className="
+              text-4xl
+
+              font-black
+
+              text-white
+
+              mb-4
+
+              text-center
+            "
+                  >
+                    Dr. Dinesh Sharma
+                  </h2>
+
+                  {/* ROLE */}
+
+                  <p
+                    className="
+              text-yellow-300
+
+              text-xl
+
+              font-semibold
+
+              text-center
+            "
+                  >
+                    Associate Professor • Amity University
+                  </p>
                 </div>
 
-                {/* BADGE */}
+                {/* BACK SIDE */}
 
                 <div
                   className="
-                    inline-flex
-                    items-center
-                    gap-2
+            absolute
+            inset-0
 
-                    px-5
-                    py-2
+            rounded-[40px]
+
+            border
+            border-yellow-400/20
+
+            bg-black/95
+
+            backdrop-blur-2xl
+
+            p-10
+
+            shadow-[0_20px_80px_rgba(0,0,0,.45)]
+
+            hover:border-yellow-400/40
+
+            hover:shadow-[0_35px_120px_rgba(244,196,48,.18)]
+
+            transition-all
+            duration-500
+
+            [transform:rotateY(180deg)]
+
+            [backface-visibility:hidden]
+
+            overflow-y-auto
+          "
+                >
+                  <h2
+                    className="
+              text-4xl
+
+              font-black
+
+              text-white
+
+              mb-4
+            "
+                  >
+                    Dr. Dinesh Sharma
+                  </h2>
+
+                  <p
+                    className="
+              text-yellow-300
+
+              text-xl
+
+              mb-8
+
+              font-semibold
+            "
+                  >
+                    Academic Mentor & Technical Supervisor
+                  </p>
+
+                  <p
+                    className="
+              text-slate-300
+
+              leading-9
+
+              text-base
+
+              mb-10
+            "
+                  >
+                    Guided and supervised the complete CampusNexus ERP
+                    development lifecycle with expertise in intelligent systems,
+                    smart campus technologies, software engineering practices
+                    and academic innovation.
+                  </p>
+
+                  {/* CONTRIBUTIONS */}
+
+                  <div className="space-y-5 mb-10">
+                    {[
+                      "Provided academic guidance and technical supervision",
+                      "Supported smart ERP architecture planning",
+                      "Mentored intelligent automation workflows",
+                      "Reviewed system design and implementation",
+                      "Guided realtime campus management modules",
+                      "Supported AI and analytics integration",
+                    ].map((item, i) => (
+                      <div
+                        key={i}
+                        className="
+                  flex
+                  items-start
+                  gap-3
+                "
+                      >
+                        <div
+                          className="
+                    h-2.5
+                    w-2.5
 
                     rounded-full
 
-                    border
-                    border-yellow-400/20
+                    bg-yellow-400
 
-                    bg-yellow-400/10
-
-                    text-yellow-300
-
-                    font-semibold
-
-                    mb-6
+                    mt-2
                   "
-                >
-                  <GraduationCap size={18} />
-                  Mentor
+                        />
+
+                        <p className="text-slate-300 leading-7">{item}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* TAGS */}
+
+                  <div
+                    className="
+              flex
+              flex-wrap
+
+              gap-3
+            "
+                  >
+                    {[
+                      "AI Systems",
+                      "Software Engineering",
+                      "ERP Guidance",
+                      "Technical Supervision",
+                    ].map((tag, i) => (
+                      <div
+                        key={i}
+                        className="
+                  px-5
+                  py-2
+
+                  rounded-full
+
+                  bg-white/10
+
+                  border
+                  border-white/10
+
+                  text-slate-300
+
+                  text-sm
+                "
+                      >
+                        {tag}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-
-                {/* NAME */}
-
-                <h2
-                  className="
-                    text-4xl
-
-                    font-black
-
-                    text-white
-
-                    mb-4
-                  "
-                >
-                  Dr. Dinesh Sharma
-                </h2>
-
-                {/* ROLE */}
-
-                <p
-                  className="
-                    text-yellow-300
-
-                    text-xl
-
-                    font-semibold
-
-                    mb-8
-                  "
-                >
-                  Associate Professor • Amity University
-                </p>
-
-                {/* DESCRIPTION */}
-
-                <p
-                  className="
-                    text-slate-300
-
-                    leading-8
-
-                    text-base
-                  "
-                >
-                  Guided and mentored the complete CampusNexus ERP development
-                  lifecycle with expertise in intelligent systems and smart
-                  educational technologies.
-                </p>
               </div>
             </div>
           </div>
