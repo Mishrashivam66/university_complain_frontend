@@ -78,12 +78,6 @@ const StoreManagerLayout = () => {
       path: "/store/damaged-items",
       icon: Wrench,
     },
-
-    {
-      name: "Notifications",
-      path: "/store/notifications",
-      icon: Bell,
-    },
   ];
 
   // ==========================================

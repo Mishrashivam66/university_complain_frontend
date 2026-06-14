@@ -21,7 +21,7 @@ export default function Header() {
 
       document.body.style.background = "#071120";
 
-      document.body.style.color = "white";
+      document.body.style.color = "#071120";
 
       localStorage.setItem("theme", "dark");
     } else {

@@ -121,14 +121,6 @@ const StudentLayout = () => {
       : []),
 
     {
-      name: "Notifications",
-
-      path: "/notifications",
-
-      icon: Bell,
-    },
-
-    {
       name: "Change Password",
 
       path: "/change-password",

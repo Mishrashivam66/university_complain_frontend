@@ -116,14 +116,6 @@ const MaintenanceManagerLayout = () => {
 
       icon: FileText,
     },
-
-    {
-      name: "Notifications",
-
-      path: "/maintenance/notifications",
-
-      icon: Bell,
-    },
   ];
 
   // ======================================

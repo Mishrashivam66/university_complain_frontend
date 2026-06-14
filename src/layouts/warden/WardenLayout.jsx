@@ -107,12 +107,6 @@ const WardenLayout = () => {
       path: "/warden/room-allocation",
       icon: BedDouble,
     },
-
-    {
-      name: "Notifications",
-      path: "/warden/notifications",
-      icon: Bell,
-    },
   ];
 
   // ==========================================
