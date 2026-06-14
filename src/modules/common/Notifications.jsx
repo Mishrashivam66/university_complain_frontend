@@ -76,7 +76,7 @@ const Notifications = () => {
 
     if (user?._id) {
       socket.emit(
-        "joinRoom",
+        "join_room",
 
         user._id,
       );
