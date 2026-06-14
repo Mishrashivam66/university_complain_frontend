@@ -41,18 +41,25 @@ const MessComplaints = () => {
     fetchComplaints();
   }, []);
 
-  const fetchAnalytics = async () => {
+  const fetchComplaints = async () => {
     try {
+      setLoading(true);
+
       const token = localStorage.getItem("token");
+
       const baseUrl =
         import.meta.env.VITE_BACKEND_URL ||
-        "http://https://complaine-backend.vercel.app";
+        "https://complaine-backend.vercel.app";
 
-      const { data } = await axios.get(`${baseUrl}/api/mess/analytics`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const { data } = await axios.get(
+        `${baseUrl}/api/student/mess/complaints`,
+
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
         },
-      });
+      );
 
       setComplaints(data.complaints || []);
     } catch (error) {

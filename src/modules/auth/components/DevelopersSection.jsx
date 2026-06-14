@@ -707,36 +707,35 @@ export default function DevelopersSection() {
 
                   <div
                     className="
-                      absolute
-                      inset-0
+    absolute
+    inset-0
 
-                      rounded-[36px]
+    rounded-[36px]
 
-                      border
-                      border-white/10
+    border
+    border-white/10
 
-                      bg-black/90
+    bg-black/95
 
-                      backdrop-blur-2xl
+    backdrop-blur-2xl
 
-                      p-10
+    p-10
 
-                      flex
-                      flex-col
-                      items-center
-                      justify-center
+    shadow-[0_20px_80px_rgba(0,0,0,.45)]
 
-                      shadow-[0_20px_80px_rgba(0,0,0,.45)]
+    hover:border-yellow-400/20
 
-                      hover:border-yellow-400/20
+    hover:shadow-[0_30px_100px_rgba(244,196,48,.18)]
 
-                      hover:shadow-[0_30px_100px_rgba(37,99,235,.18)]
+    transition-all
+    duration-500
 
-                      transition-all
-                      duration-500
+    [transform:rotateY(180deg)]
 
-                      [backface-visibility:hidden]
-                    "
+    [backface-visibility:hidden]
+
+    overflow-y-auto
+  "
                   >
                     {/* IMAGE */}
 
@@ -812,7 +811,11 @@ export default function DevelopersSection() {
                   {/* BACK */}
 
                   <div
+                    tabIndex={0}
+                    role="region"
+                    aria-label="Team Member Details"
                     className="
+
                       absolute
                       inset-0
 

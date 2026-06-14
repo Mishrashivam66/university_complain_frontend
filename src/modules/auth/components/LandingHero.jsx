@@ -335,15 +335,9 @@ export default function LandingHero() {
             >
               <Users className="text-[#F4C430] mb-3" />
 
-              <h3
-                className="
-                  text-4xl
-                  font-black
-                  text-white
-                "
-              >
-                4.8K+
-              </h3>
+   <h2 className="text-4xl font-black text-white">
+  4.8K+
+</h2>
 
               <p className="text-slate-300 mt-2 text-sm">Active Students</p>
             </div>

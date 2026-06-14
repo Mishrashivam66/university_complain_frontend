@@ -252,43 +252,44 @@ export default function Header() {
                 id: "features",
               },
 
-            <button
+              <button
                 onClick={() => scrollToSection("contact")}
                 className="text-left text-white font-semibold"
               >
                 Contact
-              </button>
+              </button>,
             ].map((item, index) => (
               <button
                 key={index}
                 onClick={() => scrollToSection(item.id)}
+                aria-label={item.label || "Navigation Button"}
                 className="
-                  relative
+    relative
 
-                  text-sm
-                  font-semibold
+    text-sm
+    font-semibold
 
-                  text-slate-300
+    text-slate-300
 
-                  hover:text-[#F4C430]
+    hover:text-[#F4C430]
 
-                  after:absolute
-                  after:left-0
-                  after:-bottom-1
+    after:absolute
+    after:left-0
+    after:-bottom-1
 
-                  after:h-[2px]
-                  after:w-0
+    after:h-[2px]
+    after:w-0
 
-                  after:bg-[#F4C430]
+    after:bg-[#F4C430]
 
-                  after:transition-all
+    after:transition-all
 
-                  hover:after:w-full
+    hover:after:w-full
 
-                  transition-all
-                "
+    transition-all
+  "
               >
-                {item.label}
+                {item.label || "Menu"}
               </button>
             ))}
           </nav>
@@ -307,30 +308,31 @@ export default function Header() {
 
             <button
               onClick={() => setDarkMode(!darkMode)}
+              aria-label="Toggle Dark Mode"
               className="
-                hidden
-                md:flex
+    hidden
+    md:flex
 
-                h-12
-                w-12
+    h-12
+    w-12
 
-                rounded-2xl
+    rounded-2xl
 
-                border
-                border-white/10
+    border
+    border-white/10
 
-                bg-white/5
+    bg-white/5
 
-                text-white
+    text-white
 
-                items-center
-                justify-center
+    items-center
+    justify-center
 
-                hover:border-[#F4C430]/40
-                hover:bg-white/10
+    hover:border-[#F4C430]/40
+    hover:bg-white/10
 
-                transition-all
-              "
+    transition-all
+  "
             >
               {darkMode ? (
                 <Sun size={20} className="text-[#F4C430]" />
