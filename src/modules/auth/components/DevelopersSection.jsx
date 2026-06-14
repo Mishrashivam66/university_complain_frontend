@@ -704,9 +704,10 @@ export default function DevelopersSection() {
   "
                 >
                   {/* FRONT */}
-
-                 <div
-  className="
+                  ```jsx
+                  {/* FRONT */}
+                  <div
+                    className="
     absolute
     inset-0
 
@@ -739,10 +740,79 @@ export default function DevelopersSection() {
     items-center
     justify-center
   "
->
+                  >
+                    {/* IMAGE */}
 
+                    <div
+                      className="
+      h-64
+      w-64
+
+      rounded-full
+
+      p-[5px]
+
+      bg-gradient-to-br
+      from-[#2563EB]
+      via-[#60A5FA]
+      to-[#F4C430]
+
+      shadow-[0_25px_80px_rgba(37,99,235,.35)]
+
+      mb-10
+    "
+                    >
+                      <img
+                        src={member.image}
+                        alt={member.name}
+                        className="
+        h-full
+        w-full
+
+        rounded-full
+
+        object-cover
+
+        border-[5px]
+        border-black
+      "
+                      />
+                    </div>
+
+                    {/* NAME */}
+
+                    <h2
+                      className="
+      text-4xl
+
+      font-black
+
+      text-white
+
+      mb-4
+
+      text-center
+    "
+                    >
+                      {member.name}
+                    </h2>
+
+                    {/* ROLE */}
+
+                    <p
+                      className="
+      text-slate-300
+
+      text-xl
+
+      text-center
+    "
+                    >
+                      {member.role}
+                    </p>
+                  </div>
+                  ```
                   {/* BACK */}
-
                   <div
                     tabIndex={0}
                     role="region"
