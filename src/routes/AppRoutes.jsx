@@ -10,7 +10,7 @@ import {
 // AUTH PAGES
 // ==========================================
 
-import VerifyEmail from "../modules/auth/pages/VerifyEmail";
+import VerifyOTP from "../modules/auth/pages/VerifyOTP.jsx";
 
 import VerificationSuccess from "../modules/auth/pages/VerificationSuccess";
 
@@ -110,7 +110,7 @@ const AppRoutes = () => {
 
         <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-        <Route path="/verify-email/:token" element={<VerifyEmail />} />
+        <Route path="/verify-otp" element={<VerifyOTP />} />
 
         <Route path="/verification-success" element={<VerificationSuccess />} />
 
