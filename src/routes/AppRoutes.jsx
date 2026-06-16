@@ -10,6 +10,12 @@ import {
 // AUTH PAGES
 // ==========================================
 
+import VerifyEmail from "../modules/auth/pages/VerifyEmail";
+
+import VerificationSuccess from "../modules/auth/pages/VerificationSuccess";
+
+import VerificationFailed from "../modules/auth/pages/VerificationFailed";
+
 import Login from "../modules/auth/pages/Login";
 
 import Register from "../modules/auth/pages/Register";
@@ -103,6 +109,12 @@ const AppRoutes = () => {
         <Route path="/forgot-password" element={<ForgotPassword />} />
 
         <Route path="/reset-password/:token" element={<ResetPassword />} />
+
+        <Route path="/verify-email/:token" element={<VerifyEmail />} />
+
+        <Route path="/verification-success" element={<VerificationSuccess />} />
+
+        <Route path="/verification-failed" element={<VerificationFailed />} />
 
         {/* PROTECTED */}
 
