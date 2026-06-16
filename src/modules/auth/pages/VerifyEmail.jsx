@@ -4,33 +4,33 @@ import axios from "axios";
 
 const VerifyEmail = () => {
   const { token } = useParams();
-
   const navigate = useNavigate();
 
   useEffect(() => {
-    const verifyEmail = async () => {
+    const verify = async () => {
       try {
-        await axios.get(
+        const res = await axios.get(
           `${import.meta.env.VITE_API_BASE_URL}/api/auth/verify-email/${token}`,
         );
 
-        navigate("/verification-success");
+        console.log(res.data);
+
+        alert("Email Verified Successfully");
+
+        navigate("/login");
       } catch (error) {
-        console.error("Verification Error:", error);
+        console.log(error);
+
+        alert(error.response?.data?.message || "Verification Failed");
 
         navigate("/verification-failed");
       }
     };
 
-    verifyEmail();
+    verify();
   }, [token, navigate]);
 
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      {" "}
-      <h2 className="text-xl font-semibold">Verifying your email... </h2>{" "}
-    </div>
-  );
+  return <div>Verifying Email...</div>;
 };
 
 export default VerifyEmail;
