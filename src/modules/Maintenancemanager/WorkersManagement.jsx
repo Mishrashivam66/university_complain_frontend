@@ -90,11 +90,17 @@ const WorkersManagement = () => {
     try {
       const response = await api.get("/admin/categories/all");
 
-      console.log("CATEGORIES:", response.data);
+      console.log("CATEGORY SUCCESS");
+      console.log(response.status);
+      console.log(response.data);
 
-      setCategories(response.data.categories || []);
+      setCategories(response?.data?.categories || []);
     } catch (error) {
-      console.log("CATEGORY ERROR:", error.response?.data || error);
+      console.log("CATEGORY FAILED");
+      console.log(error?.response?.status);
+      console.log(error?.response?.data);
+
+      toast.error(error?.response?.data?.message || "Category fetch failed");
     }
   };
 
