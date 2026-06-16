@@ -427,9 +427,16 @@ const AssignWorker = () => {
         "
       >
         {complaints.map((item) => {
-          const availableWorkers = workers.filter(
-            (worker) => worker.department === item.category,
-          );
+          const availableWorkers = workers.filter((worker) => {
+            const dept = worker.department?.toLowerCase()?.trim();
+            const category = item.category?.toLowerCase()?.trim();
+
+            return (
+              dept === category ||
+              (dept === "electrical" && category === "electricity") ||
+              (dept === "electricity" && category === "electrical")
+            );
+          });
 
           return (
             <div

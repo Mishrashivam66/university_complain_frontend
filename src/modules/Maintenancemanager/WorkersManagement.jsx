@@ -26,25 +26,7 @@ const WorkersManagement = () => {
   // CATEGORIES
   // ======================================
 
-  const categories = [
-    "PLUMBING",
-
-    "ELECTRICAL",
-
-    "ELECTRICITY",
-
-    "WIFI",
-
-    "NETWORK",
-
-    "CARPENTRY",
-
-    "CLEANING",
-
-    "AC TECHNICIAN",
-
-    "OTHER",
-  ];
+  const [categories, setCategories] = useState([]);
 
   // ======================================
   // STATES
@@ -61,7 +43,7 @@ const WorkersManagement = () => {
 
     phone: "",
 
-    category: "PLUMBING",
+    category: " ",
 
     otherCategory: "",
 
@@ -86,6 +68,7 @@ const WorkersManagement = () => {
 
   useEffect(() => {
     fetchWorkers();
+    fetchCategories();
   }, []);
 
   const fetchWorkers = async () => {
@@ -101,6 +84,24 @@ const WorkersManagement = () => {
       toast.error(error?.response?.data?.message || "Failed to fetch workers");
     } finally {
       setLoading(false);
+    }
+  };
+  const fetchCategories = async () => {
+    try {
+      const response = await api.get("/admin/categories");
+
+      const categoryData = response?.data?.categories || [];
+
+      setCategories(categoryData);
+
+      if (categoryData.length > 0) {
+        setFormData((prev) => ({
+          ...prev,
+          category: categoryData[0].name,
+        }));
+      }
+    } catch (error) {
+      console.log(error);
     }
   };
 
@@ -496,8 +497,8 @@ const WorkersManagement = () => {
               className="border rounded-2xl px-4 py-3"
             >
               {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
+                <option key={category._id} value={category.name}>
+                  {category.name}
                 </option>
               ))}
             </select>
@@ -810,28 +811,31 @@ const WorkersManagement = () => {
 
             {/* CATEGORY */}
 
-            <input
-              type="text"
+            <select
               value={editData.category}
               onChange={(e) =>
                 setEditData({
                   ...editData,
-
                   category: e.target.value,
                 })
               }
-              placeholder="Category"
               className="
-                w-full
-
-                border
-
-                rounded-2xl
-
-                px-4
-                py-3
-              "
-            />
+    w-full
+    border
+    rounded-2xl
+    px-4
+    py-3
+  "
+            >
+              {categories.map((category) => (
+                <option
+                  key={category._id || category}
+                  value={category.name || category}
+                >
+                  {category.name || category}
+                </option>
+              ))}
+            </select>
 
             {/* SHIFT */}
 
