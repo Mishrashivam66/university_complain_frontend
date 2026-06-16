@@ -144,7 +144,7 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#EEF3FF] overflow-hidden">
+    <div className="flex h-screen bg-[#EEF3FF] ">
       {/* ====================================== */}
       {/* MOBILE OVERLAY */}
       {/* ====================================== */}
@@ -384,7 +384,6 @@ const AdminLayout = () => {
 
           h-screen
 
-          overflow-hidden
         "
       >
         {/* ====================================== */}
