@@ -7,15 +7,17 @@ const VerifyOTP = () => {
   const location = useLocation();
 
   const email = location.state?.email || "";
+
+  const [otp, setOtp] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+  const [success, setSuccess] = useState(false);
+
   useEffect(() => {
     if (!email) {
       navigate("/register");
     }
   }, [email, navigate]);
-
-  const [otp, setOtp] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState("");
 
   const handleVerify = async (e) => {
     e.preventDefault();
@@ -32,12 +34,14 @@ const VerifyOTP = () => {
         },
       );
 
+      setSuccess(true);
       setMessage(res.data.message);
 
       setTimeout(() => {
         navigate("/login");
-      }, 1500);
+      }, 2000);
     } catch (error) {
+      setSuccess(false);
       setMessage(error.response?.data?.message || "OTP Verification Failed");
     } finally {
       setLoading(false);
@@ -60,50 +64,175 @@ const VerifyOTP = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded-xl shadow-md w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-4">
-          Verify Email OTP
-        </h1>
+    <div
+      className="
+        min-h-screen
+        flex
+        items-center
+        justify-center
+        bg-gradient-to-br
+        from-blue-50
+        via-white
+        to-indigo-100
+        px-4
+        py-8
+      "
+    >
+      <div
+        className="
+          w-full
+          max-w-md
+          sm:max-w-lg
+          bg-white
+          rounded-3xl
+          shadow-2xl
+          p-6
+          sm:p-8
+        "
+      >
+        {/* ICON */}
+        <div className="text-center">
+          <div
+            className="
+              w-20
+              h-20
+              mx-auto
+              bg-blue-100
+              rounded-full
+              flex
+              items-center
+              justify-center
+            "
+          >
+            <span className="text-4xl">📧</span>
+          </div>
 
-        <p className="text-center text-gray-600 mb-6">
-          Enter the OTP sent to:
-          <br />
-          <strong>{email}</strong>
-        </p>
+          <h1
+            className="
+              text-2xl
+              sm:text-3xl
+              font-bold
+              text-gray-800
+              mt-5
+            "
+          >
+            Verify Your Email
+          </h1>
 
+          <p className="text-gray-500 mt-3 text-sm sm:text-base">
+            Enter the OTP sent to
+          </p>
+
+          <p
+            className="
+              font-semibold
+              text-blue-600
+              break-all
+              text-sm
+              sm:text-base
+              mt-1
+            "
+          >
+            {email}
+          </p>
+        </div>
+
+        {/* MESSAGE */}
         {message && (
-          <div className="mb-4 p-3 rounded bg-gray-100 text-center">
+          <div
+            className={`
+              mt-6
+              p-4
+              rounded-2xl
+              text-center
+              font-medium
+              text-sm
+              sm:text-base
+              ${
+                success
+                  ? "bg-green-100 text-green-700 border border-green-300"
+                  : "bg-red-100 text-red-700 border border-red-300"
+              }
+            `}
+          >
             {message}
           </div>
         )}
 
-        <form onSubmit={handleVerify}>
+        {/* FORM */}
+        <form onSubmit={handleVerify} className="mt-6">
           <input
             type="text"
             placeholder="Enter 6 Digit OTP"
             value={otp}
-            onChange={(e) => setOtp(e.target.value)}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, ""))}
             maxLength={6}
             required
-            className="w-full border p-3 rounded mb-4"
+            className="
+              w-full
+              border-2
+              border-gray-200
+              rounded-2xl
+              p-3
+              sm:p-4
+              text-center
+              text-xl
+              sm:text-2xl
+              tracking-[6px]
+              sm:tracking-[10px]
+              font-semibold
+              focus:outline-none
+              focus:border-blue-500
+              transition
+            "
           />
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white p-3 rounded"
+            className="
+              w-full
+              mt-5
+              bg-blue-600
+              hover:bg-blue-700
+              text-white
+              py-3
+              sm:py-4
+              rounded-2xl
+              font-semibold
+              transition
+              disabled:opacity-60
+              disabled:cursor-not-allowed
+            "
           >
             {loading ? "Verifying..." : "Verify OTP"}
           </button>
         </form>
 
+        {/* RESEND */}
         <button
           onClick={handleResendOTP}
-          className="w-full mt-4 border p-3 rounded"
+          className="
+            w-full
+            mt-4
+            border
+            border-gray-300
+            py-3
+            rounded-2xl
+            font-medium
+            hover:bg-gray-50
+            transition
+          "
         >
           Resend OTP
         </button>
+
+        {/* FOOTER */}
+        <div className="text-center mt-6">
+          <p className="text-gray-400 text-xs sm:text-sm">
+            CampusNexus ERP • Secure Email Verification
+          </p>
+        </div>
       </div>
     </div>
   );
