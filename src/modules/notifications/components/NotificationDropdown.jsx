@@ -4,7 +4,7 @@ import NotificationCard from "./NotificationCard";
 
 import { useNotifications } from "../context/NotificationContext";
 
-const NotificationDropdown = ({ closeDropdown }) => {
+const NotificationDropdown = ({ closeDropdown, style }) => {
   // ==========================================
   // CONTEXT
   // ==========================================
@@ -21,10 +21,14 @@ const NotificationDropdown = ({ closeDropdown }) => {
 
   return (
     <div
+      style={{
+        position: "fixed",
+        top: style?.top || 80,
+        left: style?.left || "auto",
+        right: style?.left ? "auto" : 16,
+        zIndex: 9999,
+      }}
       className="
-        absolute
-        right-0
-        mt-3
         w-[380px]
         max-w-[95vw]
         bg-white
@@ -35,7 +39,6 @@ const NotificationDropdown = ({ closeDropdown }) => {
         rounded-2xl
         shadow-2xl
         overflow-hidden
-        z-[999]
         animate-in
         fade-in
         slide-in-from-top-2

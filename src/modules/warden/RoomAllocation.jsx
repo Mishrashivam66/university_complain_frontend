@@ -444,7 +444,7 @@ const RoomAllocation = () => {
 
             <option>Girls Hostel</option>
 
-            <option>International Hostel</option>
+            <option>CO-ED Hostel</option>
           </select>
 
           {/* FLOOR */}

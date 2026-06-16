@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 
 import { Bell } from "lucide-react";
 
@@ -12,6 +13,10 @@ const NotificationBell = () => {
   // ==========================================
 
   const [open, setOpen] = useState(false);
+  const [dropdownStyle, setDropdownStyle] = useState({ top: 0, left: 0 });
+
+  const bellRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   // ==========================================
   // CONTEXT
@@ -20,15 +25,64 @@ const NotificationBell = () => {
   const { unreadCount } = useNotifications();
 
   // ==========================================
+  // DROPDOWN POSITION
+  // ==========================================
+
+  useEffect(() => {
+    if (!open || !bellRef.current) return;
+
+    const updatePosition = () => {
+      const rect = bellRef.current.getBoundingClientRect();
+
+      setDropdownStyle({
+        top: rect.bottom + 10 + window.scrollY,
+        left: Math.max(rect.right - 380, 16) + window.scrollX,
+      });
+    };
+
+    updatePosition();
+
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    const handleClickOutside = (event) => {
+      if (
+        bellRef.current &&
+        !bellRef.current.contains(event.target) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target)
+      ) {
+        setOpen(false);
+      }
+    };
+
+    const handleEsc = (event) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEsc);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEsc);
+    };
+  }, [open]);
+
+  // ==========================================
   // TOGGLE DROPDOWN
   // ==========================================
 
   const toggleDropdown = () => {
-    setOpen(!open);
+    setOpen((value) => !value);
   };
 
   return (
-    <div className="relative">
+    <div className="relative" ref={bellRef}>
       {/* ========================================== */}
       {/* BELL BUTTON */}
       {/* ========================================== */}
@@ -99,7 +153,16 @@ const NotificationBell = () => {
       {/* DROPDOWN */}
       {/* ========================================== */}
 
-      {open && <NotificationDropdown closeDropdown={() => setOpen(false)} />}
+      {open &&
+        createPortal(
+          <div ref={dropdownRef}>
+            <NotificationDropdown
+              closeDropdown={() => setOpen(false)}
+              style={dropdownStyle}
+            />
+          </div>,
+          document.body,
+        )}
     </div>
   );
 };

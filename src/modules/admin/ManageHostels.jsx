@@ -974,7 +974,7 @@ const ManageHostels = () => {
 
                 <option value="GIRLS">GIRLS</option>
 
-                <option value="INTERNATIONAL">INTERNATIONAL</option>
+                <option value="CO-ED">CO-ED</option>
               </select>
 
               <input
@@ -1232,7 +1232,7 @@ const ManageHostels = () => {
 
                 <option value="GIRLS">GIRLS</option>
 
-                <option value="INTERNATIONAL">INTERNATIONAL</option>
+                <option value="CO-ED">CO-ED</option>
               </select>
 
               <input
