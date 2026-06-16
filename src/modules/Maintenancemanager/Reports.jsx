@@ -13,6 +13,13 @@ import {
   Building2,
   Activity,
   Loader2,
+  Calendar,
+  TrendingUp,
+  Award,
+  Clock,
+  Download,
+  FileSpreadsheet,
+  FileText,
 } from "lucide-react";
 
 const Reports = () => {
@@ -58,6 +65,66 @@ const Reports = () => {
     }
   };
 
+  // ======================================
+  // EXPORT REPORTS
+  // ======================================
+
+  const downloadPDF = async () => {
+    const token = localStorage.getItem("token");
+
+    try {
+      const response = await axios.get(
+        "https://complaine-backend.vercel.app/api/maintenance/reports/export/pdf",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      toast.success(response.data.message);
+    } catch (error) {
+      toast.error("PDF Export Failed");
+    }
+  };
+
+  const downloadExcel = async () => {
+    const token = localStorage.getItem("token");
+
+    try {
+      const response = await axios.get(
+        "https://complaine-backend.vercel.app/api/maintenance/reports/export/excel",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      toast.success(response.data.message);
+    } catch (error) {
+      toast.error("Excel Export Failed");
+    }
+  };
+
+  const downloadCSV = async () => {
+    const token = localStorage.getItem("token");
+
+    try {
+      const response = await axios.get(
+        "https://complaine-backend.vercel.app/api/maintenance/reports/export/csv",
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      toast.success(response.data.message);
+    } catch (error) {
+      toast.error("CSV Export Failed");
+    }
+  };
   // ======================================
   // LOADING
   // ======================================
@@ -130,7 +197,7 @@ const Reports = () => {
           "
         ></div>
 
-        <div className="flex items-center gap-5 relative z-10">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-5 relative z-10">
           {/* ICON */}
 
           <div
@@ -183,6 +250,64 @@ const Reports = () => {
               Smart Campus ERP Analytics & Reporting Dashboard
             </p>
           </div>
+          <div className="lg:ml-auto flex gap-3 flex-wrap">
+            <button
+              onClick={downloadPDF}
+              className="
+      bg-red-600
+      hover:bg-red-700
+      text-white
+      px-4
+      py-2
+      rounded-xl
+      flex
+      items-center
+      gap-2
+      transition-all
+    "
+            >
+              <FileText size={18} />
+              PDF
+            </button>
+
+            <button
+              onClick={downloadExcel}
+              className="
+      bg-green-600
+      hover:bg-green-700
+      text-white
+      px-4
+      py-2
+      rounded-xl
+      flex
+      items-center
+      gap-2
+      transition-all
+    "
+            >
+              <FileSpreadsheet size={18} />
+              Excel
+            </button>
+
+            <button
+              onClick={downloadCSV}
+              className="
+      bg-blue-600
+      hover:bg-blue-700
+      text-white
+      px-4
+      py-2
+      rounded-xl
+      flex
+      items-center
+      gap-2
+      transition-all
+    "
+            >
+              <Download size={18} />
+              CSV
+            </button>
+          </div>
         </div>
       </div>
 
@@ -196,10 +321,50 @@ const Reports = () => {
           grid-cols-1
           sm:grid-cols-2
           xl:grid-cols-4
+          2xl:grid-cols-8
 
           gap-6
         "
       >
+        {/* TODAY */}
+        <div className="bg-cyan-100 rounded-3xl p-6 shadow-2xl">
+          <Calendar size={35} className="text-cyan-700" />
+          <h2 className="text-5xl font-extrabold text-cyan-700 mt-5">
+            {report?.todayComplaints || 0}
+          </h2>
+          <p className="mt-3 text-cyan-700 font-semibold">Today's Complaints</p>
+        </div>
+
+        {/* MONTHLY */}
+        <div className="bg-purple-100 rounded-3xl p-6 shadow-2xl">
+          <Clock size={35} className="text-purple-700" />
+          <h2 className="text-5xl font-extrabold text-purple-700 mt-5">
+            {report?.monthlyComplaints || 0}
+          </h2>
+          <p className="mt-3 text-purple-700 font-semibold">
+            Monthly Complaints
+          </p>
+        </div>
+
+        {/* RESOLUTION RATE */}
+        <div className="bg-emerald-100 rounded-3xl p-6 shadow-2xl">
+          <TrendingUp size={35} className="text-emerald-700" />
+          <h2 className="text-5xl font-extrabold text-emerald-700 mt-5">
+            {report?.resolutionRate || 0}%
+          </h2>
+          <p className="mt-3 text-emerald-700 font-semibold">Resolution Rate</p>
+        </div>
+
+        {/* ACTIVE */}
+        <div className="bg-orange-100 rounded-3xl p-6 shadow-2xl">
+          <Activity size={35} className="text-orange-700" />
+          <h2 className="text-5xl font-extrabold text-orange-700 mt-5">
+            {report?.activeComplaints || 0}
+          </h2>
+          <p className="mt-3 text-orange-700 font-semibold">
+            Active Complaints
+          </p>
+        </div>
         {/* TOTAL */}
 
         <div
@@ -483,6 +648,29 @@ const Reports = () => {
           </div>
         </div>
 
+        <div className="bg-white rounded-3xl shadow-2xl p-8">
+          <h2 className="text-3xl font-extrabold text-[#001B54] mb-8">
+            Category Analytics
+          </h2>
+
+          <div className="space-y-4">
+            {report?.categoryData?.length > 0 ? (
+              report.categoryData.map((item, index) => (
+                <div
+                  key={index}
+                  className="flex justify-between bg-gray-50 p-4 rounded-2xl"
+                >
+                  <span className="font-bold">{item._id || "Unknown"}</span>
+
+                  <span className="font-bold text-blue-700">{item.total}</span>
+                </div>
+              ))
+            ) : (
+              <p className="text-gray-500">No category analytics available</p>
+            )}
+          </div>
+        </div>
+
         {/* WORKER EFFICIENCY */}
 
         <div
@@ -588,6 +776,39 @@ const Reports = () => {
             ) : (
               <p className="text-gray-500">No worker data available</p>
             )}
+          </div>
+          <div
+            className="
+    bg-gradient-to-r
+    from-yellow-400
+    via-yellow-500
+    to-orange-500
+    rounded-3xl
+    p-6
+    text-white
+    shadow-2xl
+    mt-6
+  "
+          >
+            <div className="flex items-center gap-3">
+              <Award size={35} />
+
+              <h2 className="text-2xl font-extrabold">Top Worker</h2>
+            </div>
+
+            <div className="mt-5">
+              <h3 className="text-3xl font-bold">
+                {report?.topWorker?.name || "N/A"}
+              </h3>
+
+              <p className="text-lg mt-2">
+                Efficiency: {report?.topWorker?.efficiency || 0}%
+              </p>
+
+              <p className="text-lg">
+                Completed Jobs: {report?.topWorker?.completedJobs || 0}
+              </p>
+            </div>
           </div>
         </div>
       </div>

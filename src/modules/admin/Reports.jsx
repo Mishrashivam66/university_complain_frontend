@@ -80,11 +80,9 @@ const Reports = () => {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "https://complaine-backend.vercel.app/api/reports/export/excel",
-
+        "https://complaine-backend.vercel.app/api/maintenance/reports/export/excel",
         {
           responseType: "blob",
-
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -97,34 +95,31 @@ const Reports = () => {
 
       link.href = url;
 
-      link.setAttribute("download", "reports.xlsx");
+      link.setAttribute("download", "maintenance-report.xlsx");
 
       document.body.appendChild(link);
 
       link.click();
 
-      toast.success("Excel Downloaded Successfully");
+      link.remove();
     } catch (error) {
       console.log(error);
 
-      toast.error("Excel download failed");
+      toast.error("Excel Export Failed");
     }
   };
 
   // ======================================
   // EXPORT PDF
   // ======================================
-
   const downloadPDF = async () => {
     try {
       const token = localStorage.getItem("token");
 
       const response = await axios.get(
-        "https://complaine-backend.vercel.app/api/reports/export/pdf",
-
+        "https://complaine-backend.vercel.app/api/maintenance/reports/export/pdf",
         {
           responseType: "blob",
-
           headers: {
             Authorization: `Bearer ${token}`,
           },
@@ -137,17 +132,51 @@ const Reports = () => {
 
       link.href = url;
 
-      link.setAttribute("download", "reports.pdf");
+      link.setAttribute("download", "maintenance-report.pdf");
 
       document.body.appendChild(link);
 
       link.click();
 
-      toast.success("PDF Downloaded Successfully");
+      link.remove();
     } catch (error) {
       console.log(error);
 
-      toast.error("PDF download failed");
+      toast.error("PDF Export Failed");
+    }
+  };
+
+  const downloadCSV = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      const response = await axios.get(
+        "https://complaine-backend.vercel.app/api/maintenance/reports/export/csv",
+        {
+          responseType: "blob",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+
+      const link = document.createElement("a");
+
+      link.href = url;
+
+      link.setAttribute("download", "maintenance-report.csv");
+
+      document.body.appendChild(link);
+
+      link.click();
+
+      link.remove();
+    } catch (error) {
+      console.log(error);
+
+      toast.error("CSV Export Failed");
     }
   };
 
