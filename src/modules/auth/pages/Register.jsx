@@ -117,11 +117,17 @@ const Register = () => {
 
       setMessage(res.data?.message || "Registration successful.");
 
+      const userEmail = formData.email;
+
       setFormData(initialFormData);
 
       setTimeout(() => {
-        navigate("/");
-      }, 2000);
+        navigate("/verify-otp", {
+          state: {
+            email: userEmail,
+          },
+        });
+      }, 1000);
     } catch (error) {
       console.log(error);
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 
@@ -7,6 +7,11 @@ const VerifyOTP = () => {
   const location = useLocation();
 
   const email = location.state?.email || "";
+  useEffect(() => {
+    if (!email) {
+      navigate("/register");
+    }
+  }, [email, navigate]);
 
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
