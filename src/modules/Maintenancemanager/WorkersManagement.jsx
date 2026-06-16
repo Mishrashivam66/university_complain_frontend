@@ -88,20 +88,13 @@ const WorkersManagement = () => {
   };
   const fetchCategories = async () => {
     try {
-      const response = await api.get("/admin/categories");
+      const response = await api.get("/admin/categories/all");
 
-      const categoryData = response?.data?.categories || [];
+      console.log("CATEGORIES:", response.data);
 
-      setCategories(categoryData);
-
-      if (categoryData.length > 0) {
-        setFormData((prev) => ({
-          ...prev,
-          category: categoryData[0].name,
-        }));
-      }
+      setCategories(response.data.categories || []);
     } catch (error) {
-      console.log(error);
+      console.log("CATEGORY ERROR:", error.response?.data || error);
     }
   };
 
@@ -496,9 +489,11 @@ const WorkersManagement = () => {
               onChange={handleChange}
               className="border rounded-2xl px-4 py-3"
             >
+              <option value="">Select Category</option>
+
               {categories.map((category) => (
-                <option key={category._id} value={category.name}>
-                  {category.name}
+                <option key={category._id} value={category.categoryName}>
+                  {category.categoryName}
                 </option>
               ))}
             </select>
@@ -827,12 +822,11 @@ const WorkersManagement = () => {
     py-3
   "
             >
+              <option value="">Select Category</option>
+
               {categories.map((category) => (
-                <option
-                  key={category._id || category}
-                  value={category.name || category}
-                >
-                  {category.name || category}
+                <option key={category._id} value={category.categoryName}>
+                  {category.categoryName}
                 </option>
               ))}
             </select>
