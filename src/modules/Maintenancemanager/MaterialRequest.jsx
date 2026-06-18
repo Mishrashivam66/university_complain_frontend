@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
 
 import axios from "axios";
-
+import html2canvas from "html2canvas";
+import PrintableMaterialRequest from "./PrintableMaterialRequest";
+import { useRef } from "react";
 import toast from "react-hot-toast";
-
 import jsPDF from "jspdf";
-
-import autoTable from "jspdf-autotable";
-
 import {
   Package,
   ClipboardList,
@@ -49,7 +47,10 @@ const MaterialRequest = () => {
   const [quantity, setQuantity] = useState("");
 
   const [reason, setReason] = useState("");
+  const [selectedRequests, setSelectedRequests] = useState([]);
+  const [selectedRequest, setSelectedRequest] = useState(null);
 
+  const printRef = useRef(null);
   // ======================================
   // FETCH DATA
   // ======================================
@@ -243,7 +244,66 @@ const MaterialRequest = () => {
   // ======================================
   // PRINT
   // ======================================
+  const handleBulkPrint = async () => {
+    try {
+      const filteredRequests = requests.filter((request) =>
+        selectedRequests.includes(request._id),
+      );
 
+      if (filteredRequests.length === 0) {
+        toast.error("Please Select Material Requests");
+        return;
+      }
+
+      const pdf = new jsPDF("l", "mm", "a4");
+
+      let currentPosition = 0;
+
+      for (let i = 0; i < filteredRequests.length; i++) {
+        const request = filteredRequests[i];
+
+        setSelectedRequest(request);
+
+        await new Promise((resolve) => setTimeout(resolve, 600));
+
+        const canvas = await html2canvas(printRef.current, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+        });
+
+        const imgData = canvas.toDataURL("image/png");
+
+        const cardWidth = 90;
+
+        const cardHeight = 65;
+
+        const x = 5;
+
+        const y = 5 + currentPosition * 68;
+
+        pdf.addImage(imgData, "PNG", x, y, cardWidth, cardHeight);
+
+        currentPosition++;
+
+        // 3 CARDS PER PAGE
+
+        if (currentPosition === 3 && i !== requests.length - 1) {
+          pdf.addPage();
+
+          currentPosition = 0;
+        }
+      }
+
+      pdf.save("Material_Requests.pdf");
+
+      toast.success(`${requests.length} Requests Downloaded`);
+    } catch (error) {
+      console.log(error);
+
+      toast.error("Bulk Print Failed");
+    }
+  };
   // ======================================
   // PREMIUM PDF EXPORT
   // ======================================
@@ -251,214 +311,41 @@ const MaterialRequest = () => {
   // ======================================
   // PRINT SINGLE REQUEST
   // ======================================
-
-  const handlePrint = (request) => {
+  const handlePrint = async (request) => {
     try {
-      const doc = new jsPDF();
+      setSelectedRequest(request);
 
-      const pageWidth = doc.internal.pageSize.getWidth();
+      await new Promise((resolve) => setTimeout(resolve, 600));
 
-      // ======================================
-      // HEADER
-      // ======================================
+      if (!printRef.current) {
+        toast.error("Print Component Not Found");
 
-      doc.setFillColor(0, 27, 84);
+        return;
+      }
 
-      doc.rect(0, 0, 210, 35, "F");
-
-      doc.setTextColor(255, 255, 255);
-
-      doc.setFontSize(24);
-
-      doc.setFont(undefined, "bold");
-
-      doc.text(
-        "SMART CAMPUS ERP",
-
-        pageWidth / 2,
-
-        15,
-
-        {
-          align: "center",
-        },
-      );
-
-      doc.setFontSize(16);
-
-      doc.text(
-        "Material Request Details",
-
-        pageWidth / 2,
-
-        25,
-
-        {
-          align: "center",
-        },
-      );
-
-      // ======================================
-      // DATE
-      // ======================================
-
-      doc.setTextColor(0, 0, 0);
-
-      doc.setFontSize(11);
-
-      doc.text(
-        `Generated: ${new Date().toLocaleString()}`,
-
-        14,
-
-        45,
-      );
-
-      // ======================================
-      // REQUEST INFO
-      // ======================================
-
-      doc.setFillColor(245, 247, 250);
-
-      doc.roundedRect(14, 55, 182, 95, 4, 4, "F");
-
-      doc.setFontSize(14);
-
-      doc.setTextColor(0, 27, 84);
-
-      doc.text(
-        "Request Information",
-
-        20,
-
-        68,
-      );
-
-      doc.setFontSize(12);
-
-      doc.setTextColor(80, 80, 80);
-
-      doc.text(
-        `Request ID: ${request.requestId}`,
-
-        20,
-
-        82,
-      );
-
-      doc.text(
-        `Item Name: ${request.itemName}`,
-
-        20,
-
-        94,
-      );
-
-      doc.text(
-        `Quantity: ${request.quantity}`,
-
-        20,
-
-        106,
-      );
-
-      doc.text(
-        `Status: ${request.status}`,
-
-        20,
-
-        118,
-      );
-
-      doc.text(
-        `Complaint ID: ${request?.jobCard?.complaint?.complaintId || "N/A"}`,
-
-        20,
-
-        130,
-      );
-
-      doc.text(
-        `Reason: ${request.reason}`,
-
-        20,
-
-        142,
-      );
-
-      // ======================================
-      // TABLE
-      // ======================================
-
-      autoTable(doc, {
-        startY: 165,
-
-        head: [["Field", "Value"]],
-
-        body: [
-          ["Request ID", request.requestId],
-
-          ["Item Name", request.itemName],
-
-          ["Quantity", request.quantity],
-
-          ["Reason", request.reason],
-
-          ["Status", request.status],
-
-          ["Complaint", request?.jobCard?.complaint?.complaintId || "N/A"],
-        ],
-
-        theme: "grid",
-
-        headStyles: {
-          fillColor: [0, 27, 84],
-
-          textColor: [255, 255, 255],
-
-          fontStyle: "bold",
-        },
-
-        styles: {
-          fontSize: 11,
-
-          cellPadding: 5,
-        },
+      const canvas = await html2canvas(printRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
       });
 
-      // ======================================
-      // FOOTER
-      // ======================================
+      const imgData = canvas.toDataURL("image/png");
 
-      doc.setFontSize(10);
+      const pdf = new jsPDF("p", "mm", "a4");
 
-      doc.setTextColor(120, 120, 120);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
 
-      doc.text(
-        "SMART CAMPUS ERP",
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-        pageWidth / 2,
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
 
-        285,
+      pdf.save(`${request.requestId}.pdf`);
 
-        {
-          align: "center",
-        },
-      );
-
-      // ======================================
-      // OPEN PDF PREVIEW
-      // ======================================
-
-      window.open(
-        doc.output("bloburl"),
-
-        "_blank",
-      );
+      toast.success("Material Request Generated");
     } catch (error) {
       console.log(error);
 
-      toast.error("Failed to generate PDF");
+      toast.error("Failed to Generate PDF");
     }
   };
 
@@ -486,13 +373,27 @@ const MaterialRequest = () => {
       </div>
     );
   }
-
   return (
-    <div className="space-y-8">
-      {/* HEADER */}
-
+    <>
       <div
-        className="
+        style={{
+          position: "absolute",
+          left: "-9999px",
+          top: 0,
+        }}
+      >
+        {selectedRequest && (
+          <div ref={printRef}>
+            <PrintableMaterialRequest request={selectedRequest} />
+          </div>
+        )}
+      </div>
+
+      <div className="space-y-8">
+        {/* HEADER */}
+
+        <div
+          className="
           bg-gradient-to-r
           from-[#001B54]
           via-[#002B7F]
@@ -507,55 +408,97 @@ const MaterialRequest = () => {
           p-6
           md:p-8
         "
-      >
-        <div className="flex items-center gap-5">
-          <Package size={50} />
+        >
+          <div className="flex items-center gap-5">
+            <Package size={50} />
 
-          <div>
-            <h1
-              className="
+            <div>
+              <h1
+                className="
                 text-4xl
                 md:text-5xl
                 font-extrabold
               "
-            >
-              Material Requests
-            </h1>
+              >
+                Material Requests
+              </h1>
 
-            <p className="mt-2 text-blue-100">
-              Smart inventory and approval system
-            </p>
+              <p className="mt-2 text-blue-100">
+                Smart inventory and approval system
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+        <div
+          className="
+    bg-white
 
-      {/* CREATE REQUEST */}
+    rounded-2xl
 
-      {(user?.role === "MAINTENANCE_MANAGER" || user?.role === "WORKER") && (
-        <div className="bg-white rounded-3xl shadow-2xl p-8">
-          <div className="flex items-center gap-3 mb-8">
-            <PlusCircle size={35} className="text-[#001B54]" />
+    shadow-lg
 
-            <h2 className="text-3xl font-bold text-[#001B54]">
-              Create Material Request
-            </h2>
+    p-4
+
+    flex
+    gap-3
+
+    items-center
+
+    justify-between
+  "
+        >
+          <div className="font-bold text-[#001B54]">
+            Selected Requests:
+            {selectedRequests.length}
           </div>
 
-          <form
-            onSubmit={handleCreateRequest}
-            className="grid md:grid-cols-2 gap-6"
+          <button
+            onClick={handleBulkPrint}
+            className="
+      bg-green-600
+      hover:bg-green-700
+
+      text-white
+
+      px-6
+      py-3
+
+      rounded-xl
+
+      font-bold
+    "
           >
-            {/* JOB CARD */}
+            Bulk Print ({selectedRequests.length})
+          </button>
+        </div>
 
-            <div>
-              <label className="font-semibold text-gray-700">
-                Select Job Card
-              </label>
+        {/* CREATE REQUEST */}
 
-              <select
-                value={jobCardId}
-                onChange={(e) => setJobCardId(e.target.value)}
-                className="
+        {(user?.role === "MAINTENANCE_MANAGER" || user?.role === "WORKER") && (
+          <div className="bg-white rounded-3xl shadow-2xl p-8">
+            <div className="flex items-center gap-3 mb-8">
+              <PlusCircle size={35} className="text-[#001B54]" />
+
+              <h2 className="text-3xl font-bold text-[#001B54]">
+                Create Material Request
+              </h2>
+            </div>
+
+            <form
+              onSubmit={handleCreateRequest}
+              className="grid md:grid-cols-2 gap-6"
+            >
+              {/* JOB CARD */}
+
+              <div>
+                <label className="font-semibold text-gray-700">
+                  Select Job Card
+                </label>
+
+                <select
+                  value={jobCardId}
+                  onChange={(e) => setJobCardId(e.target.value)}
+                  className="
                   w-full
                   mt-2
                   border
@@ -563,31 +506,31 @@ const MaterialRequest = () => {
                   px-4
                   py-4
                 "
-                required
-              >
-                <option value="">Select Job Card</option>
+                  required
+                >
+                  <option value="">Select Job Card</option>
 
-                {jobCards.map((job) => (
-                  <option key={job._id} value={job._id}>
-                    {job?.complaint?.complaintId}
-                    {" - "}
-                    {job?.complaint?.title}
-                  </option>
-                ))}
-              </select>
-            </div>
+                  {jobCards.map((job) => (
+                    <option key={job._id} value={job._id}>
+                      {job?.complaint?.complaintId}
+                      {" - "}
+                      {job?.complaint?.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            {/* ITEM NAME */}
+              {/* ITEM NAME */}
 
-            <div>
-              <label className="font-semibold text-gray-700">Item Name</label>
+              <div>
+                <label className="font-semibold text-gray-700">Item Name</label>
 
-              <input
-                type="text"
-                value={itemName}
-                onChange={(e) => setItemName(e.target.value)}
-                placeholder="Enter item name"
-                className="
+                <input
+                  type="text"
+                  value={itemName}
+                  onChange={(e) => setItemName(e.target.value)}
+                  placeholder="Enter item name"
+                  className="
                   w-full
                   mt-2
                   border
@@ -595,21 +538,21 @@ const MaterialRequest = () => {
                   px-4
                   py-4
                 "
-                required
-              />
-            </div>
+                  required
+                />
+              </div>
 
-            {/* QUANTITY */}
+              {/* QUANTITY */}
 
-            <div>
-              <label className="font-semibold text-gray-700">Quantity</label>
+              <div>
+                <label className="font-semibold text-gray-700">Quantity</label>
 
-              <input
-                type="number"
-                value={quantity}
-                onChange={(e) => setQuantity(e.target.value)}
-                placeholder="Enter quantity"
-                className="
+                <input
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  placeholder="Enter quantity"
+                  className="
                   w-full
                   mt-2
                   border
@@ -617,21 +560,21 @@ const MaterialRequest = () => {
                   px-4
                   py-4
                 "
-                required
-              />
-            </div>
+                  required
+                />
+              </div>
 
-            {/* REASON */}
+              {/* REASON */}
 
-            <div>
-              <label className="font-semibold text-gray-700">Reason</label>
+              <div>
+                <label className="font-semibold text-gray-700">Reason</label>
 
-              <input
-                type="text"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="Enter reason"
-                className="
+                <input
+                  type="text"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Enter reason"
+                  className="
                   w-full
                   mt-2
                   border
@@ -639,16 +582,16 @@ const MaterialRequest = () => {
                   px-4
                   py-4
                 "
-                required
-              />
-            </div>
+                  required
+                />
+              </div>
 
-            {/* BUTTON */}
+              {/* BUTTON */}
 
-            <div className="md:col-span-2">
-              <button
-                type="submit"
-                className="
+              <div className="md:col-span-2">
+                <button
+                  type="submit"
+                  className="
                   bg-[#001B54]
                   hover:bg-[#002B7F]
 
@@ -663,31 +606,65 @@ const MaterialRequest = () => {
 
                   transition-all
                 "
+                >
+                  Create Material Request
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
+        {/* REQUESTS */}
+
+        <div className="space-y-8">
+          {requests.map((request) => (
+            <div key={request._id}>
+              {/* BULK PRINT CHECKBOX */}
+
+              <div
+                className="
+          bg-white
+          rounded-t-2xl
+
+          px-6
+          py-3
+
+          border-b
+        "
               >
-                Create Material Request
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedRequests.includes(request._id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedRequests([...selectedRequests, request._id]);
+                      } else {
+                        setSelectedRequests(
+                          selectedRequests.filter((id) => id !== request._id),
+                        );
+                      }
+                    }}
+                  />
 
-      {/* REQUESTS */}
+                  <span className="font-medium">Select For Bulk Print</span>
+                </label>
+              </div>
 
-      <div className="space-y-8">
-        {requests.map((request) => (
-          <div
-            key={request._id}
-            className="
-                bg-white
-                rounded-3xl
-                shadow-2xl
-                overflow-hidden
-              "
-          >
-            {/* TOP */}
+              {/* CARD */}
 
-            <div
-              className="
+              <div
+                className="
+          bg-white
+          rounded-b-3xl
+          shadow-2xl
+          overflow-hidden
+        "
+              >
+                {/* TOP */}
+
+                <div
+                  className="
                   bg-gradient-to-r
                   from-[#001B54]
                   to-[#7A0019]
@@ -695,33 +672,20 @@ const MaterialRequest = () => {
                   text-white
                   p-6
                 "
-            >
-              <div className="flex justify-between items-center">
-                <div>
-                  <h2 className="text-3xl font-bold">{request.requestId}</h2>
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-3xl font-bold">
+                        {request.requestId}
+                      </h2>
 
-                  <p className="text-blue-100 mt-2">Material Request</p>
-                </div>
+                      <p className="text-blue-100 mt-2">Material Request</p>
+                    </div>
 
-                <button
-                  id="f3dz3j"
-                  onClick={() =>
-                    handlePrint({
-                      requestId: request?.requestId,
-
-                      itemName: request?.itemName,
-
-                      quantity: request?.quantity,
-
-                      reason: request?.reason,
-
-                      status: request?.status,
-
-                      complaintId:
-                        request?.jobCard?.complaint?.complaintId || "N/A",
-                    })
-                  }
-                  className="
+                    <button
+                      id="f3dz3j"
+                      onClick={() => handlePrint(request)}
+                      className="
                       bg-yellow-400
                       hover:bg-yellow-300
 
@@ -738,86 +702,91 @@ const MaterialRequest = () => {
 
                       font-bold
                     "
-                >
-                  <Printer size={20} />
-                  Print
-                </button>
-              </div>
-            </div>
-
-            {/* BODY */}
-
-            <div className="p-6 space-y-6">
-              <span
-                className={`px-5 py-3 rounded-2xl font-bold ${getStatusColor(
-                  request.status,
-                )}`}
-              >
-                {request.status}
-              </span>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <p className="text-sm text-gray-500">Item Name</p>
-
-                  <p className="font-bold text-xl">{request.itemName}</p>
+                    >
+                      <Printer size={20} />
+                      Print
+                    </button>
+                  </div>
                 </div>
 
-                <div>
-                  <p className="text-sm text-gray-500">Quantity</p>
+                {/* BODY */}
 
-                  <p className="font-bold text-xl">{request.quantity}</p>
-                </div>
+                <div className="p-6 space-y-6">
+                  <span
+                    className={`px-5 py-3 rounded-2xl font-bold ${getStatusColor(
+                      request.status,
+                    )}`}
+                  >
+                    {request.status}
+                  </span>
 
-                <div>
-                  <p className="text-sm text-gray-500">Reason</p>
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <p className="text-sm text-gray-500">Item Name</p>
 
-                  <p className="font-bold text-lg">{request.reason}</p>
-                </div>
+                      <p className="font-bold text-xl">{request.itemName}</p>
+                    </div>
 
-                <div>
-                  <p className="text-sm text-gray-500">Complaint</p>
+                    <div>
+                      <p className="text-sm text-gray-500">Quantity</p>
 
-                  <p className="font-bold">
-                    {request?.jobCard?.complaint?.complaintId}
-                  </p>
-                </div>
-              </div>
+                      <p className="font-bold text-xl">{request.quantity}</p>
+                    </div>
 
-              {/* STORE MANAGER */}
+                    <div>
+                      <p className="text-sm text-gray-500">Reason</p>
 
-              {user?.role === "STORE_MANAGER" && (
-                <div>
-                  <select
-                    value={request.status}
-                    onChange={(e) =>
-                      handleStatusUpdate(request._id, e.target.value)
-                    }
-                    className="
+                      <p className="font-bold text-lg">{request.reason}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-sm text-gray-500">Complaint</p>
+
+                      <p className="font-bold">
+                        {request?.jobCard?.complaint?.complaintId}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* STORE MANAGER */}
+
+                  {user?.role === "STORE_MANAGER" && (
+                    <div>
+                      <select
+                        value={request.status}
+                        
+                        onChange={(e) =>
+                          handleStatusUpdate(request._id, e.target.value)
+                        }
+                        className="
                         w-full
                         border
                         rounded-2xl
                         px-4
                         py-4
                       "
-                  >
-                    <option value="PENDING">PENDING</option>
+                      >
+                        <option value="PENDING">PENDING</option>
 
-                    <option value="APPROVED_BY_STORE">APPROVED_BY_STORE</option>
+                        <option value="APPROVED_BY_STORE">
+                          APPROVED_BY_STORE
+                        </option>
 
-                    <option value="REJECTED">REJECTED</option>
+                        <option value="REJECTED">REJECTED</option>
 
-                    <option value="ISSUED">ISSUED</option>
+                        <option value="ISSUED">ISSUED</option>
 
-                    <option value="OUT_OF_STOCK">OUT_OF_STOCK</option>
-                  </select>
+                        <option value="OUT_OF_STOCK">OUT_OF_STOCK</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

@@ -1,11 +1,9 @@
-import { useEffect, useState } from "react";
-
-import axios from "axios";
-
-import toast from "react-hot-toast";
+import { useEffect, useState, useRef } from "react";
+import html2canvas from "html2canvas";
+import PrintableJobCard from "./PrintableJobCard";
 import jsPDF from "jspdf";
-
-import autoTable from "jspdf-autotable";
+import axios from "axios";
+import toast from "react-hot-toast";
 
 import {
   ClipboardList,
@@ -26,11 +24,87 @@ const JobCards = () => {
   // ==========================================
 
   const [jobCards, setJobCards] = useState([]);
-
   const [loading, setLoading] = useState(true);
 
   const [remarks, setRemarks] = useState({});
 
+  const [selectedCards, setSelectedCards] = useState([]);
+
+  const [selectedJob, setSelectedJob] = useState(null);
+
+  const printRef = useRef(null);
+
+  // ==========================================
+  // BULK PRINT
+  // ==========================================
+  const handleBulkPrint = async () => {
+    try {
+      const selectedJobs = jobCards.filter((job) =>
+        selectedCards.includes(job._id),
+      );
+
+      if (selectedJobs.length === 0) {
+        toast.error("Please select at least one Job Card");
+        return;
+      }
+
+      // LANDSCAPE A4
+      const pdf = new jsPDF("l", "mm", "a4");
+
+      let position = 0;
+
+      for (let i = 0; i < selectedJobs.length; i++) {
+        const job = selectedJobs[i];
+
+        setSelectedJob(job);
+
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        if (!printRef.current) continue;
+
+        const canvas = await html2canvas(printRef.current, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#ffffff",
+        });
+
+        const imgData = canvas.toDataURL("image/png");
+
+        // A4 Landscape
+        const pageWidth = 297;
+        const cardWidth = 140;
+
+        const cardHeight = (canvas.height * cardWidth) / canvas.width;
+
+        // LEFT CARD
+        if (position === 0) {
+          pdf.addImage(imgData, "PNG", 5, 5, cardWidth, cardHeight);
+
+          position = 1;
+        }
+
+        // RIGHT CARD
+        else {
+          pdf.addImage(imgData, "PNG", 152, 5, cardWidth, cardHeight);
+
+          position = 0;
+
+          // NEXT PAGE
+          if (i !== selectedJobs.length - 1) {
+            pdf.addPage();
+          }
+        }
+      }
+
+      pdf.save("Bulk_Job_Cards.pdf");
+
+      toast.success(`${selectedJobs.length} Job Cards Downloaded`);
+    } catch (error) {
+      console.log(error);
+
+      toast.error("Bulk Print Failed");
+    }
+  };
   // ==========================================
   // FETCH JOB CARDS
   // ==========================================
@@ -108,286 +182,48 @@ const JobCards = () => {
   };
 
   // ==========================================
-  // PRINT
+  // SINGLE PRINT
   // ==========================================
 
-  // ==========================================
-  // PREMIUM PDF PRINT
-  // ==========================================
-
-  const handlePrint = (job) => {
+  const handlePrint = async (job) => {
     try {
-      const doc = new jsPDF();
+      setSelectedJob(job);
 
-      const pageWidth = doc.internal.pageSize.getWidth();
+      await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // ==========================================
-      // HEADER
-      // ==========================================
+      if (!printRef.current) {
+        toast.error("Print component not found");
 
-      doc.setFillColor(0, 27, 84);
+        return;
+      }
 
-      doc.rect(0, 0, 210, 40, "F");
-
-      doc.setTextColor(255, 255, 255);
-
-      doc.setFontSize(26);
-
-      doc.setFont(undefined, "bold");
-
-      doc.text(
-        "AMITY UNIVERSITY GWALIOR",
-
-        pageWidth / 2,
-
-        16,
+      const canvas = await html2canvas(
+        printRef.current,
 
         {
-          align: "center",
+          scale: 2,
+
+          useCORS: true,
+
+          backgroundColor: "#ffffff",
         },
       );
 
-      doc.setFontSize(15);
+      const imgData = canvas.toDataURL("image/png");
 
-      doc.text(
-        "SMART CAMPUS ERP - JOB CARD",
+      const pdf = new jsPDF("p", "mm", "a4");
 
-        pageWidth / 2,
+      const pdfWidth = pdf.internal.pageSize.getWidth();
 
-        28,
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-        {
-          align: "center",
-        },
-      );
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
 
-      // ==========================================
-      // JOB ID
-      // ==========================================
+      pdf.save(`${job.jobCardId}.pdf`);
 
-      doc.setTextColor(0, 0, 0);
-
-      doc.setFontSize(11);
-
-      doc.text(
-        `Generated: ${new Date().toLocaleString()}`,
-
-        14,
-
-        50,
-      );
-
-      // ==========================================
-      // JOB INFO BOX
-      // ==========================================
-
-      doc.setFillColor(245, 247, 250);
-
-      doc.roundedRect(14, 58, 182, 42, 4, 4, "F");
-
-      doc.setFontSize(16);
-
-      doc.setTextColor(0, 27, 84);
-
-      doc.text(
-        "Job Card Information",
-
-        20,
-
-        72,
-      );
-
-      doc.setFontSize(12);
-
-      doc.setTextColor(70, 70, 70);
-
-      doc.text(
-        `Job Card ID: ${job.jobCardId}`,
-
-        20,
-
-        84,
-      );
-
-      doc.text(
-        `Status: ${job.status}`,
-
-        110,
-
-        84,
-      );
-
-      doc.text(
-        `Priority: ${job?.complaint?.priority}`,
-
-        20,
-
-        94,
-      );
-
-      // ==========================================
-      // COMPLAINT TABLE
-      // ==========================================
-
-      autoTable(doc, {
-        startY: 115,
-
-        head: [["Field", "Details"]],
-
-        body: [
-          ["Complaint ID", job?.complaint?.complaintId || "N/A"],
-
-          ["Category", job?.complaint?.category || "N/A"],
-
-          ["Issue Title", job?.complaint?.title || "N/A"],
-
-          ["Description", job?.complaint?.description || "N/A"],
-
-          ["Student", job?.complaint?.createdBy?.name || "N/A"],
-
-          ["Hostel", job?.complaint?.hostel || "N/A"],
-
-          ["Block", job?.complaint?.block || "N/A"],
-
-          ["Room", job?.complaint?.roomNumber || "N/A"],
-
-          ["Assigned Worker", job?.assignedWorker?.name || "N/A"],
-
-          ["Department", job?.assignedWorker?.department || "N/A"],
-
-          ["Worker Phone", job?.assignedWorker?.phone || "N/A"],
-
-          [
-            "Started At",
-
-            job?.startedAt
-              ? new Date(job.startedAt).toLocaleString()
-              : "Not Started",
-          ],
-
-          [
-            "Completed At",
-
-            job?.completionTime
-              ? new Date(job.completionTime).toLocaleString()
-              : "Pending",
-          ],
-        ],
-
-        theme: "grid",
-
-        styles: {
-          fontSize: 10,
-
-          cellPadding: 5,
-        },
-
-        headStyles: {
-          fillColor: [0, 27, 84],
-
-          textColor: [255, 255, 255],
-
-          fontStyle: "bold",
-        },
-
-        alternateRowStyles: {
-          fillColor: [245, 247, 250],
-        },
-
-        margin: {
-          left: 14,
-
-          right: 14,
-        },
-      });
-
-      // ==========================================
-      // SIGNATURE SECTION
-      // ==========================================
-
-      let finalY = doc.lastAutoTable.finalY + 35;
-
-      doc.setFontSize(12);
-
-      doc.text(
-        "______________________",
-
-        20,
-
-        finalY,
-      );
-
-      doc.text(
-        "Worker Signature",
-
-        30,
-
-        finalY + 8,
-      );
-
-      doc.text(
-        "______________________",
-
-        75,
-
-        finalY,
-      );
-
-      doc.text(
-        "Maintenance Manager",
-
-        78,
-
-        finalY + 8,
-      );
-
-      doc.text(
-        "______________________",
-
-        145,
-
-        finalY,
-      );
-
-      doc.text(
-        "Student Verification",
-
-        148,
-
-        finalY + 8,
-      );
-
-      // ==========================================
-      // FOOTER
-      // ==========================================
-
-      doc.setFontSize(10);
-
-      doc.setTextColor(120, 120, 120);
-
-      doc.text(
-        "SMART CAMPUS ERP",
-
-        pageWidth / 2,
-
-        288,
-
-        {
-          align: "center",
-        },
-      );
-
-      // ==========================================
-      // PREVIEW
-      // ==========================================
-
-      window.open(
-        doc.output("bloburl"),
-
-        "_blank",
-      );
+      toast.success("Job Card Generated");
     } catch (error) {
-      console.log(error);
+      console.error(error);
 
       toast.error("Failed to generate PDF");
     }
@@ -524,624 +360,728 @@ const JobCards = () => {
       </div>
     );
   }
-
   return (
-    <div
-      className="
-        space-y-10
+    <>
+      {/* HIDDEN PRINT AREA */}
 
-        print:block
-        print:w-full
-        print:overflow-visible
-      "
-    >
-      {jobCards.map((job) => (
+      <div
+        style={{
+          position: "absolute",
+          left: "-9999px",
+          top: 0,
+        }}
+      >
+        {selectedJob && (
+          <div ref={printRef}>
+            <PrintableJobCard job={selectedJob} />
+          </div>
+        )}
+      </div>
+
+      {/* MAIN CONTAINER */}
+
+      <div
+        className="
+          space-y-10
+          print:block
+          print:w-full
+          print:overflow-visible
+        "
+      >
+        {/* ========================================== */}
+        {/* MAINTENANCE MANAGER HEADER */}
+        {/* ========================================== */}
+
         <div
-          key={job._id}
           className="
-            job-card-print
+            sticky
+            top-0
+            z-50
 
-            bg-white
+            bg-gradient-to-r
+            from-[#001B54]
+            via-[#002B7F]
+            to-[#7A0019]
 
             rounded-3xl
 
+            p-6
+
+            text-white
+
             shadow-2xl
 
-            border
-            border-gray-100
-
-            overflow-visible
-
-            print:shadow-none
-            print:border-none
-            print:rounded-none
-            print:w-full
-            print:min-h-screen
-            print:p-0
-            print:m-0
-            print:break-after-page
+            print:hidden
           "
         >
-          {/* HEADER */}
-
           <div
             className="
-              bg-gradient-to-r
-              from-[#001B54]
-              via-[#002B7F]
-              to-[#7A0019]
+              flex
+              flex-col
+              lg:flex-row
 
-              text-white
+              justify-between
 
-              p-8
+              gap-6
             "
           >
+            <div>
+              <h1
+                className="
+                  text-3xl
+                  md:text-4xl
+                  font-extrabold
+                "
+              >
+                Maintenance Manager Dashboard
+              </h1>
+
+              <p
+                className="
+                  text-blue-100
+                  mt-2
+                "
+              >
+                Manage Job Cards & Bulk Printing
+              </p>
+            </div>
+
             <div
               className="
                 flex
-                flex-col
-
-                lg:flex-row
-
-                justify-between
-
-                lg:items-center
-
-                gap-6
+                flex-wrap
+                gap-3
               "
             >
-              <div className="flex items-center gap-6">
-                {/* PREMIUM ICON */}
-
-                <div
-                  className="
-      w-24
-      h-24
-
-      rounded-3xl
-
-      bg-gradient-to-br
-      from-yellow-400
-      via-yellow-500
-      to-orange-500
-
-      flex
-      items-center
-      justify-center
-
-      shadow-2xl
-
-      border-4
-      border-white/10
-
-      backdrop-blur-xl
-    "
-                >
-                  <ClipboardList
-                    size={45}
-                    className="
-        text-white
-        drop-shadow-lg
-      "
-                  />
-                </div>
-
-                {/* UNIVERSITY DETAILS */}
-
-                <div>
-                  <h1
-                    className="
-        text-4xl
-        md:text-5xl
-
-        font-extrabold
-
-        tracking-wide
-
-        text-white
-
-        drop-shadow-lg
-      "
-                  >
-                    Amity University Gwalior
-                  </h1>
-
-                  <div
-                    className="
-        flex
-        items-center
-        gap-3
-
-        mt-3
-      "
-                  >
-                    <div
-                      className="
-          w-3
-          h-3
-
-          rounded-full
-
-          bg-green-400
-
-          animate-pulse
-        "
-                    ></div>
-
-                    <p
-                      className="
-          text-blue-100
-
-          text-lg
-
-          font-medium
-        "
-                    >
-                      Smart Campus ERP System
-                    </p>
-                  </div>
-
-                  <p
-                    className="
-        text-yellow-300
-
-        mt-2
-
-        text-lg
-
-        font-semibold
-
-        tracking-wide
-      "
-                  >
-                    Maintenance Department
-                  </p>
-                </div>
-              </div>
-
-              <div className="text-right">
-                <h2
-                  className="
-                    text-5xl
-                    font-extrabold
-                  "
-                >
-                  {job.jobCardId}
-                </h2>
-
-                <p className="mt-3 text-yellow-300 font-semibold">
-                  Maintenance Work Order
-                </p>
-
-                <button
-                  id="o3k3mw"
-                  onClick={() => handlePrint(job)}
-                  className="
-                    mt-5
-
-                    bg-yellow-400
-                    hover:bg-yellow-300
-
-                    transition-all
-
-                    text-[#001B54]
-
-                    px-6
-                    py-3
-
-                    rounded-2xl
-
-                    flex
-                    items-center
-                    gap-3
-
-                    font-bold
-
-                    ml-auto
-
-                    print:hidden
-                  "
-                >
-                  <Printer size={22} />
-                  Print Job Card
-                </button>
-              </div>
-            </div>
-          </div>
-
-          {/* BODY */}
-
-          <div className="p-8 space-y-8">
-            {/* STATUS */}
-
-            <div className="flex flex-wrap gap-5">
-              <div
-                className={`px-6 py-3 rounded-2xl font-bold text-lg ${getStatusColor(
-                  job.status,
-                )}`}
-              >
-                {job.status}
-              </div>
-
-              <div
-                className={`px-6 py-3 rounded-2xl font-bold text-lg ${getPriorityColor(
-                  job?.complaint?.priority,
-                )}`}
-              >
-                Priority : {job?.complaint?.priority}
-              </div>
-            </div>
-
-            {/* COMPLAINT DETAILS */}
-
-            <div className="bg-gray-50 rounded-3xl p-8">
-              <h3
+              <button
+                onClick={() => setSelectedCards(jobCards.map((job) => job._id))}
                 className="
-                  text-3xl
+                  bg-blue-500
+                  hover:bg-blue-600
+
+                  px-5
+                  py-3
+
+                  rounded-xl
+
                   font-bold
-                  text-[#001B54]
-                  mb-8
                 "
               >
-                Complaint Details
-              </h3>
+                Select All
+              </button>
 
-              <div className="grid md:grid-cols-2 gap-8">
-                <div>
-                  <p className="text-gray-500">Complaint ID</p>
-
-                  <p className="font-bold text-xl">
-                    {job?.complaint?.complaintId}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Category</p>
-
-                  <p className="font-bold text-xl">
-                    {job?.complaint?.category}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Issue Title</p>
-
-                  <p className="font-bold text-xl">{job?.complaint?.title}</p>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Description</p>
-
-                  <p className="font-bold text-xl">
-                    {job?.complaint?.description}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* STUDENT DETAILS */}
-
-            <div className="bg-pink-50 rounded-3xl p-8">
-              <h3
+              <button
+                onClick={() => setSelectedCards([])}
                 className="
-                  text-3xl
+                  bg-gray-500
+                  hover:bg-gray-600
+
+                  px-5
+                  py-3
+
+                  rounded-xl
+
                   font-bold
-                  text-pink-700
-                  mb-8
                 "
               >
-                Student Details
-              </h3>
+                Clear
+              </button>
 
-              <div className="grid md:grid-cols-3 gap-8">
-                <div>
-                  <p className="text-gray-500">Student Name</p>
-
-                  <p className="font-bold text-xl">
-                    {job?.complaint?.createdBy?.name}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Email</p>
-
-                  <p className="font-bold text-xl">
-                    {job?.complaint?.createdBy?.email}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Phone</p>
-
-                  <p className="font-bold text-xl">
-                    {job?.complaint?.createdBy?.phone || "N/A"}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* WORKER DETAILS */}
-
-            <div className="bg-green-50 rounded-3xl p-8">
-              <h3
+              <button
+                onClick={handleBulkPrint}
                 className="
-                  text-3xl
+                  bg-green-600
+                  hover:bg-green-700
+
+                  px-5
+                  py-3
+
+                  rounded-xl
+
                   font-bold
-                  text-green-700
-                  mb-8
                 "
               >
-                Worker Details
-              </h3>
-
-              <div className="grid md:grid-cols-2 gap-8">
-                <div className="flex items-center gap-4">
-                  <User size={24} />
-
-                  <div>
-                    <p className="text-gray-500">Worker Name</p>
-
-                    <p className="font-bold text-xl">
-                      {job?.assignedWorker?.name}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <Building2 size={24} />
-
-                  <div>
-                    <p className="text-gray-500">Department</p>
-
-                    <p className="font-bold text-xl">
-                      {job?.assignedWorker?.department}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-4">
-                  <Phone size={24} />
-
-                  <div>
-                    <p className="text-gray-500">Phone</p>
-
-                    <p className="font-bold text-xl">
-                      {job?.assignedWorker?.phone}
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Shift</p>
-
-                  <p className="font-bold text-xl">
-                    {job?.assignedWorker?.shift}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* LOCATION */}
-
-            <div className="bg-blue-50 rounded-3xl p-8">
-              <div className="flex items-center gap-3 mb-8">
-                <MapPin size={28} className="text-blue-700" />
-
-                <h3
-                  className="
-                    text-3xl
-                    font-bold
-                    text-blue-700
-                  "
-                >
-                  Complaint Location
-                </h3>
-              </div>
-
-              <div className="grid md:grid-cols-4 gap-8">
-                <div>
-                  <p className="text-gray-500">Hostel</p>
-
-                  <p className="font-bold text-xl">{job?.complaint?.hostel}</p>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Block</p>
-
-                  <p className="font-bold text-xl">{job?.complaint?.block}</p>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Floor</p>
-
-                  <p className="font-bold text-xl">{job?.complaint?.floor}</p>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Room Number</p>
-
-                  <p className="font-bold text-xl">
-                    {job?.complaint?.roomNumber}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* TIMELINE */}
-
-            <div className="bg-yellow-50 rounded-3xl p-8">
-              <div className="flex items-center gap-3 mb-8">
-                <Clock3 size={28} className="text-yellow-700" />
-
-                <h3
-                  className="
-                    text-3xl
-                    font-bold
-                    text-yellow-700
-                  "
-                >
-                  Work Timeline
-                </h3>
-              </div>
-
-              <div className="grid md:grid-cols-3 gap-8">
-                <div>
-                  <p className="text-gray-500">Complaint Created</p>
-
-                  <p className="font-bold text-lg">
-                    {new Date(job?.complaint?.createdAt).toLocaleString()}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Started At</p>
-
-                  <p className="font-bold text-lg">
-                    {job?.startedAt
-                      ? new Date(job.startedAt).toLocaleString()
-                      : "Not Started"}
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-gray-500">Completed At</p>
-
-                  <p className="font-bold text-lg">
-                    {job?.completionTime
-                      ? new Date(job.completionTime).toLocaleString()
-                      : "Pending"}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* STATUS UPDATE */}
-
-            <div className="bg-purple-50 rounded-3xl p-8 print:hidden">
-              <div className="flex items-center gap-3 mb-8">
-                <BadgeCheck size={28} className="text-purple-700" />
-
-                <h3
-                  className="
-                    text-3xl
-                    font-bold
-                    text-purple-700
-                  "
-                >
-                  Update Job Status
-                </h3>
-              </div>
-
-              <div className="space-y-5">
-                <select
-                  value={job.status}
-                  onChange={(e) => handleStatusUpdate(job._id, e.target.value)}
-                  className="
-                    w-full
-                    border
-                    rounded-2xl
-                    px-5
-                    py-4
-                  "
-                >
-                  <option value="ASSIGNED">ASSIGNED</option>
-
-                  <option value="IN_PROGRESS">IN_PROGRESS</option>
-
-                  <option value="MATERIAL_REQUIRED">MATERIAL_REQUIRED</option>
-
-                  <option value="COMPLETED">COMPLETED</option>
-                </select>
-
-                <textarea
-                  placeholder="Enter work remarks..."
-                  value={remarks[job._id] || ""}
-                  onChange={(e) =>
-                    setRemarks({
-                      ...remarks,
-
-                      [job._id]: e.target.value,
-                    })
-                  }
-                  className="
-                    w-full
-                    border
-                    rounded-2xl
-                    px-5
-                    py-4
-                    min-h-[140px]
-                  "
-                />
-              </div>
-            </div>
-
-            {/* INSTRUCTION */}
-
-            <div
-              className="
-                bg-red-50
-                border
-                border-red-200
-
-                rounded-3xl
-
-                p-6
-
-                flex
-                gap-4
-              "
-            >
-              <AlertTriangle size={26} className="text-red-600" />
-
-              <div>
-                <h4
-                  className="
-                    font-bold
-                    text-red-700
-                    text-xl
-                  "
-                >
-                  Important Instructions
-                </h4>
-
-                <p className="text-red-600 mt-2">
-                  Worker must complete maintenance work carefully and update
-                  remarks properly in ERP system.
-                </p>
-              </div>
-            </div>
-
-            {/* SIGNATURE */}
-
-            <div className="grid md:grid-cols-3 gap-10 pt-16">
-              <div>
-                <div className="border-b border-black pb-8"></div>
-
-                <p className="text-center mt-3 font-semibold">
-                  Worker Signature
-                </p>
-              </div>
-
-              <div>
-                <div className="border-b border-black pb-8"></div>
-
-                <p className="text-center mt-3 font-semibold">
-                  Maintenance Manager
-                </p>
-              </div>
-
-              <div>
-                <div className="border-b border-black pb-8"></div>
-
-                <p className="text-center mt-3 font-semibold">
-                  Student Verification
-                </p>
-              </div>
+                Bulk Print ({selectedCards.length})
+              </button>
             </div>
           </div>
         </div>
-      ))}
-    </div>
+
+        {/* ========================================== */}
+        {/* JOB CARD LIST */}
+        {/* ========================================== */}
+
+        {jobCards.map((job) => (
+          <div key={job._id}>
+            {/* ========================================== */}
+            {/* CHECKBOX */}
+            {/* ========================================== */}
+
+            <div
+              className="
+                mb-4
+                print:hidden
+              "
+            >
+              <label
+                className="
+                  flex
+                  items-center
+                  gap-3
+
+                  bg-white
+
+                  p-4
+
+                  rounded-2xl
+
+                  shadow
+
+                  border
+                "
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedCards.includes(job._id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedCards([...selectedCards, job._id]);
+                    } else {
+                      setSelectedCards(
+                        selectedCards.filter((id) => id !== job._id),
+                      );
+                    }
+                  }}
+                  className="
+                    w-5
+                    h-5
+                  "
+                />
+
+                <span
+                  className="
+                    font-semibold
+                    text-gray-700
+                  "
+                >
+                  Select For Bulk Print
+                </span>
+              </label>
+            </div>
+
+            {/* ========================================== */}
+            {/* JOB CARD START */}
+            {/* ========================================== */}
+
+            <div
+              className="
+                job-card-print
+
+                bg-white
+
+                rounded-3xl
+
+                shadow-2xl
+
+                border
+                border-gray-100
+
+                overflow-visible
+
+                print:shadow-none
+                print:border-none
+                print:rounded-none
+                print:w-full
+                print:min-h-screen
+                print:p-0
+                print:m-0
+                print:break-after-page
+              "
+            >
+              {/* HEADER */}
+
+              <div
+                className="
+                  bg-gradient-to-r
+                  from-[#001B54]
+                  via-[#002B7F]
+                  to-[#7A0019]
+
+                  text-white
+
+                  p-8
+                "
+              >
+                <div
+                  className="
+    flex
+    flex-col
+
+    lg:flex-row
+
+    justify-between
+
+    lg:items-center
+
+    gap-6
+  "
+                >
+                  <div className="flex items-center gap-6">
+                    <div
+                      className="
+                        w-24
+                        h-24
+
+                        rounded-3xl
+
+                        bg-gradient-to-br
+                        from-yellow-400
+                        via-yellow-500
+                        to-orange-500
+
+                        flex
+                        items-center
+                        justify-center
+
+                        shadow-2xl
+
+                        border-4
+                        border-white/10
+                      "
+                    >
+                      <ClipboardList size={45} className="text-white" />
+                    </div>
+
+                    <div>
+                      <h1
+                        className="
+                          text-3xl
+                          md:text-5xl
+
+                          font-extrabold
+
+                          tracking-wide
+                        "
+                      >
+                        Amity University Madhya Pradesh
+                      </h1>
+
+                      <div
+                        className="
+                          flex
+                          items-center
+                          gap-3
+
+                          mt-3
+                        "
+                      >
+                        <div
+                          className="
+                            w-3
+                            h-3
+
+                            rounded-full
+
+                            bg-green-400
+
+                            animate-pulse
+                          "
+                        />
+
+                        <p
+                          className="
+                            text-blue-100
+
+                            text-lg
+
+                            font-medium
+                          "
+                        >
+                          Smart Campus ERP System
+                        </p>
+                      </div>
+
+                      <p
+                        className="
+                          text-yellow-300
+
+                          mt-2
+
+                          text-lg
+
+                          font-semibold
+                        "
+                      >
+                        Maintenance Department
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <h2
+                      className="
+                        text-3xl
+                        md:text-5xl
+
+                        font-extrabold
+                      "
+                    >
+                      {job.jobCardId}
+                    </h2>
+
+                    <p
+                      className="
+                        mt-3
+
+                        text-yellow-300
+
+                        font-semibold
+                      "
+                    >
+                      Maintenance Work Order
+                    </p>
+
+                    {/* SINGLE PRINT ONLY */}
+
+                    <button
+                      onClick={() => handlePrint(job)}
+                      className="
+                        mt-5
+
+                        bg-yellow-400
+                        hover:bg-yellow-300
+
+                        transition-all
+
+                        text-[#001B54]
+
+                        px-6
+                        py-3
+
+                        rounded-2xl
+
+                        flex
+                        items-center
+                        gap-3
+
+                        font-bold
+
+                        ml-auto
+
+                        print:hidden
+                      "
+                    >
+                      <Printer size={22} />
+                      Print Job Card
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* ========================================== */}
+              {/* BODY */}
+              {/* ========================================== */}
+
+              <div className="p-8 space-y-8">
+                {/* STATUS */}
+
+                <div className="flex flex-wrap gap-5">
+                  <div
+                    className={`px-6 py-3 rounded-2xl font-bold text-lg ${getStatusColor(
+                      job.status,
+                    )}`}
+                  >
+                    {job.status}
+                  </div>
+
+                  <div
+                    className={`px-6 py-3 rounded-2xl font-bold text-lg ${getPriorityColor(
+                      job?.complaint?.priority,
+                    )}`}
+                  >
+                    Priority : {job?.complaint?.priority}
+                  </div>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-6">
+                  {/* COMPLAINT DETAILS */}
+
+                  <div
+                    className="
+      bg-white
+      rounded-3xl
+      shadow-lg
+      border
+      border-gray-100
+      p-6
+    "
+                  >
+                    <h3
+                      className="
+        text-xl
+        font-extrabold
+        text-[#001B54]
+        border-b
+        pb-3
+        mb-4
+      "
+                    >
+                      Complaint Details
+                    </h3>
+
+                    <div className="space-y-4">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-semibold">
+                          Complaint ID
+                        </span>
+
+                        <span className="font-bold">
+                          {job?.complaint?.complaintId}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-semibold">
+                          Category
+                        </span>
+
+                        <span className="font-bold">
+                          {job?.complaint?.category}
+                        </span>
+                      </div>
+
+                      <div>
+                        <p className="text-gray-500 font-semibold">Title</p>
+
+                        <p className="font-bold">{job?.complaint?.title}</p>
+                      </div>
+
+                      <div>
+                        <p className="text-gray-500 font-semibold">
+                          Description
+                        </p>
+
+                        <p>{job?.complaint?.description}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* STUDENT DETAILS */}
+
+                  <div
+                    className="
+      bg-white
+      rounded-3xl
+      shadow-lg
+      border
+      border-gray-100
+      p-6
+    "
+                  >
+                    <h3
+                      className="
+        text-xl
+        font-extrabold
+        text-[#001B54]
+        border-b
+        pb-3
+        mb-4
+      "
+                    >
+                      Student Details
+                    </h3>
+
+                    <div className="space-y-4">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-semibold">
+                          Name
+                        </span>
+
+                        <span className="font-bold">
+                          {job?.complaint?.createdBy?.name}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-semibold">
+                          Hostel
+                        </span>
+
+                        <span className="font-bold">
+                          {job?.complaint?.hostel || "N/A"}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-semibold">
+                          Room
+                        </span>
+
+                        <span className="font-bold">
+                          {job?.complaint?.roomNumber || "N/A"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* WORKER DETAILS */}
+
+                  <div
+                    className="
+      bg-white
+      rounded-3xl
+      shadow-lg
+      border
+      border-gray-100
+      p-6
+    "
+                  >
+                    <h3
+                      className="
+        text-xl
+        font-extrabold
+        text-[#001B54]
+        border-b
+        pb-3
+        mb-4
+      "
+                    >
+                      Worker Details
+                    </h3>
+
+                    <div className="space-y-4">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-semibold">
+                          Name
+                        </span>
+
+                        <span className="font-bold">
+                          {job?.assignedWorker?.name}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-semibold">
+                          Phone
+                        </span>
+
+                        <span className="font-bold">
+                          {job?.assignedWorker?.phone}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 font-semibold">
+                          Department
+                        </span>
+
+                        <span className="font-bold">
+                          {job?.assignedWorker?.department}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* STATUS UPDATE */}
+
+                  <div
+                    className="
+      bg-white
+      rounded-3xl
+      shadow-lg
+      border
+      border-gray-100
+      p-6
+    "
+                  >
+                    <h3
+                      className="
+        text-xl
+        font-extrabold
+        text-[#001B54]
+        border-b
+        pb-3
+        mb-4
+      "
+                    >
+                      Update Status
+                    </h3>
+
+                    <select
+                      className="
+        w-full
+        border-2
+        border-gray-200
+        rounded-xl
+        p-3
+        font-semibold
+      "
+                      value={job.status}
+                      onChange={(e) =>
+                        handleStatusUpdate(job._id, e.target.value)
+                      }
+                    >
+                      <option value="ASSIGNED">ASSIGNED</option>
+
+                      <option value="IN_PROGRESS">IN_PROGRESS</option>
+
+                      <option value="COMPLETED">COMPLETED</option>
+
+                      <option value="WAITING_MATERIAL">WAITING_MATERIAL</option>
+                    </select>
+
+                    <textarea
+                      rows="4"
+                      placeholder="Enter Remarks"
+                      value={remarks[job._id] || ""}
+                      onChange={(e) =>
+                        setRemarks({
+                          ...remarks,
+                          [job._id]: e.target.value,
+                        })
+                      }
+                      className="
+        w-full
+        mt-4
+        border-2
+        border-gray-200
+        rounded-xl
+        p-4
+        resize-none
+      "
+                    />
+
+                    <button
+                      onClick={() => handleStatusUpdate(job._id, job.status)}
+                      className="
+        mt-4
+
+        bg-gradient-to-r
+        from-blue-600
+        to-indigo-700
+
+        text-white
+
+        px-6
+        py-3
+
+        rounded-xl
+
+        font-bold
+
+        shadow-lg
+      "
+                    >
+                      Update Status
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 };
 
