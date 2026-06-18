@@ -257,7 +257,14 @@ const MaterialRequest = () => {
 
       const pdf = new jsPDF("l", "mm", "a4");
 
-      let currentPosition = 0;
+      const positions = [
+        { x: 5, y: 5 }, // Top Left
+        { x: 150, y: 5 }, // Top Right
+        { x: 5, y: 105 }, // Bottom Left
+        { x: 150, y: 105 }, // Bottom Right
+      ];
+
+      let positionIndex = 0;
 
       for (let i = 0; i < filteredRequests.length; i++) {
         const request = filteredRequests[i];
@@ -265,6 +272,8 @@ const MaterialRequest = () => {
         setSelectedRequest(request);
 
         await new Promise((resolve) => setTimeout(resolve, 600));
+
+        if (!printRef.current) continue;
 
         const canvas = await html2canvas(printRef.current, {
           scale: 2,
@@ -274,30 +283,30 @@ const MaterialRequest = () => {
 
         const imgData = canvas.toDataURL("image/png");
 
-        const cardWidth = 90;
+        const pos = positions[positionIndex];
 
-        const cardHeight = 65;
+        pdf.addImage(
+          imgData,
+          "PNG",
+          pos.x,
+          pos.y,
+          140, // card width
+          95, // card height
+        );
 
-        const x = 5;
+        positionIndex++;
 
-        const y = 5 + currentPosition * 68;
+        // NEW PAGE AFTER 4 CARDS
 
-        pdf.addImage(imgData, "PNG", x, y, cardWidth, cardHeight);
-
-        currentPosition++;
-
-        // 3 CARDS PER PAGE
-
-        if (currentPosition === 3 && i !== requests.length - 1) {
+        if (positionIndex === 4 && i < filteredRequests.length - 1) {
           pdf.addPage();
-
-          currentPosition = 0;
+          positionIndex = 0;
         }
       }
 
       pdf.save("Material_Requests.pdf");
 
-      toast.success(`${requests.length} Requests Downloaded`);
+      toast.success(`${filteredRequests.length} Requests Downloaded`);
     } catch (error) {
       console.log(error);
 
@@ -754,7 +763,6 @@ const MaterialRequest = () => {
                     <div>
                       <select
                         value={request.status}
-                        
                         onChange={(e) =>
                           handleStatusUpdate(request._id, e.target.value)
                         }

@@ -26,24 +26,19 @@ const PrintableMaterialRequest = ({ request }) => {
   return (
     <div
       className="
-        w-[560px]
-        h-auto
+    w-[560px]
 
-        bg-white
+    min-h-[330px]
 
-        border
-        border-gray-300
+    bg-white
 
-        rounded-xl
+    border
+    border-gray-300
 
-        p-3
+    rounded-xl
 
-        relative
-
-        overflow-hidden
-
-        text-[10px]
-      "
+    p-3
+  "
     >
       {/* WATERMARK */}
 
