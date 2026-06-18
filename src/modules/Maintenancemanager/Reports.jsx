@@ -76,11 +76,30 @@ const Reports = () => {
       const response = await axios.get(
         "https://complaine-backend.vercel.app/api/maintenance/reports/export/pdf",
         {
+          responseType: "blob",
+
           headers: {
             Authorization: `Bearer ${token}`,
           },
         },
       );
+
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+
+      const link = document.createElement("a");
+
+      link.href = url;
+
+      link.setAttribute(
+        "download",
+        `Maintenance_Report_${new Date().toLocaleDateString()}.pdf`,
+      );
+
+      document.body.appendChild(link);
+
+      link.click();
+
+      link.remove();
 
       toast.success(response.data.message);
     } catch (error) {
@@ -95,14 +114,38 @@ const Reports = () => {
       const response = await axios.get(
         "https://complaine-backend.vercel.app/api/maintenance/reports/export/excel",
         {
+          responseType: "blob",
+
           headers: {
             Authorization: `Bearer ${token}`,
           },
         },
       );
 
-      toast.success(response.data.message);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+
+      const link = document.createElement("a");
+
+      link.href = url;
+
+      const today = new Date();
+
+      const fileName = `Maintenance_Report_${today.getDate()}-${today.getMonth() + 1}-${today.getFullYear()}.xlsx`;
+
+      link.setAttribute("download", fileName);
+
+      document.body.appendChild(link);
+
+      link.click();
+
+      link.remove();
+
+      window.URL.revokeObjectURL(url);
+
+      toast.success("Excel Report Downloaded Successfully");
     } catch (error) {
+      console.log(error);
+
       toast.error("Excel Export Failed");
     }
   };
@@ -114,14 +157,38 @@ const Reports = () => {
       const response = await axios.get(
         "https://complaine-backend.vercel.app/api/maintenance/reports/export/csv",
         {
+          responseType: "blob",
+
           headers: {
             Authorization: `Bearer ${token}`,
           },
         },
       );
 
-      toast.success(response.data.message);
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+
+      const link = document.createElement("a");
+
+      link.href = url;
+
+      const today = new Date();
+
+      const fileName = `Maintenance_Report_${today.getDate()}-${today.getMonth() + 1}-${today.getFullYear()}.csv`;
+
+      link.setAttribute("download", fileName);
+
+      document.body.appendChild(link);
+
+      link.click();
+
+      link.remove();
+
+      window.URL.revokeObjectURL(url);
+
+      toast.success("CSV Report Downloaded Successfully");
     } catch (error) {
+      console.log(error);
+
       toast.error("CSV Export Failed");
     }
   };
