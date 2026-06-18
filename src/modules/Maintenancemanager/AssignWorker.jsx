@@ -245,12 +245,12 @@ const AssignWorker = () => {
   const assignedComplaints = complaints.filter(
     (item) => item.status === "IN_PROGRESS",
   ).length;
-
   const filteredComplaints = complaints.filter(
     (item) =>
-      item.complaintId?.toLowerCase().includes(search.toLowerCase()) ||
-      item.title?.toLowerCase().includes(search.toLowerCase()) ||
-      item.hostel?.toLowerCase().includes(search.toLowerCase()),
+      item.status === "PENDING" &&
+      (item.complaintId?.toLowerCase().includes(search.toLowerCase()) ||
+        item.title?.toLowerCase().includes(search.toLowerCase()) ||
+        item.hostel?.toLowerCase().includes(search.toLowerCase())),
   );
 
   // ======================================
