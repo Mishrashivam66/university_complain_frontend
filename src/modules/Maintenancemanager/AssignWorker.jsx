@@ -17,6 +17,11 @@ import {
   CheckCircle2,
   MapPin,
   User,
+  Search,
+  Filter,
+  Calendar,
+  Building2,
+  SlidersHorizontal,
 } from "lucide-react";
 
 const AssignWorker = () => {
@@ -29,6 +34,8 @@ const AssignWorker = () => {
   const [workers, setWorkers] = useState([]);
 
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [hostelFilter, setHostelFilter] = useState("ALL");
 
   const [selectedWorkers, setSelectedWorkers] = useState({});
 
@@ -239,6 +246,13 @@ const AssignWorker = () => {
     (item) => item.status === "IN_PROGRESS",
   ).length;
 
+  const filteredComplaints = complaints.filter(
+    (item) =>
+      item.complaintId?.toLowerCase().includes(search.toLowerCase()) ||
+      item.title?.toLowerCase().includes(search.toLowerCase()) ||
+      item.hostel?.toLowerCase().includes(search.toLowerCase()),
+  );
+
   // ======================================
   // LOADING
   // ======================================
@@ -415,6 +429,35 @@ const AssignWorker = () => {
           </p>
         </div>
       </div>
+      <div className="bg-white p-4 rounded-3xl shadow-lg">
+        <div className="relative">
+          <Search
+            size={20}
+            className="
+        absolute
+        left-4
+        top-1/2
+        -translate-y-1/2
+        text-gray-400
+      "
+          />
+
+          <input
+            type="text"
+            placeholder="Search Complaint ID, Title, Hostel..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="
+        w-full
+        border
+        rounded-2xl
+        pl-12
+        pr-4
+        py-3
+      "
+          />
+        </div>
+      </div>
 
       {/* COMPLAINTS */}
 
@@ -426,7 +469,7 @@ const AssignWorker = () => {
           gap-6
         "
       >
-        {complaints.map((item) => {
+        {filteredComplaints.map((item) => {
           const availableWorkers = workers.filter((worker) => {
             const dept = worker.department?.toLowerCase()?.trim();
             const category = item.category?.toLowerCase()?.trim();
