@@ -391,74 +391,90 @@ const PrintableJobCard = ({ job }) => {
 
   return (
     <>
-      {/* ======================================
-          PRINT CSS
-      ====================================== */}
-
       <style>
         {`
-          @page {
-            size: A4 landscape;
-            margin: 4mm;
-          }
+        #job-card-print-root {
+          display: none;
+        }
 
-          .print-job-card-page {
-            width: 289mm;
-            height: 202mm;
+        .print-job-card-page {
+          width: 289mm;
+          height: 202mm;
 
-            box-sizing: border-box;
+          box-sizing: border-box;
 
-            margin: 0 auto;
+          background: white;
+          color: #0f172a;
 
-            background: white;
+          overflow: hidden;
 
-            color: #0f172a;
+          -webkit-print-color-adjust: exact !important;
+          print-color-adjust: exact !important;
+        }
 
-            overflow: hidden;
+        .job-print-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
 
-            position: relative;
+        .job-print-table th,
+        .job-print-table td {
+          border: 0.7px solid #94a3b8;
+        }
 
-            page-break-after: always;
-            break-after: page;
+        @page {
+          size: A4 landscape;
+          margin: 4mm;
+        }
+
+        @media print {
+          html,
+          body {
+            margin: 0 !important;
+            padding: 0 !important;
+
+            width: 297mm !important;
+            height: 210mm !important;
+
+            background: white !important;
 
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
 
-          .print-job-card-page:last-child {
-            page-break-after: auto;
-            break-after: auto;
+          body > *:not(#job-card-print-root) {
+            display: none !important;
           }
 
-          .job-print-table {
-            width: 100%;
-            border-collapse: collapse;
+          #job-card-print-root {
+            display: block !important;
+
+            width: 289mm !important;
+
+            margin: 0 !important;
+            padding: 0 !important;
+
+            background: white !important;
           }
 
-          .job-print-table th,
-          .job-print-table td {
-            border: 0.7px solid #94a3b8;
+          .print-job-card-page {
+            display: block !important;
+
+            width: 289mm !important;
+            height: 202mm !important;
+
+            margin: 0 !important;
+            padding: 0 !important;
+
+            overflow: hidden !important;
+
+            box-shadow: none !important;
           }
-
-          @media print {
-            html,
-            body {
-              margin: 0 !important;
-              padding: 0 !important;
-              background: white !important;
-            }
-
-            .print-job-card-page {
-              margin: 0 !important;
-              box-shadow: none !important;
-            }
-
-            .no-print {
-              display: none !important;
-            }
-          }
-        `}
+        }
+      `}
       </style>
+
+      {/* YAHAN TUMHARA EXISTING FULL JOB CARD */}
 
       {/* ======================================
           A4 PAGE

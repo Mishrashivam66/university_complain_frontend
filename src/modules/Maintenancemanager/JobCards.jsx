@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
 import toast from "react-hot-toast";
+
+import { createPortal } from "react-dom";
 import PrintableJobCard from "./PrintableJobCard";
 
 import {
@@ -301,26 +303,17 @@ const JobCards = () => {
   // ==========================================
   // PRINT
   // ==========================================
+  // ==========================================
+  // PRINT JOB CARD
+  // ==========================================
 
   const handlePrint = (job) => {
     setPrintJob(job);
 
     setTimeout(() => {
       window.print();
-    }, 300);
+    }, 500);
   };
-
-  useEffect(() => {
-    const handleAfterPrint = () => {
-      setPrintJob(null);
-    };
-
-    window.addEventListener("afterprint", handleAfterPrint);
-
-    return () => {
-      window.removeEventListener("afterprint", handleAfterPrint);
-    };
-  }, []);
 
   // ==========================================
   // LOADING
@@ -1209,11 +1202,13 @@ const JobCards = () => {
         </div>
       )}
 
-      {printJob && (
-        <div id="job-card-print-root" className="job-card-print-root">
-          <PrintableJobCard job={printJob} />
-        </div>
-      )}
+      {printJob &&
+        createPortal(
+          <div id="job-card-print-root">
+            <PrintableJobCard job={printJob} />
+          </div>,
+          document.body,
+        )}
     </>
   );
 };
