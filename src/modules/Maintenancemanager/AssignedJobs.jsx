@@ -24,6 +24,7 @@ import {
   UserCheck,
   RefreshCw,
   ChevronRight,
+  Layers3,
 } from "lucide-react";
 
 const AssignedJobs = () => {
@@ -33,8 +34,21 @@ const AssignedJobs = () => {
 
   const navigate = useNavigate();
 
-  // CHANGE ONLY THIS IF YOUR ROUTE IS DIFFERENT
+  // ======================================
+  // ROUTES
+  // ======================================
+
   const MATERIAL_REQUEST_ROUTE = "/maintenance/material-requests";
+
+  const JOB_CARD_ROUTE = "/maintenance/job-cards";
+
+  // ======================================
+  // API
+  // ======================================
+
+  const API_BASE = "https://complaine-backend.vercel.app/api/maintenance";
+
+  const JOB_CARD_API = `${API_BASE}/job-cards`;
 
   // ======================================
   // STATES
@@ -42,11 +56,15 @@ const AssignedJobs = () => {
 
   const [loading, setLoading] = useState(true);
 
+  const [creatingJobCards, setCreatingJobCards] = useState(false);
+
   const [complaints, setComplaints] = useState([]);
 
   const [workers, setWorkers] = useState([]);
 
   const [materialRequests, setMaterialRequests] = useState([]);
+
+  const [jobCards, setJobCards] = useState([]);
 
   const [search, setSearch] = useState("");
 
@@ -56,14 +74,11 @@ const AssignedJobs = () => {
 
   const [selectedComplaint, setSelectedComplaint] = useState(null);
 
-  // NO MATERIAL decision for current UI session
+  // ======================================
+  // TEMPORARY NO MATERIAL STATE
+  // ======================================
+
   const [noMaterialRequired, setNoMaterialRequired] = useState({});
-
-  // ======================================
-  // API BASE
-  // ======================================
-
-  const API_BASE = "https://complaine-backend.vercel.app/api/maintenance";
 
   // ======================================
   // NORMALIZE
@@ -74,6 +89,48 @@ const AssignedJobs = () => {
   };
 
   // ======================================
+  // MAIN LOCATION
+  // HOSTEL FIRST
+  // OTHERWISE BLOCK
+  // ======================================
+
+  const getJobCardLocation = (complaint) => {
+    if (complaint?.hostel?.trim()) {
+      return {
+        type: "HOSTEL",
+
+        value: complaint.hostel.trim().toLowerCase(),
+
+        label: complaint.hostel.trim(),
+      };
+    }
+
+    if (complaint?.block?.trim()) {
+      return {
+        type: "BLOCK",
+
+        value: complaint.block.trim().toLowerCase(),
+
+        label: complaint.block.trim(),
+      };
+    }
+
+    return null;
+  };
+
+  // ======================================
+  // GET TOKEN HEADERS
+  // ======================================
+
+  const getHeaders = () => {
+    const token = localStorage.getItem("token");
+
+    return {
+      Authorization: `Bearer ${token}`,
+    };
+  };
+
+  // ======================================
   // FETCH ALL DATA
   // ======================================
 
@@ -81,11 +138,7 @@ const AssignedJobs = () => {
     try {
       setLoading(true);
 
-      const token = localStorage.getItem("token");
-
-      const headers = {
-        Authorization: `Bearer ${token}`,
-      };
+      const headers = getHeaders();
 
       // ======================================
       // COMPLAINTS + WORKERS
@@ -106,9 +159,7 @@ const AssignedJobs = () => {
       setWorkers(workersRes?.data?.workers || []);
 
       // ======================================
-      // MATERIAL REQUEST
-      // MATERIAL API FAILURE SHOULD NOT
-      // BREAK ASSIGNED JOBS PAGE
+      // MATERIAL REQUESTS
       // ======================================
 
       try {
@@ -121,6 +172,22 @@ const AssignedJobs = () => {
         console.log("MATERIAL API ERROR:", materialError);
 
         setMaterialRequests([]);
+      }
+
+      // ======================================
+      // EXISTING JOB CARDS
+      // ======================================
+
+      try {
+        const jobCardRes = await axios.get(JOB_CARD_API, {
+          headers,
+        });
+
+        setJobCards(jobCardRes?.data?.jobCards || []);
+      } catch (jobCardError) {
+        console.log("JOB CARD API ERROR:", jobCardError);
+
+        setJobCards([]);
       }
     } catch (error) {
       console.log("ASSIGNED JOBS ERROR:", error);
@@ -136,18 +203,16 @@ const AssignedJobs = () => {
       );
 
       setComplaints([]);
-
       setWorkers([]);
+      setMaterialRequests([]);
+      setJobCards([]);
     } finally {
-      // IMPORTANT
-      // OLD CODE WAS MISSING THIS
-
       setLoading(false);
     }
   };
 
   // ======================================
-  // USE EFFECT
+  // INITIAL FETCH
   // ======================================
 
   useEffect(() => {
@@ -159,9 +224,9 @@ const AssignedJobs = () => {
   // ======================================
 
   const assignedComplaints = useMemo(() => {
-    return complaints.filter((item) => {
-      return item?.assignedTo && item.status !== "PENDING";
-    });
+    return complaints.filter(
+      (item) => item?.assignedTo && item.status !== "PENDING",
+    );
   }, [complaints]);
 
   // ======================================
@@ -197,6 +262,116 @@ const AssignedJobs = () => {
         .map((id) => id.toString()),
     );
   }, [materialRequests]);
+
+  // ======================================
+  // COMPLAINTS ALREADY IN JOB CARDS
+  // ======================================
+
+  const complaintsAlreadyInJobCard = useMemo(() => {
+    const ids = new Set();
+
+    jobCards.forEach((jobCard) => {
+      jobCard?.complaints?.forEach((item) => {
+        const complaintId =
+          typeof item?.complaint === "object"
+            ? item?.complaint?._id
+            : item?.complaint;
+
+        if (complaintId) {
+          ids.add(complaintId.toString());
+        }
+      });
+    });
+
+    return ids;
+  }, [jobCards]);
+
+  // ======================================
+  // COMPLAINTS AVAILABLE FOR
+  // NEW JOB CARD
+  // ======================================
+
+  const jobCardEligibleComplaints = useMemo(() => {
+    return assignedComplaints.filter((complaint) => {
+      if (!complaint?._id) {
+        return false;
+      }
+
+      return !complaintsAlreadyInJobCard.has(complaint._id.toString());
+    });
+  }, [assignedComplaints, complaintsAlreadyInJobCard]);
+
+  // ======================================
+  // AUTOMATIC JOB CARD GROUPING
+  //
+  // SAME LOCATION
+  // SAME CATEGORY
+  // SAME WORKER
+  // MAXIMUM 10
+  // ======================================
+
+  const jobCardGroups = useMemo(() => {
+    const grouped = {};
+
+    jobCardEligibleComplaints.forEach((complaint) => {
+      const workerId = complaint?.assignedTo?._id;
+
+      const category = complaint?.category?.trim()?.toLowerCase();
+
+      const location = getJobCardLocation(complaint);
+
+      if (!workerId || !category || !location) {
+        return;
+      }
+
+      // ==================================
+      // UNIQUE GROUP KEY
+      // ==================================
+
+      const groupKey = [location.type, location.value, category, workerId].join(
+        "__",
+      );
+
+      if (!grouped[groupKey]) {
+        grouped[groupKey] = {
+          key: groupKey,
+
+          locationType: location.type,
+
+          location: location.label,
+
+          category: complaint.category,
+
+          worker: complaint.assignedTo,
+
+          complaints: [],
+        };
+      }
+
+      grouped[groupKey].complaints.push(complaint);
+    });
+
+    // ==================================
+    // SPLIT EVERY GROUP INTO
+    // MAX 10 COMPLAINTS
+    // ==================================
+
+    const batches = [];
+
+    Object.values(grouped).forEach((group) => {
+      for (let index = 0; index < group.complaints.length; index += 10) {
+        batches.push({
+          ...group,
+
+          batchNumber: Math.floor(index / 10) + 1,
+
+          complaints: group.complaints.slice(index, index + 10),
+        });
+      }
+    });
+
+    return batches;
+  }, [jobCardEligibleComplaints]);
 
   // ======================================
   // DASHBOARD STATS
@@ -285,6 +460,105 @@ const AssignedJobs = () => {
       return matchSearch && matchStatus && matchWorker;
     });
   }, [assignedComplaints, search, statusFilter, selectedWorker]);
+
+  // ======================================
+  // CREATE ALL READY JOB CARDS
+  // ======================================
+
+  const handleCreateJobCards = async () => {
+    if (jobCardGroups.length === 0) {
+      return toast.error("No complaints available for new Job Cards");
+    }
+
+    try {
+      setCreatingJobCards(true);
+
+      const headers = getHeaders();
+
+      let successCount = 0;
+
+      const failedCards = [];
+
+      // ==================================
+      // CREATE EACH BATCH
+      // ==================================
+
+      for (const group of jobCardGroups) {
+        try {
+          const complaintIds = group.complaints.map(
+            (complaint) => complaint._id,
+          );
+
+          const response = await axios.post(
+            `${JOB_CARD_API}/create`,
+
+            {
+              complaintIds,
+            },
+
+            {
+              headers,
+            },
+          );
+
+          console.log("JOB CARD CREATED:", response?.data?.jobCard);
+
+          successCount++;
+        } catch (error) {
+          console.log("JOB CARD CREATE ERROR:", error);
+
+          failedCards.push({
+            group,
+
+            message:
+              error?.response?.data?.message || "Failed to create Job Card",
+          });
+        }
+      }
+
+      // ==================================
+      // SUCCESS
+      // ==================================
+
+      if (successCount > 0) {
+        toast.success(
+          `${successCount} Job Card${
+            successCount > 1 ? "s" : ""
+          } created successfully`,
+        );
+      }
+
+      // ==================================
+      // FAILED
+      // ==================================
+
+      if (failedCards.length > 0) {
+        console.log("FAILED JOB CARDS:", failedCards);
+
+        toast.error(`${failedCards.length} Job Card(s) failed`);
+      }
+
+      // ==================================
+      // REFRESH
+      // ==================================
+
+      await fetchData();
+
+      // ==================================
+      // OPTIONAL NAVIGATION
+      // ==================================
+
+      if (successCount > 0 && failedCards.length === 0) {
+        navigate(JOB_CARD_ROUTE);
+      }
+    } catch (error) {
+      console.log("CREATE JOB CARDS ERROR:", error);
+
+      toast.error("Failed to create Job Cards");
+    } finally {
+      setCreatingJobCards(false);
+    }
+  };
 
   // ======================================
   // MATERIAL YES
@@ -414,7 +688,7 @@ const AssignedJobs = () => {
   };
 
   // ======================================
-  // LOCATION
+  // DISPLAY LOCATION
   // ======================================
 
   const getMainLocation = (item) => {
@@ -503,7 +777,7 @@ const AssignedJobs = () => {
                 </h1>
 
                 <p className="mt-2 text-blue-100">
-                  Manage assigned complaints, workers and material requirements.
+                  Manage assigned complaints, workers, materials and Job Cards.
                 </p>
               </div>
             </div>
@@ -699,6 +973,330 @@ const AssignedJobs = () => {
         </div>
 
         {/* ======================================
+            JOB CARD BATCHES
+        ====================================== */}
+
+        <div
+          className="
+            bg-white
+            rounded-3xl
+            shadow-2xl
+            overflow-hidden
+          "
+        >
+          {/* JOB CARD HEADER */}
+
+          <div
+            className="
+              bg-gradient-to-r
+              from-[#001B54]
+              to-[#7A0019]
+
+              text-white
+
+              p-6
+            "
+          >
+            <div
+              className="
+                flex
+                flex-col
+                md:flex-row
+                md:items-center
+                md:justify-between
+                gap-4
+              "
+            >
+              <div className="flex items-center gap-3">
+                <Layers3 size={32} />
+
+                <div>
+                  <h2 className="text-2xl font-extrabold">Job Card Batches</h2>
+
+                  <p className="text-blue-100 mt-1">
+                    Same Location + Category + Worker. Maximum 10 complaints per
+                    Job Card.
+                  </p>
+                </div>
+              </div>
+
+              <div
+                className="
+                  bg-white/20
+                  px-4
+                  py-2
+                  rounded-xl
+                  font-bold
+                "
+              >
+                {jobCardGroups.length} Cards Ready
+              </div>
+            </div>
+          </div>
+
+          {/* JOB CARD GROUPS */}
+
+          <div className="p-6">
+            {jobCardGroups.length === 0 ? (
+              <div
+                className="
+                  py-12
+                  text-center
+                "
+              >
+                <CheckCircle2
+                  size={55}
+                  className="
+                    mx-auto
+                    text-green-300
+                  "
+                />
+
+                <p className="text-gray-500 mt-4 font-semibold">
+                  No complaints are waiting for new Job Cards.
+                </p>
+
+                <p className="text-gray-400 text-sm mt-1">
+                  Existing Job Card complaints are automatically excluded.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div
+                  className="
+                    grid
+                    grid-cols-1
+                    md:grid-cols-2
+                    xl:grid-cols-3
+                    gap-5
+                    items-start
+                  "
+                >
+                  {jobCardGroups.map((group, index) => (
+                    <div
+                      key={`${group.key}-${group.batchNumber}`}
+                      className="
+                          border
+                          border-gray-200
+
+                          rounded-2xl
+
+                          overflow-hidden
+
+                          bg-gray-50
+                          h-fit
+                        "
+                    >
+                      {/* BATCH HEADER */}
+
+                      <div
+                        className="
+                            bg-[#001B54]
+
+                            text-white
+
+                            px-5
+                            py-4
+                          "
+                      >
+                        <div
+                          className="
+                              flex
+                              items-center
+                              justify-between
+                              gap-3
+                            "
+                        >
+                          <div>
+                            <p className="text-xs text-blue-200">
+                              Job Card {index + 1} • Batch {group.batchNumber}
+                            </p>
+
+                            <h3 className="font-bold text-lg mt-1">
+                              {group.location} • {group.category}
+                            </h3>
+                          </div>
+
+                          <span
+                            className="
+                                bg-white
+                                text-[#001B54]
+
+                                px-3
+                                py-1.5
+
+                                rounded-full
+
+                                text-sm
+                                font-extrabold
+                              "
+                          >
+                            {group.complaints.length}
+                            /10
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* BODY */}
+
+                      <div className="p-5">
+                        <div
+                          className="
+                              grid
+                              grid-cols-2
+                              gap-3
+                            "
+                        >
+                          <div
+                            className="
+                                bg-blue-50
+                                rounded-xl
+                                p-3
+                              "
+                          >
+                            <p className="text-xs text-gray-500">Location</p>
+
+                            <p className="font-bold text-blue-700 mt-1">
+                              {group.location}
+                            </p>
+                          </div>
+
+                          <div
+                            className="
+                                bg-purple-50
+                                rounded-xl
+                                p-3
+                              "
+                          >
+                            <p className="text-xs text-gray-500">Category</p>
+
+                            <p className="font-bold text-purple-700 mt-1">
+                              {group.category}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* WORKER */}
+
+                        <div
+                          className="
+                              bg-green-50
+                              rounded-xl
+                              p-3
+                              mt-3
+                            "
+                        >
+                          <p className="text-xs text-gray-500">Worker</p>
+
+                          <p className="font-bold text-green-700 mt-1">
+                            {group.worker?.name}
+                          </p>
+
+                          <p className="text-xs text-gray-500">
+                            {group.worker?.department}
+                          </p>
+                        </div>
+
+                        {/* COMPLAINTS */}
+
+                        <div className="mt-4">
+                          <p
+                            className="
+                                text-xs
+                                font-bold
+                                text-gray-500
+                                mb-2
+                              "
+                          >
+                            COMPLAINTS
+                          </p>
+
+                          <div
+                            className="
+                                flex
+                                flex-wrap
+                                gap-2
+                              "
+                          >
+                            {group.complaints.map((complaint) => (
+                              <span
+                                key={complaint._id}
+                                className="
+                                      bg-white
+                                      border
+
+                                      px-3
+                                      py-1.5
+
+                                      rounded-lg
+
+                                      text-xs
+                                      font-bold
+
+                                      text-[#001B54]
+                                    "
+                              >
+                                {complaint.complaintId}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* CREATE ALL */}
+
+                <button
+                  onClick={handleCreateJobCards}
+                  disabled={creatingJobCards}
+                  className="
+                    w-full
+
+                    mt-6
+
+                    bg-gradient-to-r
+                    from-[#001B54]
+                    to-[#7A0019]
+
+                    text-white
+
+                    py-4
+
+                    rounded-2xl
+
+                    font-extrabold
+                    text-lg
+
+                    flex
+                    items-center
+                    justify-center
+                    gap-3
+
+                    disabled:opacity-50
+                    disabled:cursor-not-allowed
+                  "
+                >
+                  {creatingJobCards ? (
+                    <>
+                      <Loader2 size={22} className="animate-spin" />
+                      Creating Job Cards...
+                    </>
+                  ) : (
+                    <>
+                      <ClipboardList size={22} />
+                      Create {jobCardGroups.length} Job Card
+                      {jobCardGroups.length !== 1 ? "s" : ""}
+                    </>
+                  )}
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* ======================================
             WORKER SUMMARY
         ====================================== */}
 
@@ -821,6 +1419,8 @@ const AssignedJobs = () => {
 
                 <th className="p-5 text-left">Material</th>
 
+                <th className="p-5 text-left">Job Card</th>
+
                 <th className="p-5 text-left">Assigned Date</th>
 
                 <th className="p-5 text-center">Action</th>
@@ -831,7 +1431,7 @@ const AssignedJobs = () => {
               {filteredComplaints.length === 0 ? (
                 <tr>
                   <td
-                    colSpan="10"
+                    colSpan="11"
                     className="
                       py-14
                       text-center
@@ -847,6 +1447,10 @@ const AssignedJobs = () => {
                   const material = getMaterialRequest(item);
 
                   const markedNo = noMaterialRequired[item._id];
+
+                  const alreadyInJobCard = complaintsAlreadyInJobCard.has(
+                    item._id.toString(),
+                  );
 
                   return (
                     <tr
@@ -944,9 +1548,7 @@ const AssignedJobs = () => {
                           className={`
                               px-3
                               py-1.5
-
                               rounded-full
-
                               text-xs
                               font-bold
 
@@ -964,9 +1566,7 @@ const AssignedJobs = () => {
                           className={`
                               px-3
                               py-1.5
-
                               rounded-full
-
                               text-xs
                               font-bold
 
@@ -1075,6 +1675,46 @@ const AssignedJobs = () => {
                               </button>
                             </div>
                           </div>
+                        )}
+                      </td>
+
+                      {/* JOB CARD */}
+
+                      <td className="p-5">
+                        {alreadyInJobCard ? (
+                          <span
+                            className="
+                                bg-green-100
+                                text-green-700
+
+                                px-3
+                                py-1.5
+
+                                rounded-full
+
+                                text-xs
+                                font-bold
+                              "
+                          >
+                            CREATED
+                          </span>
+                        ) : (
+                          <span
+                            className="
+                                bg-yellow-100
+                                text-yellow-700
+
+                                px-3
+                                py-1.5
+
+                                rounded-full
+
+                                text-xs
+                                font-bold
+                              "
+                          >
+                            READY
+                          </span>
                         )}
                       </td>
 
@@ -1424,7 +2064,57 @@ const AssignedJobs = () => {
                 </div>
               </div>
 
-              {/* MATERIAL SECTION */}
+              {/* JOB CARD STATUS */}
+
+              <div
+                className="
+                  bg-indigo-50
+                  rounded-2xl
+                  p-5
+                "
+              >
+                <div className="flex items-center gap-2 text-indigo-700">
+                  <Layers3 size={20} />
+
+                  <h3 className="font-bold">Job Card</h3>
+                </div>
+
+                <div className="mt-4">
+                  {complaintsAlreadyInJobCard.has(
+                    selectedComplaint._id.toString(),
+                  ) ? (
+                    <span
+                      className="
+                        bg-green-100
+                        text-green-700
+                        px-4
+                        py-2
+                        rounded-full
+                        font-bold
+                        text-sm
+                      "
+                    >
+                      Job Card Created
+                    </span>
+                  ) : (
+                    <span
+                      className="
+                        bg-yellow-100
+                        text-yellow-700
+                        px-4
+                        py-2
+                        rounded-full
+                        font-bold
+                        text-sm
+                      "
+                    >
+                      Ready For Job Card
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* MATERIAL */}
 
               <div
                 className="

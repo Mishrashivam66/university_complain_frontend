@@ -1,11 +1,25 @@
-import { useEffect, useState, useRef } from "react";
-import html2canvas from "html2canvas";
-import PrintableJobCard from "./PrintableJobCard";
-import jsPDF from "jspdf";
+import { useEffect, useMemo, useState } from "react";
+
 import axios from "axios";
+
 import toast from "react-hot-toast";
 
-import { ClipboardList, Printer, Loader2 } from "lucide-react";
+import {
+  ClipboardList,
+  Loader2,
+  Search,
+  Eye,
+  Printer,
+  X,
+  User,
+  MapPin,
+  Package,
+  CheckCircle2,
+  Clock3,
+  RefreshCw,
+  FileText,
+  ShieldCheck,
+} from "lucide-react";
 
 const JobCards = () => {
   // ==========================================
@@ -13,90 +27,23 @@ const JobCards = () => {
   // ==========================================
 
   const [jobCards, setJobCards] = useState([]);
+
   const [loading, setLoading] = useState(true);
 
-  const [remarks, setRemarks] = useState({});
+  const [search, setSearch] = useState("");
 
-  const [selectedCards, setSelectedCards] = useState([]);
+  const [statusFilter, setStatusFilter] = useState("ALL");
 
-  const [selectedJob, setSelectedJob] = useState(null);
-
-  const printRef = useRef(null);
+  const [selectedJobCard, setSelectedJobCard] = useState(null);
 
   // ==========================================
-  // BULK PRINT
+  // API
   // ==========================================
-  const handleBulkPrint = async () => {
-    try {
-      const selectedJobs = jobCards.filter((job) =>
-        selectedCards.includes(job._id),
-      );
 
-      if (selectedJobs.length === 0) {
-        toast.error("Please select at least one Job Card");
-        return;
-      }
-
-      // LANDSCAPE A4
-      const pdf = new jsPDF("l", "mm", "a4");
-
-      let position = 0;
-
-      for (let i = 0; i < selectedJobs.length; i++) {
-        const job = selectedJobs[i];
-
-        setSelectedJob(job);
-
-        await new Promise((resolve) => setTimeout(resolve, 800));
-
-        if (!printRef.current) continue;
-
-        const canvas = await html2canvas(printRef.current, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-        });
-
-        const imgData = canvas.toDataURL("image/png");
-
-        // A4 Landscape
-
-        const cardWidth = 140;
-
-        const cardHeight = (canvas.height * cardWidth) / canvas.width;
-
-        // LEFT CARD
-        if (position === 0) {
-          pdf.addImage(imgData, "PNG", 5, 5, cardWidth, cardHeight);
-
-          position = 1;
-        }
-
-        // RIGHT CARD
-        else {
-          pdf.addImage(imgData, "PNG", 152, 5, cardWidth, cardHeight);
-
-          position = 0;
-
-          // NEXT PAGE
-          if (i !== selectedJobs.length - 1) {
-            pdf.addPage();
-          }
-        }
-      }
-
-      pdf.save("Bulk_Job_Cards.pdf");
-
-      toast.success(`${selectedJobs.length} Job Cards Downloaded`);
-    } catch (error) {
-      console.log(error);
-
-      toast.error("Bulk Print Failed");
-    }
-  };
+  const API = "https://complaine-backend.vercel.app/api/maintenance/job-cards";
 
   // ==========================================
-  // FETCH DATA
+  // FETCH JOB CARDS
   // ==========================================
 
   const fetchJobCards = async () => {
@@ -105,114 +52,54 @@ const JobCards = () => {
 
       const token = localStorage.getItem("token");
 
-      const response = await axios.get(
-        "https://complaine-backend.vercel.app/api/maintenance/job-cards",
-
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      const response = await axios.get(API, {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-      );
-
-      console.log("JOB CARDS:", response.data);
+      });
 
       setJobCards(response?.data?.jobCards || []);
     } catch (error) {
-      console.log(error);
+      console.log("JOB CARD ERROR:", error);
 
-      toast.error(
-        error?.response?.data?.message || "Failed to fetch job cards",
-      );
+      toast.error(error?.response?.data?.message || "Failed to load Job Cards");
+
+      setJobCards([]);
     } finally {
       setLoading(false);
     }
   };
+
+  // ==========================================
+  // INITIAL FETCH
+  // ==========================================
 
   useEffect(() => {
     fetchJobCards();
   }, []);
 
   // ==========================================
-  // UPDATE STATUS
+  // HELPERS
   // ==========================================
 
-  const handleStatusUpdate = async (id, status) => {
-    try {
-      const token = localStorage.getItem("token");
+  const normalize = (value) => value?.toString()?.trim()?.toLowerCase() || "";
 
-      const response = await axios.put(
-        `https://complaine-backend.vercel.app/api/maintenance/job-cards/update-status/${id}`,
+  const formatDate = (date) => {
+    if (!date) return "--";
 
-        {
-          status,
-
-          remarks: remarks[id] || "",
-        },
-
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      toast.success(response.data.message);
-
-      fetchJobCards();
-    } catch (error) {
-      console.log(error);
-
-      toast.error(error?.response?.data?.message || "Update failed");
-    }
+    return new Date(date).toLocaleString();
   };
 
-  // ==========================================
-  // SINGLE PRINT
-  // ==========================================
-
-  const handlePrint = async (job) => {
-    try {
-      setSelectedJob(job);
-
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
-      if (!printRef.current) {
-        toast.error("Print component not found");
-
-        return;
-      }
-
-      const canvas = await html2canvas(
-        printRef.current,
-
-        {
-          scale: 2,
-
-          useCORS: true,
-
-          backgroundColor: "#ffffff",
-        },
-      );
-
-      const imgData = canvas.toDataURL("image/png");
-
-      const pdf = new jsPDF("p", "mm", "a4");
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-
-      pdf.save(`${job.jobCardId}.pdf`);
-
-      toast.success("Job Card Generated");
-    } catch (error) {
-      console.error(error);
-
-      toast.error("Failed to generate PDF");
+  const getLocation = (job) => {
+    if (job?.hostel) {
+      return job.hostel;
     }
+
+    if (job?.block) {
+      return job.block;
+    }
+
+    return "--";
   };
 
   // ==========================================
@@ -221,35 +108,30 @@ const JobCards = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
+      case "CREATED":
+        return "bg-gray-100 text-gray-700";
+
       case "ASSIGNED":
-        return `
-          bg-purple-100
-          text-purple-700
-        `;
+        return "bg-purple-100 text-purple-700";
 
       case "IN_PROGRESS":
-        return `
-          bg-blue-100
-          text-blue-700
-        `;
+        return "bg-blue-100 text-blue-700";
 
-      case "COMPLETED":
-        return `
-          bg-green-100
-          text-green-700
-        `;
+      case "PARTIALLY_COMPLETED":
+        return "bg-indigo-100 text-indigo-700";
 
       case "WAITING_MATERIAL":
-        return `
-          bg-yellow-100
-          text-yellow-700
-        `;
+        return "bg-orange-100 text-orange-700";
+
+      case "READY_FOR_VERIFICATION":
+        return "bg-yellow-100 text-yellow-700";
+
+      case "COMPLETED":
+      case "CLOSED":
+        return "bg-green-100 text-green-700";
 
       default:
-        return `
-          bg-gray-100
-          text-gray-700
-        `;
+        return "bg-gray-100 text-gray-700";
     }
   };
 
@@ -259,31 +141,171 @@ const JobCards = () => {
 
   const getPriorityColor = (priority) => {
     switch (priority) {
-      case "HIGH":
       case "URGENT":
-        return `
-          bg-red-100
-          text-red-700
-        `;
+      case "HIGH":
+        return "bg-red-100 text-red-700";
 
       case "MEDIUM":
-        return `
-          bg-yellow-100
-          text-yellow-700
-        `;
+        return "bg-yellow-100 text-yellow-700";
 
       case "LOW":
-        return `
-          bg-green-100
-          text-green-700
-        `;
+        return "bg-green-100 text-green-700";
 
       default:
-        return `
-          bg-gray-100
-          text-gray-700
-        `;
+        return "bg-gray-100 text-gray-700";
     }
+  };
+
+  // ==========================================
+  // MATERIAL COLOR
+  // ==========================================
+
+  const getMaterialColor = (status) => {
+    switch (status) {
+      case "APPROVED":
+        return "bg-green-100 text-green-700";
+
+      case "ISSUED":
+        return "bg-blue-100 text-blue-700";
+
+      case "REJECTED":
+        return "bg-red-100 text-red-700";
+
+      case "PENDING":
+        return "bg-yellow-100 text-yellow-700";
+
+      case "NOT_REQUIRED":
+        return "bg-gray-100 text-gray-600";
+
+      default:
+        return "bg-orange-100 text-orange-700";
+    }
+  };
+
+  // ==========================================
+  // FILTER
+  // ==========================================
+
+  const filteredJobCards = useMemo(() => {
+    const searchValue = normalize(search);
+
+    return jobCards.filter((job) => {
+      const matchSearch =
+        !searchValue ||
+        normalize(job.jobCardId).includes(searchValue) ||
+        normalize(job.category).includes(searchValue) ||
+        normalize(job.hostel).includes(searchValue) ||
+        normalize(job.block).includes(searchValue) ||
+        normalize(job?.assignedWorker?.name).includes(searchValue);
+
+      const matchStatus = statusFilter === "ALL" || job.status === statusFilter;
+
+      return matchSearch && matchStatus;
+    });
+  }, [jobCards, search, statusFilter]);
+
+  // ==========================================
+  // STATS
+  // ==========================================
+
+  const totalCards = jobCards.length;
+
+  const activeCards = jobCards.filter((job) =>
+    [
+      "ASSIGNED",
+      "IN_PROGRESS",
+      "PARTIALLY_COMPLETED",
+      "WAITING_MATERIAL",
+    ].includes(job.status),
+  ).length;
+
+  const waitingMaterial = jobCards.filter(
+    (job) => job.status === "WAITING_MATERIAL",
+  ).length;
+
+  const completedCards = jobCards.filter(
+    (job) => job.status === "COMPLETED" || job.status === "CLOSED",
+  ).length;
+
+  // ==========================================
+  // MATERIAL SUMMARY
+  // ==========================================
+
+  const getMaterialSummary = (job) => {
+    let pending = 0;
+    let approved = 0;
+    let issued = 0;
+    let rejected = 0;
+    let notRequired = 0;
+
+    job?.complaints?.forEach((item) => {
+      switch (item.materialStatus) {
+        case "PENDING":
+          pending++;
+          break;
+
+        case "APPROVED":
+          approved++;
+          break;
+
+        case "ISSUED":
+          issued++;
+          break;
+
+        case "REJECTED":
+          rejected++;
+          break;
+
+        default:
+          notRequired++;
+      }
+    });
+
+    return {
+      pending,
+      approved,
+      issued,
+      rejected,
+      notRequired,
+    };
+  };
+
+  // ==========================================
+  // ALL MATERIAL ITEMS
+  // ==========================================
+
+  const getAllMaterials = (job) => {
+    const list = [];
+
+    job?.complaints?.forEach((complaintItem) => {
+      const request = complaintItem?.materialRequest;
+
+      request?.materials?.forEach((material) => {
+        list.push({
+          ...material,
+
+          complaintId: complaintItem?.complaint?.complaintId || "--",
+
+          requestId: request?.requestId || "--",
+
+          storeSlipNo: request?.storeSlipNo || complaintItem?.storeSlipNo || "",
+        });
+      });
+    });
+
+    return list;
+  };
+
+  // ==========================================
+  // PRINT
+  // ==========================================
+
+  const handlePrint = (job) => {
+    setSelectedJobCard(job);
+
+    setTimeout(() => {
+      window.print();
+    }, 200);
   };
 
   // ==========================================
@@ -292,782 +314,978 @@ const JobCards = () => {
 
   if (loading) {
     return (
-      <div
-        className="
-          flex
-          items-center
-          justify-center
-          min-h-screen
-        "
-      >
-        <Loader2
-          size={60}
-          className="
-            animate-spin
-            text-[#001B54]
-          "
-        />
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 size={55} className="animate-spin text-[#001B54]" />
       </div>
     );
   }
 
-  // ==========================================
-  // EMPTY
-  // ==========================================
-
-  if (jobCards.length === 0) {
-    return (
-      <div
-        className="
-          flex
-          flex-col
-          items-center
-          justify-center
-          min-h-screen
-        "
-      >
-        <ClipboardList
-          size={90}
-          className="
-            text-gray-300
-          "
-        />
-
-        <h2
-          className="
-            text-3xl
-            font-bold
-            text-gray-500
-            mt-5
-          "
-        >
-          No Job Cards Found
-        </h2>
-      </div>
-    );
-  }
   return (
     <>
-      {/* HIDDEN PRINT AREA */}
+      {/* ==========================================
+          NORMAL PAGE
+      ========================================== */}
 
-      <div
-        style={{
-          position: "absolute",
-          left: "-9999px",
-          top: 0,
-        }}
-      >
-        {selectedJob && (
-          <div ref={printRef}>
-            <PrintableJobCard job={selectedJob} />
-          </div>
-        )}
-      </div>
-
-      {/* MAIN CONTAINER */}
-
-      <div
-        className="
-          space-y-10
-          print:block
-          print:w-full
-          print:overflow-visible
-        "
-      >
-        {/* ========================================== */}
-        {/* MAINTENANCE MANAGER HEADER */}
-        {/* ========================================== */}
+      <div className="space-y-8 print:hidden">
+        {/* HEADER */}
 
         <div
           className="
-            sticky
-            top-0
-            z-50
-
             bg-gradient-to-r
             from-[#001B54]
             via-[#002B7F]
             to-[#7A0019]
 
-            rounded-3xl
-
-            p-6
-
             text-white
-
+            rounded-3xl
             shadow-2xl
 
-            print:hidden
+            p-6
+            md:p-8
           "
         >
-          <div
-            className="
-              flex
-              flex-col
-              lg:flex-row
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+            <div className="flex items-center gap-4">
+              <ClipboardList size={48} />
 
-              justify-between
+              <div>
+                <h1 className="text-3xl md:text-5xl font-extrabold">
+                  Job Cards
+                </h1>
 
-              gap-6
-            "
-          >
-            <div>
-              <h1
-                className="
-                  text-3xl
-                  md:text-4xl
-                  font-extrabold
-                "
-              >
-                Maintenance Manager Dashboard
-              </h1>
-
-              <p
-                className="
-                  text-blue-100
-                  mt-2
-                "
-              >
-                Manage Job Cards & Bulk Printing
-              </p>
+                <p className="mt-2 text-blue-100">
+                  Maintenance complaint Job Card management.
+                </p>
+              </div>
             </div>
 
-            <div
+            <button
+              onClick={fetchJobCards}
               className="
+                bg-white
+                text-[#001B54]
+
+                px-5
+                py-3
+
+                rounded-2xl
+                font-bold
+
                 flex
-                flex-wrap
-                gap-3
+                items-center
+                justify-center
+                gap-2
               "
             >
-              <button
-                onClick={() => setSelectedCards(jobCards.map((job) => job._id))}
-                className="
-                  bg-blue-500
-                  hover:bg-blue-600
-
-                  px-5
-                  py-3
-
-                  rounded-xl
-
-                  font-bold
-                "
-              >
-                Select All
-              </button>
-
-              <button
-                onClick={() => setSelectedCards([])}
-                className="
-                  bg-gray-500
-                  hover:bg-gray-600
-
-                  px-5
-                  py-3
-
-                  rounded-xl
-
-                  font-bold
-                "
-              >
-                Clear
-              </button>
-
-              <button
-                onClick={handleBulkPrint}
-                className="
-                  bg-green-600
-                  hover:bg-green-700
-
-                  px-5
-                  py-3
-
-                  rounded-xl
-
-                  font-bold
-                "
-              >
-                Bulk Print ({selectedCards.length})
-              </button>
-            </div>
+              <RefreshCw size={18} />
+              Refresh
+            </button>
           </div>
         </div>
 
-        {/* ========================================== */}
-        {/* JOB CARD LIST */}
-        {/* ========================================== */}
+        {/* STATS */}
 
-        {jobCards.map((job) => (
-          <div key={job._id}>
-            {/* ========================================== */}
-            {/* CHECKBOX */}
-            {/* ========================================== */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
+          <div className="bg-blue-100 rounded-3xl p-6 shadow-xl">
+            <ClipboardList size={30} className="text-blue-700" />
 
-            <div
-              className="
-                mb-4
-                print:hidden
-              "
-            >
-              <label
+            <h2 className="text-4xl font-bold text-blue-700 mt-4">
+              {totalCards}
+            </h2>
+
+            <p className="mt-2 text-blue-700 font-medium">Total Job Cards</p>
+          </div>
+
+          <div className="bg-purple-100 rounded-3xl p-6 shadow-xl">
+            <Clock3 size={30} className="text-purple-700" />
+
+            <h2 className="text-4xl font-bold text-purple-700 mt-4">
+              {activeCards}
+            </h2>
+
+            <p className="mt-2 text-purple-700 font-medium">Active Jobs</p>
+          </div>
+
+          <div className="bg-yellow-100 rounded-3xl p-6 shadow-xl">
+            <Package size={30} className="text-yellow-700" />
+
+            <h2 className="text-4xl font-bold text-yellow-700 mt-4">
+              {waitingMaterial}
+            </h2>
+
+            <p className="mt-2 text-yellow-700 font-medium">Waiting Material</p>
+          </div>
+
+          <div className="bg-green-100 rounded-3xl p-6 shadow-xl">
+            <CheckCircle2 size={30} className="text-green-700" />
+
+            <h2 className="text-4xl font-bold text-green-700 mt-4">
+              {completedCards}
+            </h2>
+
+            <p className="mt-2 text-green-700 font-medium">Completed</p>
+          </div>
+        </div>
+
+        {/* SEARCH */}
+
+        <div className="bg-white rounded-3xl shadow-xl p-5">
+          <div className="flex flex-col lg:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search
+                size={19}
                 className="
-                  flex
-                  items-center
-                  gap-3
+                  absolute
+                  left-4
+                  top-1/2
+                  -translate-y-1/2
+                  text-gray-400
+                "
+              />
 
-                  bg-white
-
-                  p-4
-
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search Job ID, Location, Category, Worker..."
+                className="
+                  w-full
+                  border
                   rounded-2xl
 
-                  shadow
-
-                  border
+                  pl-11
+                  pr-4
+                  py-3
                 "
-              >
-                <input
-                  type="checkbox"
-                  checked={selectedCards.includes(job._id)}
-                  onChange={(e) => {
-                    if (e.target.checked) {
-                      setSelectedCards([...selectedCards, job._id]);
-                    } else {
-                      setSelectedCards(
-                        selectedCards.filter((id) => id !== job._id),
-                      );
-                    }
-                  }}
-                  className="
-                    w-5
-                    h-5
-                  "
-                />
-
-                <span
-                  className="
-                    font-semibold
-                    text-gray-700
-                  "
-                >
-                  Select For Bulk Print
-                </span>
-              </label>
+              />
             </div>
 
-            {/* ========================================== */}
-            {/* JOB CARD START */}
-            {/* ========================================== */}
-
-            <div
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
               className="
-                job-card-print
-
-                bg-white
-
-                rounded-3xl
-
-                shadow-2xl
-
                 border
-                border-gray-100
-
-                overflow-visible
-
-                print:shadow-none
-                print:border-none
-                print:rounded-none
-                print:w-full
-                print:min-h-screen
-                print:p-0
-                print:m-0
-                print:break-after-page
+                rounded-2xl
+                px-4
+                py-3
               "
             >
-              {/* HEADER */}
+              <option value="ALL">All Status</option>
 
+              <option value="IN_PROGRESS">In Progress</option>
+
+              <option value="WAITING_MATERIAL">Waiting Material</option>
+
+              <option value="PARTIALLY_COMPLETED">Partially Completed</option>
+
+              <option value="READY_FOR_VERIFICATION">Ready Verification</option>
+
+              <option value="COMPLETED">Completed</option>
+            </select>
+          </div>
+        </div>
+
+        {/* JOB CARD LIST */}
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
+          {filteredJobCards.length === 0 ? (
+            <div className="xl:col-span-2 bg-white rounded-3xl shadow-xl p-12 text-center">
+              <ClipboardList size={60} className="mx-auto text-gray-300" />
+
+              <p className="mt-4 text-gray-500">No Job Cards found.</p>
+            </div>
+          ) : (
+            filteredJobCards.map((job) => (
               <div
+                key={job._id}
                 className="
-                  bg-gradient-to-r
-                  from-[#001B54]
-                  via-[#002B7F]
-                  to-[#7A0019]
-
-                  text-white
-
-                  p-8
+                  bg-white
+                  rounded-3xl
+                  shadow-xl
+                  overflow-hidden
+                  border
+                  border-gray-100
+                  h-fit
                 "
               >
+                {/* CARD HEADER */}
+
                 <div
                   className="
-    flex
-    flex-col
+                    bg-gradient-to-r
+                    from-[#001B54]
+                    to-[#7A0019]
 
-    lg:flex-row
-
-    justify-between
-
-    lg:items-center
-
-    gap-6
-  "
+                    text-white
+                    p-6
+                  "
                 >
-                  <div className="flex items-center gap-6">
-                    <div
-                      className="
-                        w-24
-                        h-24
+                  <div className="flex justify-between gap-4">
+                    <div>
+                      <p className="text-blue-100 text-sm">Job Card</p>
 
-                        rounded-3xl
-
-                        bg-gradient-to-br
-                        from-yellow-400
-                        via-yellow-500
-                        to-orange-500
-
-                        flex
-                        items-center
-                        justify-center
-
-                        shadow-2xl
-
-                        border-4
-                        border-white/10
-                      "
-                    >
-                      <ClipboardList size={45} className="text-white" />
+                      <h2 className="text-2xl font-extrabold mt-1">
+                        {job.jobCardId}
+                      </h2>
                     </div>
 
-                    <div>
-                      <h1
-                        className="
-                          text-3xl
-                          md:text-5xl
+                    <span
+                      className={`
+                        bg-white
+                        h-fit
+                        px-3
+                        py-1.5
+                        rounded-full
+                        text-xs
+                        font-bold
+                        ${getStatusColor(job.status)}
+                      `}
+                    >
+                      {job.status}
+                    </span>
+                  </div>
+                </div>
 
-                          font-extrabold
+                {/* BODY */}
 
-                          tracking-wide
-                        "
-                      >
-                        Amity University Madhya Pradesh
-                      </h1>
+                <div className="p-6">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="bg-blue-50 rounded-2xl p-4">
+                      <p className="text-xs text-gray-500">Location</p>
 
-                      <div
-                        className="
-                          flex
-                          items-center
-                          gap-3
+                      <p className="font-bold text-blue-700 mt-1">
+                        {getLocation(job)}
+                      </p>
+                    </div>
 
-                          mt-3
-                        "
-                      >
-                        <div
-                          className="
-                            w-3
-                            h-3
+                    <div className="bg-purple-50 rounded-2xl p-4">
+                      <p className="text-xs text-gray-500">Category</p>
 
-                            rounded-full
+                      <p className="font-bold text-purple-700 mt-1">
+                        {job.category}
+                      </p>
+                    </div>
 
-                            bg-green-400
+                    <div className="bg-green-50 rounded-2xl p-4">
+                      <p className="text-xs text-gray-500">Worker</p>
 
-                            animate-pulse
-                          "
-                        />
+                      <p className="font-bold text-green-700 mt-1">
+                        {job?.assignedWorker?.name || "--"}
+                      </p>
+                    </div>
 
-                        <p
-                          className="
-                            text-blue-100
+                    <div className="bg-yellow-50 rounded-2xl p-4">
+                      <p className="text-xs text-gray-500">Complaints</p>
 
-                            text-lg
-
-                            font-medium
-                          "
-                        >
-                          Smart Campus ERP System
-                        </p>
-                      </div>
-
-                      <p
-                        className="
-                          text-yellow-300
-
-                          mt-2
-
-                          text-lg
-
-                          font-semibold
-                        "
-                      >
-                        Maintenance Department
+                      <p className="font-bold text-yellow-700 mt-1">
+                        {job.completedComplaints || 0}
+                        {" / "}
+                        {job.totalComplaints || 0}
                       </p>
                     </div>
                   </div>
 
-                  <div className="text-right">
-                    <h2
-                      className="
-                        text-3xl
-                        md:text-5xl
+                  {/* PROGRESS */}
 
-                        font-extrabold
+                  <div className="mt-5">
+                    <div className="flex justify-between text-sm">
+                      <span className="font-semibold">Progress</span>
+
+                      <span className="font-bold text-[#001B54]">
+                        {job.completionPercentage || 0}%
+                      </span>
+                    </div>
+
+                    <div className="w-full h-3 bg-gray-100 rounded-full mt-2 overflow-hidden">
+                      <div
+                        className="h-full bg-[#001B54] rounded-full"
+                        style={{
+                          width: `${job.completionPercentage || 0}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* ACTIONS */}
+
+                  <div className="grid grid-cols-2 gap-3 mt-6">
+                    <button
+                      onClick={() => setSelectedJobCard(job)}
+                      className="
+                        bg-[#001B54]
+                        text-white
+                        py-3
+                        rounded-2xl
+                        font-bold
+
+                        flex
+                        items-center
+                        justify-center
+                        gap-2
                       "
                     >
-                      {job.jobCardId}
-                    </h2>
-
-                    <p
-                      className="
-                        mt-3
-
-                        text-yellow-300
-
-                        font-semibold
-                      "
-                    >
-                      Maintenance Work Order
-                    </p>
-
-                    {/* SINGLE PRINT ONLY */}
+                      <Eye size={18} />
+                      View
+                    </button>
 
                     <button
                       onClick={() => handlePrint(job)}
                       className="
-                        mt-5
-
                         bg-yellow-400
-                        hover:bg-yellow-300
-
-                        transition-all
-
                         text-[#001B54]
-
-                        px-6
                         py-3
-
                         rounded-2xl
+                        font-bold
 
                         flex
                         items-center
-                        gap-3
-
-                        font-bold
-
-                        ml-auto
-
-                        print:hidden
+                        justify-center
+                        gap-2
                       "
                     >
-                      <Printer size={22} />
-                      Print Job Card
+                      <Printer size={18} />
+                      Print
                     </button>
                   </div>
                 </div>
               </div>
+            ))
+          )}
+        </div>
+      </div>
 
-              {/* ========================================== */}
-              {/* BODY */}
-              {/* ========================================== */}
+      {/* ==========================================
+          VIEW MODAL
+      ========================================== */}
 
-              <div className="p-8 space-y-8">
-                {/* STATUS */}
+      {selectedJobCard && (
+        <div
+          className="
+            fixed
+            inset-0
+            z-[100]
+            bg-black/50
 
-                <div className="flex flex-wrap gap-5">
-                  <div
-                    className={`px-6 py-3 rounded-2xl font-bold text-lg ${getStatusColor(
-                      job.status,
-                    )}`}
-                  >
-                    {job.status}
+            overflow-y-auto
+            print:static
+            print:bg-white
+            print:overflow-visible
+          "
+        >
+          <div
+            className="
+              min-h-screen
+              p-4
+              md:p-8
+
+              print:p-0
+              print:min-h-0
+            "
+          >
+            {/* ACTION BAR */}
+
+            <div
+              className="
+                max-w-[1500px]
+                mx-auto
+                mb-4
+
+                flex
+                justify-end
+                gap-3
+
+                print:hidden
+              "
+            >
+              <button
+                onClick={() => setSelectedJobCard(null)}
+                className="
+                  bg-white
+                  px-5
+                  py-3
+                  rounded-xl
+                  font-bold
+
+                  flex
+                  items-center
+                  gap-2
+                "
+              >
+                <X size={18} />
+                Close
+              </button>
+
+              <button
+                onClick={() => window.print()}
+                className="
+                  bg-yellow-400
+                  text-[#001B54]
+
+                  px-5
+                  py-3
+
+                  rounded-xl
+                  font-bold
+
+                  flex
+                  items-center
+                  gap-2
+                "
+              >
+                <Printer size={18} />
+                Print Job Card
+              </button>
+            </div>
+
+            {/* ==================================
+                ACTUAL JOB CARD
+            ================================== */}
+
+            <div
+              className="
+                max-w-[1500px]
+                mx-auto
+
+                bg-white
+
+                shadow-2xl
+
+                print:shadow-none
+                print:max-w-none
+              "
+            >
+              {/* TOP HEADER */}
+
+              <div className="border-2 border-black">
+                <div
+                  className="
+                    bg-[#001B54]
+                    text-white
+
+                    p-5
+
+                    flex
+                    flex-col
+                    md:flex-row
+                    md:items-center
+                    md:justify-between
+
+                    gap-4
+                  "
+                >
+                  <div>
+                    <h1 className="text-3xl font-extrabold">
+                      SMART CAMPUS ERP
+                    </h1>
+
+                    <p className="text-blue-100 mt-1">MAINTENANCE JOB CARD</p>
                   </div>
 
-                  <div
-                    className={`px-6 py-3 rounded-2xl font-bold text-lg ${getPriorityColor(
-                      job?.complaint?.priority,
-                    )}`}
-                  >
-                    Priority : {job?.complaint?.priority}
+                  <div className="text-left md:text-right">
+                    <p className="text-sm text-blue-100">Job ID</p>
+
+                    <p className="text-2xl font-bold">
+                      {selectedJobCard.jobCardId}
+                    </p>
                   </div>
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6">
-                  {/* COMPLAINT DETAILS */}
+                {/* BASIC DETAILS */}
 
-                  <div
-                    className="
-      bg-white
-      rounded-3xl
-      shadow-lg
-      border
-      border-gray-100
-      p-6
-    "
-                  >
-                    <h3
-                      className="
-        text-xl
-        font-extrabold
-        text-[#001B54]
-        border-b
-        pb-3
-        mb-4
-      "
+                <div className="grid grid-cols-2 md:grid-cols-4 border-t-2 border-black">
+                  <InfoBox
+                    title="Generated Date"
+                    value={formatDate(selectedJobCard.createdAt)}
+                  />
+
+                  <InfoBox
+                    title="Location"
+                    value={getLocation(selectedJobCard)}
+                  />
+
+                  <InfoBox title="Category" value={selectedJobCard.category} />
+
+                  <div className="p-4 border-r border-black">
+                    <p className="text-xs font-bold text-gray-500">PRIORITY</p>
+
+                    <span
+                      className={`
+                        inline-block
+                        mt-2
+                        px-3
+                        py-1
+                        rounded-full
+                        text-xs
+                        font-bold
+                        ${getPriorityColor(selectedJobCard.priority)}
+                      `}
                     >
-                      Complaint Details
-                    </h3>
-
-                    <div className="space-y-4">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 font-semibold">
-                          Complaint ID
-                        </span>
-
-                        <span className="font-bold">
-                          {job?.complaint?.complaintId}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 font-semibold">
-                          Category
-                        </span>
-
-                        <span className="font-bold">
-                          {job?.complaint?.category}
-                        </span>
-                      </div>
-
-                      <div>
-                        <p className="text-gray-500 font-semibold">Title</p>
-
-                        <p className="font-bold">{job?.complaint?.title}</p>
-                      </div>
-
-                      <div>
-                        <p className="text-gray-500 font-semibold">
-                          Description
-                        </p>
-
-                        <p>{job?.complaint?.description}</p>
-                      </div>
-                    </div>
+                      {selectedJobCard.priority}
+                    </span>
                   </div>
+                </div>
 
-                  {/* STUDENT DETAILS */}
+                {/* ==================================
+                    WORKER DETAILS
+                ================================== */}
 
-                  <div
-                    className="
-      bg-white
-      rounded-3xl
-      shadow-lg
-      border
-      border-gray-100
-      p-6
-    "
-                  >
-                    <h3
-                      className="
-        text-xl
-        font-extrabold
-        text-[#001B54]
-        border-b
-        pb-3
-        mb-4
-      "
-                    >
-                      Student Details
-                    </h3>
+                <SectionTitle
+                  icon={<User size={18} />}
+                  title="WORKER DETAILS"
+                />
 
-                    <div className="space-y-4">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 font-semibold">
-                          Name
-                        </span>
+                <div className="grid grid-cols-2 md:grid-cols-5">
+                  <InfoBox
+                    title="Worker Name"
+                    value={selectedJobCard?.assignedWorker?.name || "--"}
+                  />
 
-                        <span className="font-bold">
-                          {job?.complaint?.createdBy?.name}
-                        </span>
-                      </div>
+                  <InfoBox
+                    title="Department"
+                    value={selectedJobCard?.assignedWorker?.department || "--"}
+                  />
 
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 font-semibold">
-                          Hostel
-                        </span>
+                  <InfoBox
+                    title="Phone"
+                    value={selectedJobCard?.assignedWorker?.phone || "--"}
+                  />
 
-                        <span className="font-bold">
-                          {job?.complaint?.hostel || "N/A"}
-                        </span>
-                      </div>
+                  <InfoBox
+                    title="Assigned By"
+                    value={selectedJobCard?.assignedBy?.name || "--"}
+                  />
 
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 font-semibold">
-                          Room
-                        </span>
+                  <InfoBox
+                    title="Assigned Date"
+                    value={formatDate(selectedJobCard.assignedDate)}
+                  />
+                </div>
 
-                        <span className="font-bold">
-                          {job?.complaint?.roomNumber || "N/A"}
-                        </span>
-                      </div>
+                {/* ==================================
+                    LOCATION SUMMARY
+                ================================== */}
+
+                <SectionTitle
+                  icon={<MapPin size={18} />}
+                  title="LOCATION & WORK SUMMARY"
+                />
+
+                <div className="grid grid-cols-2 md:grid-cols-5">
+                  <InfoBox
+                    title="Location"
+                    value={getLocation(selectedJobCard)}
+                  />
+
+                  <InfoBox
+                    title="Floors Covered"
+                    value={selectedJobCard?.floorsCovered?.join(", ") || "--"}
+                  />
+
+                  <InfoBox
+                    title="Total Complaints"
+                    value={selectedJobCard.totalComplaints || 0}
+                  />
+
+                  <InfoBox
+                    title="Completed"
+                    value={selectedJobCard.completedComplaints || 0}
+                  />
+
+                  <InfoBox
+                    title="Pending"
+                    value={selectedJobCard.pendingComplaints || 0}
+                  />
+                </div>
+
+                {/* ==================================
+                    COMPLAINT TABLE
+                ================================== */}
+
+                <SectionTitle
+                  icon={<ClipboardList size={18} />}
+                  title="COMPLAINT DETAILS"
+                />
+
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[1250px] border-collapse text-sm">
+                    <thead className="bg-gray-200">
+                      <tr>
+                        <TableHead text="S.No" />
+                        <TableHead text="Complaint ID" />
+                        <TableHead text="Room" />
+                        <TableHead text="Floor" />
+                        <TableHead text="Issue (English)" />
+                        <TableHead text="Issue (Hindi)" />
+                        <TableHead text="Priority" />
+                        <TableHead text="Material" />
+                        <TableHead text="Store Status" />
+                        <TableHead text="Verification" />
+                        <TableHead text="Status" />
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {selectedJobCard.complaints?.map((item, index) => (
+                        <tr key={index}>
+                          <TableCell>
+                            {item.serialNumber || index + 1}
+                          </TableCell>
+
+                          <TableCell>
+                            {item?.complaint?.complaintId || "--"}
+                          </TableCell>
+
+                          <TableCell>{item.roomNumber || "--"}</TableCell>
+
+                          <TableCell>{item.floor || "--"}</TableCell>
+
+                          <TableCell>
+                            {item.title || item?.complaint?.title || "--"}
+                          </TableCell>
+
+                          <TableCell>
+                            {item.titleHindi ||
+                              item?.complaint?.titleHindi ||
+                              "--"}
+                          </TableCell>
+
+                          <TableCell>
+                            <span
+                              className={`
+                                  px-2
+                                  py-1
+                                  rounded-full
+                                  text-xs
+                                  font-bold
+                                  ${getPriorityColor(item.priority)}
+                                `}
+                            >
+                              {item.priority}
+                            </span>
+                          </TableCell>
+
+                          <TableCell>
+                            {item.materialRequired ? "YES" : "NO"}
+                          </TableCell>
+
+                          <TableCell>
+                            <span
+                              className={`
+                                  px-2
+                                  py-1
+                                  rounded-full
+                                  text-xs
+                                  font-bold
+                                  ${getMaterialColor(item.materialStatus)}
+                                `}
+                            >
+                              {item.materialStatus}
+                            </span>
+                          </TableCell>
+
+                          <TableCell>
+                            {item.studentVerified ? "VERIFIED" : "PENDING"}
+                          </TableCell>
+
+                          <TableCell>{item.status}</TableCell>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* ==================================
+                    MATERIAL SUMMARY
+                ================================== */}
+
+                <SectionTitle
+                  icon={<Package size={18} />}
+                  title="MATERIAL SUMMARY"
+                />
+
+                {(() => {
+                  const summary = getMaterialSummary(selectedJobCard);
+
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-5">
+                      <InfoBox title="Pending" value={summary.pending} />
+
+                      <InfoBox title="Approved" value={summary.approved} />
+
+                      <InfoBox title="Issued" value={summary.issued} />
+
+                      <InfoBox title="Rejected" value={summary.rejected} />
+
+                      <InfoBox
+                        title="Not Required"
+                        value={summary.notRequired}
+                      />
                     </div>
-                  </div>
+                  );
+                })()}
 
-                  {/* WORKER DETAILS */}
+                {/* ==================================
+                    MATERIAL ITEMS
+                ================================== */}
 
-                  <div
-                    className="
-      bg-white
-      rounded-3xl
-      shadow-lg
-      border
-      border-gray-100
-      p-6
-    "
-                  >
-                    <h3
-                      className="
-        text-xl
-        font-extrabold
-        text-[#001B54]
-        border-b
-        pb-3
-        mb-4
-      "
-                    >
-                      Worker Details
-                    </h3>
-
-                    <div className="space-y-4">
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 font-semibold">
-                          Name
-                        </span>
-
-                        <span className="font-bold">
-                          {job?.assignedWorker?.name}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 font-semibold">
-                          Phone
-                        </span>
-
-                        <span className="font-bold">
-                          {job?.assignedWorker?.phone}
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between">
-                        <span className="text-gray-500 font-semibold">
-                          Department
-                        </span>
-
-                        <span className="font-bold">
-                          {job?.assignedWorker?.department}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* STATUS UPDATE */}
-
-                  <div
-                    className="
-      bg-white
-      rounded-3xl
-      shadow-lg
-      border
-      border-gray-100
-      p-6
-    "
-                  >
-                    <h3
-                      className="
-        text-xl
-        font-extrabold
-        text-[#001B54]
-        border-b
-        pb-3
-        mb-4
-      "
-                    >
-                      Update Status
-                    </h3>
-
-                    <select
-                      className="
-        w-full
-        border-2
-        border-gray-200
-        rounded-xl
-        p-3
-        font-semibold
-      "
-                      value={job.status}
-                      onChange={(e) =>
-                        handleStatusUpdate(job._id, e.target.value)
-                      }
-                    >
-                      <option value="ASSIGNED">ASSIGNED</option>
-
-                      <option value="IN_PROGRESS">IN_PROGRESS</option>
-
-                      <option value="COMPLETED">COMPLETED</option>
-
-                      <option value="WAITING_MATERIAL">WAITING_MATERIAL</option>
-                    </select>
-
-                    <textarea
-                      rows="4"
-                      placeholder="Enter Remarks"
-                      value={remarks[job._id] || ""}
-                      onChange={(e) =>
-                        setRemarks({
-                          ...remarks,
-                          [job._id]: e.target.value,
-                        })
-                      }
-                      className="
-        w-full
-        mt-4
-        border-2
-        border-gray-200
-        rounded-xl
-        p-4
-        resize-none
-      "
+                {getAllMaterials(selectedJobCard).length > 0 && (
+                  <>
+                    <SectionTitle
+                      icon={<Package size={18} />}
+                      title="MATERIAL ITEMS"
                     />
 
-                    <button
-                      onClick={() => handleStatusUpdate(job._id, job.status)}
-                      className="
-        mt-4
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[1000px] border-collapse text-sm">
+                        <thead className="bg-gray-200">
+                          <tr>
+                            <TableHead text="Complaint" />
+                            <TableHead text="Request ID" />
+                            <TableHead text="Item" />
+                            <TableHead text="Requested Qty" />
+                            <TableHead text="Approved Qty" />
+                            <TableHead text="Issued Qty" />
+                            <TableHead text="Unit" />
+                            <TableHead text="Status" />
+                            <TableHead text="Store Slip" />
+                          </tr>
+                        </thead>
 
-        bg-gradient-to-r
-        from-blue-600
-        to-indigo-700
+                        <tbody>
+                          {getAllMaterials(selectedJobCard).map(
+                            (material, index) => (
+                              <tr key={index}>
+                                <TableCell>{material.complaintId}</TableCell>
 
-        text-white
+                                <TableCell>{material.requestId}</TableCell>
 
-        px-6
-        py-3
+                                <TableCell>{material.itemName}</TableCell>
 
-        rounded-xl
+                                <TableCell>{material.quantity}</TableCell>
 
-        font-bold
+                                <TableCell>
+                                  {material.approvedQuantity || 0}
+                                </TableCell>
 
-        shadow-lg
-      "
+                                <TableCell>
+                                  {material.issuedQuantity || 0}
+                                </TableCell>
+
+                                <TableCell>{material.unit}</TableCell>
+
+                                <TableCell>{material.status}</TableCell>
+
+                                <TableCell>
+                                  {material.storeSlipNo || "--"}
+                                </TableCell>
+                              </tr>
+                            ),
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                )}
+
+                {/* ==================================
+                    REMARKS
+                ================================== */}
+
+                <SectionTitle icon={<FileText size={18} />} title="REMARKS" />
+
+                <div className="grid grid-cols-1 md:grid-cols-2">
+                  <InfoBox
+                    title="Worker Remarks"
+                    value={selectedJobCard.workerRemarks || "--"}
+                  />
+
+                  <InfoBox
+                    title="Maintenance Manager Remarks"
+                    value={selectedJobCard.managerRemarks || "--"}
+                  />
+                </div>
+
+                {/* ==================================
+                    VERIFICATION
+                ================================== */}
+
+                <SectionTitle
+                  icon={<ShieldCheck size={18} />}
+                  title="FINAL VERIFICATION"
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-3">
+                  <VerificationBox
+                    title="Worker"
+                    verified={selectedJobCard.workerSigned}
+                    date={selectedJobCard.workerSignedAt}
+                    signature={selectedJobCard.workerSignature}
+                  />
+
+                  <VerificationBox
+                    title="Warden"
+                    verified={selectedJobCard.wardenVerified}
+                    date={selectedJobCard.wardenSignedAt}
+                    signature={selectedJobCard.wardenSignature}
+                  />
+
+                  <VerificationBox
+                    title="Maintenance Manager"
+                    verified={selectedJobCard.managerVerified}
+                    date={selectedJobCard.managerSignedAt}
+                    signature={selectedJobCard.managerSignature}
+                  />
+                </div>
+
+                {/* ==================================
+                    FINAL STATUS
+                ================================== */}
+
+                <div
+                  className="
+                    p-5
+                    border-t-2
+                    border-black
+
+                    flex
+                    flex-col
+                    md:flex-row
+
+                    md:items-center
+                    md:justify-between
+
+                    gap-4
+                  "
+                >
+                  <div>
+                    <p className="text-sm font-bold text-gray-500">
+                      FINAL JOB STATUS
+                    </p>
+
+                    <span
+                      className={`
+                        inline-block
+                        mt-2
+                        px-5
+                        py-2
+                        rounded-full
+                        font-bold
+                        ${getStatusColor(selectedJobCard.status)}
+                      `}
                     >
-                      Update Status
-                    </button>
+                      {selectedJobCard.status}
+                    </span>
                   </div>
+
+                  <div className="text-right">
+                    <p className="text-sm text-gray-500">Progress</p>
+
+                    <p className="text-3xl font-extrabold text-[#001B54]">
+                      {selectedJobCard.completionPercentage || 0}%
+                    </p>
+                  </div>
+                </div>
+
+                {/* FOOTER */}
+
+                <div className="border-t-2 border-black p-3 text-center text-xs text-gray-600">
+                  Smart Campus ERP • Maintenance Department • Generated{" "}
+                  {formatDate(new Date())}
                 </div>
               </div>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
     </>
+  );
+};
+
+// ==========================================
+// SMALL COMPONENTS
+// ==========================================
+
+const SectionTitle = ({ icon, title }) => {
+  return (
+    <div
+      className="
+        bg-gray-200
+        border-t-2
+        border-b
+        border-black
+
+        px-4
+        py-2
+
+        flex
+        items-center
+        gap-2
+
+        font-extrabold
+        text-[#001B54]
+      "
+    >
+      {icon}
+
+      {title}
+    </div>
+  );
+};
+
+const InfoBox = ({ title, value }) => {
+  return (
+    <div className="p-4 border-r border-b border-black min-h-[75px]">
+      <p className="text-xs font-bold text-gray-500">{title}</p>
+
+      <p className="font-bold mt-1 break-words">{value ?? "--"}</p>
+    </div>
+  );
+};
+
+const TableHead = ({ text }) => {
+  return (
+    <th className="border border-black p-2 text-left font-extrabold">{text}</th>
+  );
+};
+
+const TableCell = ({ children }) => {
+  return <td className="border border-black p-2 align-top">{children}</td>;
+};
+
+const VerificationBox = ({ title, verified, date, signature }) => {
+  return (
+    <div className="border-r border-b border-black p-5 min-h-[150px]">
+      <p className="font-extrabold text-[#001B54]">{title}</p>
+
+      <p className="mt-3 text-sm">
+        Status:{" "}
+        <span
+          className={
+            verified ? "font-bold text-green-700" : "font-bold text-red-700"
+          }
+        >
+          {verified ? "VERIFIED" : "PENDING"}
+        </span>
+      </p>
+
+      <p className="text-sm mt-2">
+        Date: {date ? new Date(date).toLocaleString() : "--"}
+      </p>
+
+      <div className="mt-5 border-t border-gray-400 pt-3">
+        <p className="text-xs text-gray-500">Signature</p>
+
+        {signature ? (
+          <img
+            src={signature}
+            alt={`${title} Signature`}
+            className="h-12 mt-2 object-contain"
+          />
+        ) : (
+          <p className="mt-4 text-gray-400">____________________</p>
+        )}
+      </div>
+    </div>
   );
 };
 
