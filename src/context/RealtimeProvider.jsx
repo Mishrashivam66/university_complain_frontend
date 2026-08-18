@@ -1,6 +1,5 @@
-import { createContext, useContext, useEffect, useState } from "react";
-
-import socket from "../socket";
+/* eslint-disable react-refresh/only-export-components */
+import { createContext, useContext } from "react";
 
 // ==========================================
 // CONTEXT
@@ -13,64 +12,8 @@ const RealtimeContext = createContext();
 // ==========================================
 
 export const RealtimeProvider = ({ children }) => {
-  const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    // ======================================
-    // GLOBAL EVENTS
-    // ======================================
-
-    const refreshApp = () => {
-      console.log("Realtime Global Refresh");
-
-      setRefreshKey((prev) => prev + 1);
-    };
-
-    // ======================================
-    // SOCKET EVENTS
-    // ======================================
-
-    socket.on(
-      "complaintUpdated",
-
-      refreshApp,
-    );
-
-    socket.on(
-      "inventoryUpdated",
-
-      refreshApp,
-    );
-
-    socket.on(
-      "dashboardUpdated",
-
-      refreshApp,
-    );
-
-    socket.on(
-      "notificationUpdated",
-
-      refreshApp,
-    );
-
-    // ======================================
-    // CLEANUP
-    // ======================================
-
-    return () => {
-      socket.off("complaintUpdated");
-
-      socket.off("inventoryUpdated");
-
-      socket.off("dashboardUpdated");
-
-      socket.off("notificationUpdated");
-    };
-  }, []);
-
   return (
-    <RealtimeContext.Provider value={{ refreshKey }}>
+    <RealtimeContext.Provider value={{ refreshKey: 0 }}>
       {children}
     </RealtimeContext.Provider>
   );

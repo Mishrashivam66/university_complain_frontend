@@ -1,30 +1,43 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import axios from "axios";
-import html2canvas from "html2canvas";
-import PrintableMaterialRequest from "./PrintableMaterialRequest";
-import { useRef } from "react";
+
 import toast from "react-hot-toast";
-import jsPDF from "jspdf";
+
+import { useLocation, useNavigate } from "react-router-dom";
+
 import {
   Package,
-  ClipboardList,
-  AlertTriangle,
-  CheckCircle2,
-  Clock3,
-  Printer,
-  Boxes,
   Loader2,
-  XCircle,
   PlusCircle,
+  Trash2,
+  MapPin,
+  UserCheck,
+  ClipboardList,
+  Send,
+  ArrowLeft,
+  AlertTriangle,
+  Wrench,
+  RefreshCw,
 } from "lucide-react";
 
 const MaterialRequest = () => {
   // ======================================
-  // USER
+  // NAVIGATION
   // ======================================
 
-  const user = JSON.parse(localStorage.getItem("user"));
+  const location = useLocation();
+
+  const navigate = useNavigate();
+
+  // ======================================
+  // SELECTED COMPLAINT FROM ASSIGNED JOBS
+  // ======================================
+
+  const selectedComplaint = location.state?.complaint || null;
+
+  const selectedComplaintId =
+    location.state?.complaintId || selectedComplaint?._id || "";
 
   // ======================================
   // STATES
@@ -32,37 +45,53 @@ const MaterialRequest = () => {
 
   const [requests, setRequests] = useState([]);
 
-  const [jobCards, setJobCards] = useState([]);
-
   const [loading, setLoading] = useState(true);
 
-  // ======================================
-  // FORM STATES
-  // ======================================
-
-  const [jobCardId, setJobCardId] = useState("");
-
-  const [itemName, setItemName] = useState("");
-
-  const [quantity, setQuantity] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const [reason, setReason] = useState("");
-  const [selectedRequests, setSelectedRequests] = useState([]);
-  const [selectedRequest, setSelectedRequest] = useState(null);
-
-  const printRef = useRef(null);
-  // ======================================
-  // FETCH DATA
-  // ======================================
-
-  useEffect(() => {
-    fetchRequests();
-
-    fetchJobCards();
-  }, []);
 
   // ======================================
-  // FETCH REQUESTS
+  // MULTIPLE MATERIALS
+  // ======================================
+
+  const [materials, setMaterials] = useState([
+    {
+      itemName: "",
+      quantity: "",
+      unit: "PIECE",
+    },
+  ]);
+
+  // ======================================
+  // API BASE
+  // ======================================
+
+  const API_BASE =
+    "https://complaine-backend.vercel.app/api/maintenance/material-requests";
+
+  // ======================================
+  // UNITS
+  // BACKEND ENUM VALUES
+  // ======================================
+
+  const units = [
+    "PIECE",
+    "METER",
+    "KG",
+    "GRAM",
+    "LITER",
+    "ML",
+    "BOX",
+    "PACKET",
+    "ROLL",
+    "SET",
+    "PAIR",
+    "OTHER",
+  ];
+
+  // ======================================
+  // FETCH MATERIAL REQUESTS
   // ======================================
 
   const fetchRequests = async () => {
@@ -71,72 +100,181 @@ const MaterialRequest = () => {
 
       const token = localStorage.getItem("token");
 
-      const response = await axios.get(
-        "https://complaine-backend.vercel.app/api/maintenance/material-requests",
-
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+      const response = await axios.get(API_BASE, {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-      );
+      });
 
       setRequests(response?.data?.requests || []);
     } catch (error) {
-      console.log(error);
+      console.log("MATERIAL REQUEST ERROR:", error);
 
-      toast.error(error?.response?.data?.message || "Failed to load requests");
+      toast.error(
+        error?.response?.data?.message || "Failed to load material requests",
+      );
+
+      setRequests([]);
     } finally {
       setLoading(false);
     }
   };
 
   // ======================================
-  // FETCH JOB CARDS
+  // INITIAL LOAD
   // ======================================
 
-  const fetchJobCards = async () => {
-    try {
-      const token = localStorage.getItem("token");
+  useEffect(() => {
+    fetchRequests();
+  }, []);
 
-      const response = await axios.get(
-        "https://complaine-backend.vercel.app/api/maintenance/job-cards",
+  // ======================================
+  // EXISTING REQUEST FOR SELECTED COMPLAINT
+  // ======================================
 
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      setJobCards(response?.data?.jobCards || []);
-    } catch (error) {
-      console.log(error);
+  const existingRequest = useMemo(() => {
+    if (!selectedComplaintId) {
+      return null;
     }
+
+    return (
+      requests.find((request) => {
+        const complaintId =
+          typeof request?.complaint === "object"
+            ? request?.complaint?._id
+            : request?.complaint;
+
+        return complaintId?.toString() === selectedComplaintId.toString();
+      }) || null
+    );
+  }, [requests, selectedComplaintId]);
+
+  // ======================================
+  // ADD MATERIAL ROW
+  // ======================================
+
+  const addMaterial = () => {
+    setMaterials((prev) => [
+      ...prev,
+      {
+        itemName: "",
+        quantity: "",
+        unit: "PIECE",
+      },
+    ]);
   };
 
   // ======================================
-  // CREATE REQUEST
+  // REMOVE MATERIAL ROW
   // ======================================
 
-  const handleCreateRequest = async (e) => {
-    e.preventDefault();
+  const removeMaterial = (index) => {
+    if (materials.length === 1) {
+      return toast.error("At least one material is required");
+    }
+
+    setMaterials((prev) =>
+      prev.filter((_, materialIndex) => materialIndex !== index),
+    );
+  };
+
+  // ======================================
+  // UPDATE MATERIAL ROW
+  // ======================================
+
+  const updateMaterial = (index, field, value) => {
+    setMaterials((prev) =>
+      prev.map((material, materialIndex) =>
+        materialIndex === index
+          ? {
+              ...material,
+              [field]: value,
+            }
+          : material,
+      ),
+    );
+  };
+
+  // ======================================
+  // CREATE MATERIAL REQUEST
+  // ======================================
+
+  const handleCreateRequest = async (event) => {
+    event.preventDefault();
+
+    // ======================================
+    // COMPLAINT VALIDATION
+    // ======================================
+
+    if (!selectedComplaintId) {
+      return toast.error("Please open Material Request from Assigned Jobs");
+    }
+
+    // ======================================
+    // DUPLICATE VALIDATION
+    // ======================================
+
+    if (existingRequest) {
+      return toast.error("Material request already exists for this complaint");
+    }
+
+    // ======================================
+    // REASON VALIDATION
+    // ======================================
+
+    if (!reason.trim()) {
+      return toast.error("Please enter material request reason");
+    }
+
+    // ======================================
+    // MATERIAL VALIDATION
+    // ======================================
+
+    const invalidMaterial = materials.some(
+      (material) =>
+        !material.itemName.trim() ||
+        !material.quantity ||
+        Number(material.quantity) <= 0 ||
+        !material.unit,
+    );
+
+    if (invalidMaterial) {
+      return toast.error("Please fill all material details correctly");
+    }
 
     try {
+      setSubmitting(true);
+
       const token = localStorage.getItem("token");
 
+      // ======================================
+      // CLEAN DATA
+      // ======================================
+
+      const payload = {
+        complaintId: selectedComplaintId,
+
+        materials: materials.map((material) => ({
+          itemName: material.itemName.trim(),
+
+          quantity: Number(material.quantity),
+
+          unit: material.unit,
+        })),
+
+        reason: reason.trim(),
+      };
+
+      console.log("MATERIAL REQUEST PAYLOAD:", payload);
+
+      // ======================================
+      // API
+      // ======================================
+
       const response = await axios.post(
-        "https://complaine-backend.vercel.app/api/maintenance/material-requests/create",
+        `${API_BASE}/create`,
 
-        {
-          jobCardId,
-
-          itemName,
-
-          quantity,
-
-          reason,
-        },
+        payload,
 
         {
           headers: {
@@ -145,55 +283,37 @@ const MaterialRequest = () => {
         },
       );
 
-      toast.success(response.data.message);
+      toast.success(
+        response?.data?.message || "Material request sent to store",
+      );
 
-      // RESET FORM
+      // ======================================
+      // RESET
+      // ======================================
 
-      setJobCardId("");
-
-      setItemName("");
-
-      setQuantity("");
+      setMaterials([
+        {
+          itemName: "",
+          quantity: "",
+          unit: "PIECE",
+        },
+      ]);
 
       setReason("");
 
-      fetchRequests();
+      // ======================================
+      // REFRESH REQUESTS
+      // ======================================
+
+      await fetchRequests();
     } catch (error) {
-      console.log(error);
+      console.log("CREATE MATERIAL REQUEST ERROR:", error);
 
-      toast.error(error?.response?.data?.message || "Failed to create request");
-    }
-  };
-
-  // ======================================
-  // UPDATE STATUS
-  // ======================================
-
-  const handleStatusUpdate = async (id, status) => {
-    try {
-      const token = localStorage.getItem("token");
-
-      const response = await axios.put(
-        `https://complaine-backend.vercel.app/api/maintenance/material-requests/update-status/${id}`,
-
-        {
-          status,
-        },
-
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+      toast.error(
+        error?.response?.data?.message || "Failed to create material request",
       );
-
-      toast.success(response.data.message);
-
-      fetchRequests();
-    } catch (error) {
-      console.log(error);
-
-      toast.error(error?.response?.data?.message || "Update failed");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -213,6 +333,18 @@ const MaterialRequest = () => {
         return `
           bg-green-100
           text-green-700
+        `;
+
+      case "PARTIALLY_APPROVED":
+        return `
+          bg-purple-100
+          text-purple-700
+        `;
+
+      case "PARTIALLY_ISSUED":
+        return `
+          bg-orange-100
+          text-orange-700
         `;
 
       case "ISSUED":
@@ -242,120 +374,39 @@ const MaterialRequest = () => {
   };
 
   // ======================================
-  // PRINT
+  // MATERIAL ITEM STATUS COLOR
   // ======================================
-  const handleBulkPrint = async () => {
-    try {
-      const filteredRequests = requests.filter((request) =>
-        selectedRequests.includes(request._id),
-      );
 
-      if (filteredRequests.length === 0) {
-        toast.error("Please Select Material Requests");
-        return;
-      }
+  const getItemStatusColor = (status) => {
+    switch (status) {
+      case "APPROVED":
+        return "text-green-700 bg-green-100";
 
-      const pdf = new jsPDF("l", "mm", "a4");
+      case "ISSUED":
+        return "text-blue-700 bg-blue-100";
 
-      const positions = [
-        { x: 5, y: 5 }, // Top Left
-        { x: 150, y: 5 }, // Top Right
-        { x: 5, y: 105 }, // Bottom Left
-        { x: 150, y: 105 }, // Bottom Right
-      ];
+      case "REJECTED":
+        return "text-red-700 bg-red-100";
 
-      let positionIndex = 0;
+      case "OUT_OF_STOCK":
+        return "text-orange-700 bg-orange-100";
 
-      for (let i = 0; i < filteredRequests.length; i++) {
-        const request = filteredRequests[i];
+      case "PARTIALLY_ISSUED":
+        return "text-purple-700 bg-purple-100";
 
-        setSelectedRequest(request);
-
-        await new Promise((resolve) => setTimeout(resolve, 600));
-
-        if (!printRef.current) continue;
-
-        const canvas = await html2canvas(printRef.current, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#ffffff",
-        });
-
-        const imgData = canvas.toDataURL("image/png");
-
-        const pos = positions[positionIndex];
-
-        pdf.addImage(
-          imgData,
-          "PNG",
-          pos.x,
-          pos.y,
-          140, // card width
-          95, // card height
-        );
-
-        positionIndex++;
-
-        // NEW PAGE AFTER 4 CARDS
-
-        if (positionIndex === 4 && i < filteredRequests.length - 1) {
-          pdf.addPage();
-          positionIndex = 0;
-        }
-      }
-
-      pdf.save("Material_Requests.pdf");
-
-      toast.success(`${filteredRequests.length} Requests Downloaded`);
-    } catch (error) {
-      console.log(error);
-
-      toast.error("Bulk Print Failed");
+      default:
+        return "text-yellow-700 bg-yellow-100";
     }
   };
-  // ======================================
-  // PREMIUM PDF EXPORT
-  // ======================================
 
   // ======================================
-  // PRINT SINGLE REQUEST
+  // DATE
   // ======================================
-  const handlePrint = async (request) => {
-    try {
-      setSelectedRequest(request);
 
-      await new Promise((resolve) => setTimeout(resolve, 600));
+  const formatDate = (date) => {
+    if (!date) return "--";
 
-      if (!printRef.current) {
-        toast.error("Print Component Not Found");
-
-        return;
-      }
-
-      const canvas = await html2canvas(printRef.current, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: "#ffffff",
-      });
-
-      const imgData = canvas.toDataURL("image/png");
-
-      const pdf = new jsPDF("p", "mm", "a4");
-
-      const pdfWidth = pdf.internal.pageSize.getWidth();
-
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-
-      pdf.save(`${request.requestId}.pdf`);
-
-      toast.success("Material Request Generated");
-    } catch (error) {
-      console.log(error);
-
-      toast.error("Failed to Generate PDF");
-    }
+    return new Date(date).toLocaleString();
   };
 
   // ======================================
@@ -382,27 +433,15 @@ const MaterialRequest = () => {
       </div>
     );
   }
+
   return (
-    <>
+    <div className="space-y-8">
+      {/* ======================================
+          HEADER
+      ====================================== */}
+
       <div
-        style={{
-          position: "absolute",
-          left: "-9999px",
-          top: 0,
-        }}
-      >
-        {selectedRequest && (
-          <div ref={printRef}>
-            <PrintableMaterialRequest request={selectedRequest} />
-          </div>
-        )}
-      </div>
-
-      <div className="space-y-8">
-        {/* HEADER */}
-
-        <div
-          className="
+        className="
           bg-gradient-to-r
           from-[#001B54]
           via-[#002B7F]
@@ -417,6 +456,18 @@ const MaterialRequest = () => {
           p-6
           md:p-8
         "
+      >
+        <div
+          className="
+            flex
+            flex-col
+            lg:flex-row
+
+            lg:items-center
+            lg:justify-between
+
+            gap-5
+          "
         >
           <div className="flex items-center gap-5">
             <Package size={50} />
@@ -424,185 +475,716 @@ const MaterialRequest = () => {
             <div>
               <h1
                 className="
-                text-4xl
-                md:text-5xl
-                font-extrabold
-              "
+                  text-3xl
+                  md:text-5xl
+                  font-extrabold
+                "
               >
                 Material Requests
               </h1>
 
               <p className="mt-2 text-blue-100">
-                Smart inventory and approval system
+                Create complaint-wise material requests for the store.
               </p>
             </div>
           </div>
+
+          <div className="flex gap-3">
+            <button
+              onClick={() => navigate(-1)}
+              className="
+                bg-white/20
+
+                text-white
+
+                px-5
+                py-3
+
+                rounded-2xl
+
+                font-bold
+
+                flex
+                items-center
+                gap-2
+              "
+            >
+              <ArrowLeft size={18} />
+              Back
+            </button>
+
+            <button
+              onClick={fetchRequests}
+              className="
+                bg-white
+                text-[#001B54]
+
+                px-5
+                py-3
+
+                rounded-2xl
+
+                font-bold
+
+                flex
+                items-center
+                gap-2
+              "
+            >
+              <RefreshCw size={18} />
+              Refresh
+            </button>
+          </div>
         </div>
+      </div>
+
+      {/* ======================================
+          SELECTED COMPLAINT
+      ====================================== */}
+
+      {selectedComplaint ? (
         <div
           className="
-    bg-white
-
-    rounded-2xl
-
-    shadow-lg
-
-    p-4
-
-    flex
-    gap-3
-
-    items-center
-
-    justify-between
-  "
+            bg-white
+            rounded-3xl
+            shadow-xl
+            border
+            border-gray-100
+            overflow-hidden
+          "
         >
-          <div className="font-bold text-[#001B54]">
-            Selected Requests:
-            {selectedRequests.length}
+          <div
+            className="
+              bg-blue-50
+
+              px-6
+              py-5
+
+              border-b
+            "
+          >
+            <div className="flex items-center gap-3">
+              <ClipboardList size={25} className="text-[#001B54]" />
+
+              <div>
+                <p className="text-xs text-gray-500">Selected Complaint</p>
+
+                <h2
+                  className="
+                    text-2xl
+                    font-extrabold
+                    text-[#001B54]
+                  "
+                >
+                  {selectedComplaint.complaintId}
+                </h2>
+              </div>
+            </div>
           </div>
 
-          <button
-            onClick={handleBulkPrint}
+          <div
             className="
-      bg-green-600
-      hover:bg-green-700
+              grid
+              grid-cols-1
+              md:grid-cols-2
+              xl:grid-cols-4
 
-      text-white
+              gap-5
 
-      px-6
-      py-3
-
-      rounded-xl
-
-      font-bold
-    "
+              p-6
+            "
           >
-            Bulk Print ({selectedRequests.length})
-          </button>
-        </div>
+            {/* ISSUE */}
 
-        {/* CREATE REQUEST */}
+            <div
+              className="
+                bg-gray-50
+                rounded-2xl
+                p-4
+              "
+            >
+              <p className="text-xs text-gray-500">Complaint</p>
 
-        {(user?.role === "MAINTENANCE_MANAGER" || user?.role === "WORKER") && (
-          <div className="bg-white rounded-3xl shadow-2xl p-8">
-            <div className="flex items-center gap-3 mb-8">
-              <PlusCircle size={35} className="text-[#001B54]" />
-
-              <h2 className="text-3xl font-bold text-[#001B54]">
-                Create Material Request
-              </h2>
+              <p className="font-bold mt-1">
+                {selectedComplaint.title || "--"}
+              </p>
             </div>
 
-            <form
-              onSubmit={handleCreateRequest}
-              className="grid md:grid-cols-2 gap-6"
+            {/* LOCATION */}
+
+            <div
+              className="
+                bg-blue-50
+                rounded-2xl
+                p-4
+              "
             >
-              {/* JOB CARD */}
+              <div className="flex gap-2 items-center">
+                <MapPin size={17} className="text-blue-700" />
 
-              <div>
-                <label className="font-semibold text-gray-700">
-                  Select Job Card
-                </label>
+                <div>
+                  <p className="text-xs text-gray-500">Location</p>
 
-                <select
-                  value={jobCardId}
-                  onChange={(e) => setJobCardId(e.target.value)}
-                  className="
-                  w-full
-                  mt-2
-                  border
-                  rounded-2xl
-                  px-4
-                  py-4
+                  <p className="font-bold text-blue-700">
+                    {selectedComplaint.hostel ||
+                      selectedComplaint.block ||
+                      "--"}
+                  </p>
+
+                  <p className="text-xs text-gray-500 mt-1">
+                    Floor: {selectedComplaint.floor || "-"} | Room:{" "}
+                    {selectedComplaint.roomNumber || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* CATEGORY */}
+
+            <div
+              className="
+                bg-purple-50
+                rounded-2xl
+                p-4
+              "
+            >
+              <div className="flex items-center gap-2">
+                <Wrench size={17} className="text-purple-700" />
+
+                <div>
+                  <p className="text-xs text-gray-500">Category</p>
+
+                  <p className="font-bold text-purple-700">
+                    {selectedComplaint.category}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* WORKER */}
+
+            <div
+              className="
+                bg-green-50
+                rounded-2xl
+                p-4
+              "
+            >
+              <div className="flex items-center gap-2">
+                <UserCheck size={17} className="text-green-700" />
+
+                <div>
+                  <p className="text-xs text-gray-500">Worker</p>
+
+                  <p className="font-bold text-green-700">
+                    {selectedComplaint?.assignedTo?.name || "Not Assigned"}
+                  </p>
+
+                  <p className="text-xs text-gray-500">
+                    {selectedComplaint?.assignedTo?.department || ""}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div
+          className="
+            bg-yellow-50
+
+            border
+            border-yellow-200
+
+            rounded-3xl
+
+            p-6
+
+            flex
+            gap-4
+            items-start
+          "
+        >
+          <AlertTriangle className="text-yellow-700" size={26} />
+
+          <div>
+            <h2 className="font-bold text-yellow-800 text-lg">
+              No Complaint Selected
+            </h2>
+
+            <p className="text-yellow-700 mt-1">
+              Open this page using the Material YES button from Assigned Jobs to
+              create a new request.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================
+          EXISTING REQUEST
+      ====================================== */}
+
+      {selectedComplaint && existingRequest && (
+        <div
+          className="
+              bg-white
+              rounded-3xl
+              shadow-xl
+              overflow-hidden
+              border
+            "
+        >
+          <div
+            className="
+                bg-gradient-to-r
+                from-[#001B54]
+                to-[#7A0019]
+
+                text-white
+
+                p-6
+              "
+          >
+            <div
+              className="
+                  flex
+                  flex-col
+                  sm:flex-row
+
+                  sm:items-center
+                  sm:justify-between
+
+                  gap-4
                 "
-                  required
+            >
+              <div>
+                <p className="text-blue-100 text-sm">Existing Request</p>
+
+                <h2 className="text-2xl font-bold mt-1">
+                  {existingRequest.requestId}
+                </h2>
+              </div>
+
+              <span
+                className={`
+                    px-4
+                    py-2
+                    rounded-full
+                    font-bold
+                    text-sm
+                    bg-white
+                    ${getStatusColor(existingRequest.status)}
+                  `}
+              >
+                {existingRequest.status}
+              </span>
+            </div>
+          </div>
+
+          <div className="p-6">
+            <div className="space-y-3">
+              {existingRequest?.materials?.map((material, index) => (
+                <div
+                  key={material._id || index}
+                  className="
+                          grid
+                          grid-cols-1
+                          sm:grid-cols-4
+
+                          gap-4
+
+                          bg-gray-50
+
+                          rounded-2xl
+
+                          p-4
+
+                          items-center
+                        "
                 >
-                  <option value="">Select Job Card</option>
+                  <div>
+                    <p className="text-xs text-gray-500">Material</p>
 
-                  {jobCards.map((job) => (
-                    <option key={job._id} value={job._id}>
-                      {job?.complaint?.complaintId}
-                      {" - "}
-                      {job?.complaint?.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                    <p className="font-bold">{material.itemName}</p>
+                  </div>
 
-              {/* ITEM NAME */}
+                  <div>
+                    <p className="text-xs text-gray-500">Requested</p>
 
-              <div>
-                <label className="font-semibold text-gray-700">Item Name</label>
+                    <p className="font-bold">
+                      {material.quantity} {material.unit}
+                    </p>
+                  </div>
 
-                <input
-                  type="text"
-                  value={itemName}
-                  onChange={(e) => setItemName(e.target.value)}
-                  placeholder="Enter item name"
-                  className="
-                  w-full
-                  mt-2
-                  border
+                  <div>
+                    <p className="text-xs text-gray-500">Approved</p>
+
+                    <p className="font-bold">
+                      {material.approvedQuantity || 0} {material.unit}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span
+                      className={`
+                              inline-block
+
+                              px-3
+                              py-1.5
+
+                              rounded-full
+
+                              text-xs
+                              font-bold
+
+                              ${getItemStatusColor(material.status)}
+                            `}
+                    >
+                      {material.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div
+              className="
+                  mt-5
+                  bg-blue-50
                   rounded-2xl
-                  px-4
-                  py-4
+                  p-4
                 "
-                  required
-                />
-              </div>
+            >
+              <p className="text-xs text-gray-500">Reason</p>
 
-              {/* QUANTITY */}
+              <p className="font-semibold mt-1">{existingRequest.reason}</p>
+            </div>
 
-              <div>
-                <label className="font-semibold text-gray-700">Quantity</label>
+            <div className="mt-4 text-sm text-gray-500">
+              Created: {formatDate(existingRequest.createdAt)}
+            </div>
+          </div>
+        </div>
+      )}
 
-                <input
-                  type="number"
-                  value={quantity}
-                  onChange={(e) => setQuantity(e.target.value)}
-                  placeholder="Enter quantity"
+      {/* ======================================
+          CREATE MATERIAL REQUEST FORM
+      ====================================== */}
+
+      {selectedComplaint && !existingRequest && (
+        <div
+          className="
+              bg-white
+
+              rounded-3xl
+
+              shadow-2xl
+
+              p-6
+              md:p-8
+            "
+        >
+          <div className="flex items-center gap-3 mb-8">
+            <PlusCircle size={35} className="text-[#001B54]" />
+
+            <div>
+              <h2
+                className="
+                    text-2xl
+                    md:text-3xl
+
+                    font-bold
+
+                    text-[#001B54]
+                  "
+              >
+                Create Material Request
+              </h2>
+
+              <p className="text-gray-500 mt-1">
+                Add all materials required for this complaint.
+              </p>
+            </div>
+          </div>
+
+          <form onSubmit={handleCreateRequest} className="space-y-6">
+            {/* ======================================
+                  MATERIAL ROWS
+              ====================================== */}
+
+            <div className="space-y-4">
+              {materials.map((material, index) => (
+                <div
+                  key={index}
                   className="
+                        bg-gray-50
+
+                        border
+                        border-gray-100
+
+                        rounded-2xl
+
+                        p-5
+                      "
+                >
+                  <div
+                    className="
+                          flex
+                          items-center
+                          justify-between
+
+                          gap-4
+
+                          mb-4
+                        "
+                  >
+                    <h3 className="font-bold text-[#001B54]">
+                      Material {index + 1}
+                    </h3>
+
+                    {materials.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeMaterial(index)}
+                        className="
+                              w-9
+                              h-9
+
+                              rounded-xl
+
+                              bg-red-100
+
+                              text-red-700
+
+                              flex
+                              items-center
+                              justify-center
+
+                              hover:bg-red-200
+                            "
+                      >
+                        <Trash2 size={18} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div
+                    className="
+                          grid
+                          grid-cols-1
+                          md:grid-cols-12
+
+                          gap-4
+                        "
+                  >
+                    {/* ITEM */}
+
+                    <div className="md:col-span-6">
+                      <label className="font-semibold text-gray-700">
+                        Material Name
+                      </label>
+
+                      <input
+                        type="text"
+                        value={material.itemName}
+                        onChange={(e) =>
+                          updateMaterial(index, "itemName", e.target.value)
+                        }
+                        placeholder="Example: Electrical Wire"
+                        className="
+                              w-full
+                              mt-2
+
+                              border
+                              border-gray-200
+
+                              rounded-2xl
+
+                              px-4
+                              py-4
+
+                              outline-none
+
+                              focus:ring-2
+                              focus:ring-[#001B54]
+                            "
+                      />
+                    </div>
+
+                    {/* QUANTITY */}
+
+                    <div className="md:col-span-3">
+                      <label className="font-semibold text-gray-700">
+                        Quantity
+                      </label>
+
+                      <input
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        value={material.quantity}
+                        onChange={(e) =>
+                          updateMaterial(index, "quantity", e.target.value)
+                        }
+                        placeholder="10"
+                        className="
+                              w-full
+                              mt-2
+
+                              border
+                              border-gray-200
+
+                              rounded-2xl
+
+                              px-4
+                              py-4
+
+                              outline-none
+
+                              focus:ring-2
+                              focus:ring-[#001B54]
+                            "
+                      />
+                    </div>
+
+                    {/* UNIT */}
+
+                    <div className="md:col-span-3">
+                      <label className="font-semibold text-gray-700">
+                        Unit
+                      </label>
+
+                      <select
+                        value={material.unit}
+                        onChange={(e) =>
+                          updateMaterial(index, "unit", e.target.value)
+                        }
+                        className="
+                              w-full
+                              mt-2
+
+                              border
+                              border-gray-200
+
+                              rounded-2xl
+
+                              px-4
+                              py-4
+
+                              bg-white
+                            "
+                      >
+                        {units.map((unit) => (
+                          <option key={unit} value={unit}>
+                            {unit}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ADD MORE */}
+
+            <button
+              type="button"
+              onClick={addMaterial}
+              className="
+                  border-2
+                  border-dashed
+                  border-[#001B54]
+
+                  text-[#001B54]
+
                   w-full
-                  mt-2
-                  border
-                  rounded-2xl
-                  px-4
+
                   py-4
+
+                  rounded-2xl
+
+                  font-bold
+
+                  flex
+                  items-center
+                  justify-center
+                  gap-2
+
+                  hover:bg-blue-50
                 "
-                  required
-                />
-              </div>
+            >
+              <PlusCircle size={20} />
+              Add More Material
+            </button>
 
-              {/* REASON */}
+            {/* ======================================
+                  EXAMPLE PREVIEW
+              ====================================== */}
 
-              <div>
-                <label className="font-semibold text-gray-700">Reason</label>
+            <div
+              className="
+                  bg-blue-50
+                  rounded-2xl
+                  p-5
+                "
+            >
+              <p className="text-sm font-bold text-[#001B54]">Example</p>
 
-                <input
-                  type="text"
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  placeholder="Enter reason"
-                  className="
+              <p className="text-sm text-gray-600 mt-2">
+                Electrical Wire — 10 METER
+              </p>
+
+              <p className="text-sm text-gray-600">Switch — 2 PIECE</p>
+
+              <p className="text-sm text-gray-600">Insulation Tape — 1 ROLL</p>
+            </div>
+
+            {/* REASON */}
+
+            <div>
+              <label className="font-semibold text-gray-700">
+                Reason / Work Requirement
+              </label>
+
+              <textarea
+                rows="4"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Example: Materials required to repair electrical fault in the assigned complaint..."
+                className="
+                    w-full
+                    mt-2
+
+                    border
+                    border-gray-200
+
+                    rounded-2xl
+
+                    px-4
+                    py-4
+
+                    outline-none
+
+                    resize-none
+
+                    focus:ring-2
+                    focus:ring-[#001B54]
+                  "
+              />
+            </div>
+
+            {/* SUBMIT */}
+
+            <button
+              type="submit"
+              disabled={submitting}
+              className="
                   w-full
-                  mt-2
-                  border
-                  rounded-2xl
-                  px-4
-                  py-4
-                "
-                  required
-                />
-              </div>
 
-              {/* BUTTON */}
-
-              <div className="md:col-span-2">
-                <button
-                  type="submit"
-                  className="
-                  bg-[#001B54]
-                  hover:bg-[#002B7F]
+                  bg-gradient-to-r
+                  from-[#001B54]
+                  to-[#7A0019]
 
                   text-white
 
@@ -613,188 +1195,335 @@ const MaterialRequest = () => {
 
                   font-bold
 
-                  transition-all
+                  flex
+                  items-center
+                  justify-center
+                  gap-3
+
+                  disabled:opacity-50
+                  disabled:cursor-not-allowed
                 "
-                >
-                  Create Material Request
-                </button>
-              </div>
-            </form>
+            >
+              {submitting ? (
+                <>
+                  <Loader2 size={20} className="animate-spin" />
+                  Sending To Store...
+                </>
+              ) : (
+                <>
+                  <Send size={20} />
+                  Send Material Request To Store
+                </>
+              )}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* ======================================
+          ALL REQUESTS SUMMARY
+      ====================================== */}
+
+      <div
+        className="
+          bg-white
+
+          rounded-3xl
+
+          shadow-xl
+
+          p-6
+        "
+      >
+        <div
+          className="
+            flex
+            flex-col
+            sm:flex-row
+
+            sm:items-center
+            sm:justify-between
+
+            gap-4
+
+            mb-6
+          "
+        >
+          <div>
+            <h2
+              className="
+                text-2xl
+                font-bold
+                text-[#001B54]
+              "
+            >
+              Material Request History
+            </h2>
+
+            <p className="text-gray-500 text-sm mt-1">
+              Requests sent to the store manager.
+            </p>
           </div>
-        )}
 
-        {/* REQUESTS */}
+          <div
+            className="
+              bg-blue-100
+              text-blue-700
 
-        <div className="space-y-8">
-          {requests.map((request) => (
-            <div key={request._id}>
-              {/* BULK PRINT CHECKBOX */}
+              px-4
+              py-2
 
+              rounded-full
+
+              font-bold
+            "
+          >
+            {requests.length} Requests
+          </div>
+        </div>
+
+        {requests.length === 0 ? (
+          <div
+            className="
+              py-12
+              text-center
+            "
+          >
+            <Package
+              size={55}
+              className="
+                mx-auto
+                text-gray-300
+              "
+            />
+
+            <p className="text-gray-500 mt-4">No material requests found.</p>
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {requests.map((request) => (
               <div
+                key={request._id}
                 className="
-          bg-white
-          rounded-t-2xl
+                    border
+                    border-gray-100
 
-          px-6
-          py-3
+                    rounded-2xl
 
-          border-b
-        "
+                    overflow-hidden
+                  "
               >
-                <label className="flex items-center gap-3">
-                  <input
-                    type="checkbox"
-                    checked={selectedRequests.includes(request._id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedRequests([...selectedRequests, request._id]);
-                      } else {
-                        setSelectedRequests(
-                          selectedRequests.filter((id) => id !== request._id),
-                        );
-                      }
-                    }}
-                  />
-
-                  <span className="font-medium">Select For Bulk Print</span>
-                </label>
-              </div>
-
-              {/* CARD */}
-
-              <div
-                className="
-          bg-white
-          rounded-b-3xl
-          shadow-2xl
-          overflow-hidden
-        "
-              >
-                {/* TOP */}
+                {/* REQUEST TOP */}
 
                 <div
                   className="
-                  bg-gradient-to-r
-                  from-[#001B54]
-                  to-[#7A0019]
+                      bg-gray-50
 
-                  text-white
-                  p-6
-                "
-                >
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h2 className="text-3xl font-bold">
-                        {request.requestId}
-                      </h2>
-
-                      <p className="text-blue-100 mt-2">Material Request</p>
-                    </div>
-
-                    <button
-                      id="f3dz3j"
-                      onClick={() => handlePrint(request)}
-                      className="
-                      bg-yellow-400
-                      hover:bg-yellow-300
-
-                      text-[#001B54]
-
-                      px-5
-                      py-3
-
-                      rounded-2xl
+                      p-5
 
                       flex
-                      items-center
-                      gap-2
+                      flex-col
+                      md:flex-row
 
-                      font-bold
+                      md:items-center
+                      md:justify-between
+
+                      gap-4
                     "
+                >
+                  <div>
+                    <h3
+                      className="
+                          text-xl
+                          font-bold
+                          text-[#001B54]
+                        "
                     >
-                      <Printer size={20} />
-                      Print
-                    </button>
+                      {request.requestId}
+                    </h3>
+
+                    <p className="text-sm text-gray-500 mt-1">
+                      Complaint:{" "}
+                      <span className="font-semibold">
+                        {request?.complaint?.complaintId || "--"}
+                      </span>
+                    </p>
                   </div>
-                </div>
 
-                {/* BODY */}
-
-                <div className="p-6 space-y-6">
                   <span
-                    className={`px-5 py-3 rounded-2xl font-bold ${getStatusColor(
-                      request.status,
-                    )}`}
+                    className={`
+                        px-4
+                        py-2
+
+                        rounded-full
+
+                        text-sm
+                        font-bold
+
+                        ${getStatusColor(request.status)}
+                      `}
                   >
                     {request.status}
                   </span>
+                </div>
 
-                  <div className="grid md:grid-cols-2 gap-6">
+                {/* MATERIAL LIST */}
+
+                <div className="p-5">
+                  <div
+                    className="
+                        grid
+                        grid-cols-1
+                        md:grid-cols-2
+
+                        gap-3
+                      "
+                  >
+                    {request?.materials?.map((material, index) => (
+                      <div
+                        key={material._id || index}
+                        className="
+                                bg-blue-50
+
+                                rounded-xl
+
+                                p-4
+                              "
+                      >
+                        <div
+                          className="
+                                  flex
+                                  justify-between
+                                  gap-4
+                                "
+                        >
+                          <div>
+                            <p className="font-bold text-[#001B54]">
+                              {material.itemName}
+                            </p>
+
+                            <p className="text-sm text-gray-500 mt-1">
+                              Requested: {material.quantity} {material.unit}
+                            </p>
+
+                            {material.approvedQuantity > 0 && (
+                              <p className="text-sm text-green-700 mt-1">
+                                Approved: {material.approvedQuantity}{" "}
+                                {material.unit}
+                              </p>
+                            )}
+
+                            {material.issuedQuantity > 0 && (
+                              <p className="text-sm text-blue-700 mt-1">
+                                Issued: {material.issuedQuantity}{" "}
+                                {material.unit}
+                              </p>
+                            )}
+                          </div>
+
+                          <span
+                            className={`
+                                    h-fit
+
+                                    px-3
+                                    py-1
+
+                                    rounded-full
+
+                                    text-xs
+                                    font-bold
+
+                                    ${getItemStatusColor(material.status)}
+                                  `}
+                          >
+                            {material.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* FOOTER */}
+
+                  <div
+                    className="
+                        border-t
+
+                        mt-5
+                        pt-4
+
+                        grid
+                        grid-cols-1
+                        md:grid-cols-3
+
+                        gap-4
+
+                        text-sm
+                      "
+                  >
                     <div>
-                      <p className="text-sm text-gray-500">Item Name</p>
+                      <p className="text-gray-500">Requested By</p>
 
-                      <p className="font-bold text-xl">{request.itemName}</p>
+                      <p className="font-semibold">
+                        {request?.requestedBy?.name || "--"}
+                      </p>
                     </div>
 
                     <div>
-                      <p className="text-sm text-gray-500">Quantity</p>
+                      <p className="text-gray-500">Worker</p>
 
-                      <p className="font-bold text-xl">{request.quantity}</p>
+                      <p className="font-semibold">
+                        {request?.assignedWorker?.name || "--"}
+                      </p>
                     </div>
 
                     <div>
-                      <p className="text-sm text-gray-500">Reason</p>
+                      <p className="text-gray-500">Created</p>
 
-                      <p className="font-bold text-lg">{request.reason}</p>
-                    </div>
-
-                    <div>
-                      <p className="text-sm text-gray-500">Complaint</p>
-
-                      <p className="font-bold">
-                        {request?.jobCard?.complaint?.complaintId}
+                      <p className="font-semibold">
+                        {formatDate(request.createdAt)}
                       </p>
                     </div>
                   </div>
 
-                  {/* STORE MANAGER */}
+                  {request.reason && (
+                    <div
+                      className="
+                          bg-gray-50
+                          rounded-xl
+                          p-4
+                          mt-4
+                        "
+                    >
+                      <p className="text-xs text-gray-500">Reason</p>
 
-                  {user?.role === "STORE_MANAGER" && (
-                    <div>
-                      <select
-                        value={request.status}
-                        onChange={(e) =>
-                          handleStatusUpdate(request._id, e.target.value)
-                        }
-                        className="
-                        w-full
-                        border
-                        rounded-2xl
-                        px-4
-                        py-4
-                      "
-                      >
-                        <option value="PENDING">PENDING</option>
+                      <p className="font-semibold mt-1">{request.reason}</p>
+                    </div>
+                  )}
 
-                        <option value="APPROVED_BY_STORE">
-                          APPROVED_BY_STORE
-                        </option>
+                  {request.storeSlipNo && (
+                    <div
+                      className="
+                          bg-green-50
+                          rounded-xl
+                          p-4
+                          mt-4
+                        "
+                    >
+                      <p className="text-xs text-gray-500">Store Slip Number</p>
 
-                        <option value="REJECTED">REJECTED</option>
-
-                        <option value="ISSUED">ISSUED</option>
-
-                        <option value="OUT_OF_STOCK">OUT_OF_STOCK</option>
-                      </select>
+                      <p className="font-bold text-green-700 mt-1">
+                        {request.storeSlipNo}
+                      </p>
                     </div>
                   )}
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
-    </>
+    </div>
   );
 };
 

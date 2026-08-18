@@ -2,8 +2,6 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import socket from "../../../socket";
-
 import {
   getNotifications,
   getUnreadCount,
@@ -91,14 +89,13 @@ export const NotificationProvider = ({ children }) => {
           notification._id === id
             ? {
                 ...notification,
-
                 isRead: true,
               }
             : notification,
         ),
       );
 
-      fetchUnreadCount();
+      await fetchUnreadCount();
     } catch (error) {
       console.log(error);
 
@@ -117,7 +114,6 @@ export const NotificationProvider = ({ children }) => {
       setNotifications((prev) =>
         prev.map((notification) => ({
           ...notification,
-
           isRead: true,
         })),
       );
@@ -144,7 +140,7 @@ export const NotificationProvider = ({ children }) => {
         prev.filter((notification) => notification._id !== id),
       );
 
-      fetchUnreadCount();
+      await fetchUnreadCount();
 
       toast.success("Notification deleted");
     } catch (error) {
@@ -173,110 +169,6 @@ export const NotificationProvider = ({ children }) => {
       toast.error("Failed to clear notifications");
     }
   };
-
-  // ==========================================
-  // SOCKET CONNECTION
-  // ==========================================
-
-  useEffect(() => {
-    if (!user?._id) return;
-
-    // ==========================================
-    // JOIN ROOM
-    // ==========================================
-
-    socket.emit(
-      "joinRoom",
-
-      user._id,
-    );
-
-    // ==========================================
-    // RECEIVE NEW NOTIFICATION
-    // ==========================================
-
-    socket.on(
-      "newNotification",
-
-      (notification) => {
-        console.log("NEW NOTIFICATION:", notification);
-
-        // ADD NEW NOTIFICATION
-
-        setNotifications((prev) => [notification, ...prev]);
-
-        // UPDATE COUNT
-
-        setUnreadCount((prev) => prev + 1);
-
-        // TOAST
-
-        toast.success(notification.title || "New Notification");
-      },
-    );
-
-    // ==========================================
-    // UPDATE COUNT EVENT
-    // ==========================================
-
-    socket.on(
-      "notificationCountUpdated",
-
-      () => {
-        fetchUnreadCount();
-      },
-    );
-
-    // ==========================================
-    // NOTIFICATION READ EVENT
-    // ==========================================
-
-    socket.on(
-      "notificationRead",
-
-      (notificationId) => {
-        setNotifications((prev) =>
-          prev.map((notification) =>
-            notification._id === notificationId
-              ? {
-                  ...notification,
-
-                  isRead: true,
-                }
-              : notification,
-          ),
-        );
-      },
-    );
-
-    // ==========================================
-    // NOTIFICATION DELETE EVENT
-    // ==========================================
-
-    socket.on(
-      "notificationDeleted",
-
-      (notificationId) => {
-        setNotifications((prev) =>
-          prev.filter((notification) => notification._id !== notificationId),
-        );
-      },
-    );
-
-    // ==========================================
-    // CLEANUP
-    // ==========================================
-
-    return () => {
-      socket.off("newNotification");
-
-      socket.off("notificationCountUpdated");
-
-      socket.off("notificationRead");
-
-      socket.off("notificationDeleted");
-    };
-  }, []);
 
   // ==========================================
   // INITIAL FETCH
@@ -319,10 +211,7 @@ export const NotificationProvider = ({ children }) => {
   );
 };
 
-// ==========================================
-// CUSTOM HOOK
-// ==========================================
-
+// eslint-disable-next-line react-refresh/only-export-components
 export const useNotifications = () => {
   return useContext(NotificationContext);
 };

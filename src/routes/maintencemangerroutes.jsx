@@ -34,7 +34,7 @@ import OverdueComplaints from "../modules/Maintenancemanager/OverdueComplaints";
 import Reports from "../modules/Maintenancemanager/Reports";
 
 import Complaints from "../modules/Maintenancemanager/Complaints";
-
+import AssignedJobs from "../modules/Maintenancemanager/AssignedJobs";
 const Maintencemangerroutes = (
   <Route element={<MaintenanceManagerLayout />}>
     {/* ========================================== */}
@@ -54,6 +54,12 @@ const Maintencemangerroutes = (
     {/* ========================================== */}
 
     <Route path="/maintenance/workers" element={<WorkersManagement />} />
+
+    {/* ========================================== */}
+    {/* ASSIGNED JOBS */}
+    {/* ========================================== */}
+
+    <Route path="/maintenance/assigned-jobs" element={<AssignedJobs />} />
 
     {/* ========================================== */}
     {/* JOB CARDS */}

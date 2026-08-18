@@ -5,18 +5,7 @@ import jsPDF from "jspdf";
 import axios from "axios";
 import toast from "react-hot-toast";
 
-import {
-  ClipboardList,
-  Printer,
-  Loader2,
-  User,
-  Phone,
-  Building2,
-  MapPin,
-  Clock3,
-  BadgeCheck,
-  AlertTriangle,
-} from "lucide-react";
+import { ClipboardList, Printer, Loader2 } from "lucide-react";
 
 const JobCards = () => {
   // ==========================================
@@ -71,7 +60,7 @@ const JobCards = () => {
         const imgData = canvas.toDataURL("image/png");
 
         // A4 Landscape
-        const pageWidth = 297;
+
         const cardWidth = 140;
 
         const cardHeight = (canvas.height * cardWidth) / canvas.width;
@@ -105,13 +94,6 @@ const JobCards = () => {
       toast.error("Bulk Print Failed");
     }
   };
-  // ==========================================
-  // FETCH JOB CARDS
-  // ==========================================
-
-  useEffect(() => {
-    fetchJobCards();
-  }, []);
 
   // ==========================================
   // FETCH DATA
@@ -146,6 +128,10 @@ const JobCards = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchJobCards();
+  }, []);
 
   // ==========================================
   // UPDATE STATUS

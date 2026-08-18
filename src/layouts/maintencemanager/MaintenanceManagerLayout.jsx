@@ -6,7 +6,6 @@ import {
   ClipboardList,
   AlertTriangle,
   BarChart3,
-  Bell,
   Menu,
   X,
   Package,
@@ -59,6 +58,11 @@ const MaintenanceManagerLayout = () => {
       path: "/maintenance/assign-worker",
 
       icon: Users,
+    },
+    {
+      name: "Assigned Jobs",
+      path: "/maintenance/assigned-jobs", // ✅ Ye hona chahiye
+      icon: ClipboardList,
     },
 
     {

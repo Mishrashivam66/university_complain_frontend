@@ -4,8 +4,6 @@ import axios from "axios";
 
 import toast from "react-hot-toast";
 
-import socket from "../../socket";
-
 import {
   Bell,
   CheckCircle2,
@@ -66,48 +64,6 @@ const Notifications = () => {
   // ==========================================
   // SOCKET REALTIME
   // ==========================================
-
-  useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("user"));
-
-    // ======================================
-    // JOIN ROOM
-    // ======================================
-
-    if (user?._id) {
-      socket.emit(
-        "join_room",
-
-        user._id,
-      );
-
-      console.log("Joined Room:", user._id);
-    }
-
-    // ======================================
-    // RECEIVE NOTIFICATION
-    // ======================================
-
-    socket.on(
-      "newNotification",
-
-      (data) => {
-        console.log("Realtime Notification:", data);
-
-        setNotifications((prev) => [data, ...prev]);
-
-        toast.success(data.title || "New Notification");
-      },
-    );
-
-    // ======================================
-    // CLEANUP
-    // ======================================
-
-    return () => {
-      socket.off("newNotification");
-    };
-  }, []);
 
   // ==========================================
   // MARK AS READ
