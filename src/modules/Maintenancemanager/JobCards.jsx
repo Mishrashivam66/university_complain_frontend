@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 
 import toast from "react-hot-toast";
+import PrintableJobCard from "./PrintableJobCard";
 
 import {
   ClipboardList,
@@ -28,6 +29,9 @@ const JobCards = () => {
 
   const [jobCards, setJobCards] = useState([]);
 
+  const [printJob, setPrintJob] = useState(null);
+  // ==========================================
+
   const [loading, setLoading] = useState(true);
 
   const [search, setSearch] = useState("");
@@ -35,8 +39,6 @@ const JobCards = () => {
   const [statusFilter, setStatusFilter] = useState("ALL");
 
   const [selectedJobCard, setSelectedJobCard] = useState(null);
-
-  // ==========================================
   // API
   // ==========================================
 
@@ -301,12 +303,24 @@ const JobCards = () => {
   // ==========================================
 
   const handlePrint = (job) => {
-    setSelectedJobCard(job);
+    setPrintJob(job);
 
     setTimeout(() => {
       window.print();
-    }, 200);
+    }, 300);
   };
+
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      setPrintJob(null);
+    };
+
+    window.addEventListener("afterprint", handleAfterPrint);
+
+    return () => {
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, []);
 
   // ==========================================
   // LOADING
@@ -716,21 +730,18 @@ const JobCards = () => {
               </button>
 
               <button
-                onClick={() => window.print()}
+                onClick={() => handlePrint(selectedJobCard)}
                 className="
-                  bg-yellow-400
-                  text-[#001B54]
-
-                  px-5
-                  py-3
-
-                  rounded-xl
-                  font-bold
-
-                  flex
-                  items-center
-                  gap-2
-                "
+    bg-yellow-400
+    text-[#001B54]
+    px-5
+    py-3
+    rounded-xl
+    font-bold
+    flex
+    items-center
+    gap-2
+  "
               >
                 <Printer size={18} />
                 Print Job Card
@@ -1195,6 +1206,12 @@ const JobCards = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {printJob && (
+        <div id="job-card-print-root" className="job-card-print-root">
+          <PrintableJobCard job={printJob} />
         </div>
       )}
     </>
