@@ -16,9 +16,10 @@ import {
   ClipboardList,
   Send,
   ArrowLeft,
+  RefreshCw,
   AlertTriangle,
   Wrench,
-  RefreshCw,
+  Building2,
 } from "lucide-react";
 
 const MaterialRequest = () => {
@@ -31,7 +32,7 @@ const MaterialRequest = () => {
   const navigate = useNavigate();
 
   // ======================================
-  // SELECTED COMPLAINT FROM ASSIGNED JOBS
+  // COMPLAINT FROM ASSIGNED JOBS
   // ======================================
 
   const selectedComplaint = location.state?.complaint || null;
@@ -40,19 +41,39 @@ const MaterialRequest = () => {
     location.state?.complaintId || selectedComplaint?._id || "";
 
   // ======================================
+  // API
+  // ======================================
+
+  const MATERIAL_API =
+    "https://complaine-backend.vercel.app/api/maintenance/material-requests";
+
+  // Assumes storeRoutes.js mounts:
+  // router.use("/requests", requestRoutes)
+  const GENERAL_REQUEST_API =
+    "https://complaine-backend.vercel.app/api/store/requests";
+
+  // ======================================
+  // TAB
+  // ======================================
+
+  const [activeTab, setActiveTab] = useState(
+    selectedComplaint ? "COMPLAINT" : "GENERAL",
+  );
+
+  // ======================================
   // STATES
   // ======================================
 
   const [requests, setRequests] = useState([]);
 
+  const [generalRequests, setGeneralRequests] = useState([]);
+
   const [loading, setLoading] = useState(true);
 
   const [submitting, setSubmitting] = useState(false);
 
-  const [reason, setReason] = useState("");
-
   // ======================================
-  // MULTIPLE MATERIALS
+  // COMPLAINT MATERIAL FORM
   // ======================================
 
   const [materials, setMaterials] = useState([
@@ -63,16 +84,20 @@ const MaterialRequest = () => {
     },
   ]);
 
+  const [reason, setReason] = useState("");
+
   // ======================================
-  // API BASE
+  // GENERAL STORE REQUEST FORM
   // ======================================
 
-  const API_BASE =
-    "https://complaine-backend.vercel.app/api/maintenance/material-requests";
+  const [generalHostel, setGeneralHostel] = useState("");
+
+  const [generalItem, setGeneralItem] = useState("");
+
+  const [generalQuantity, setGeneralQuantity] = useState("");
 
   // ======================================
   // UNITS
-  // BACKEND ENUM VALUES
   // ======================================
 
   const units = [
@@ -91,30 +116,65 @@ const MaterialRequest = () => {
   ];
 
   // ======================================
-  // FETCH MATERIAL REQUESTS
+  // TOKEN
   // ======================================
 
-  const fetchRequests = async () => {
+  const getHeaders = () => {
+    const token = localStorage.getItem("token");
+
+    return {
+      Authorization: `Bearer ${token}`,
+    };
+  };
+
+  // ======================================
+  // FETCH COMPLAINT MATERIAL REQUESTS
+  // ======================================
+
+  const fetchMaterialRequests = async () => {
     try {
-      setLoading(true);
-
-      const token = localStorage.getItem("token");
-
-      const response = await axios.get(API_BASE, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+      const response = await axios.get(MATERIAL_API, {
+        headers: getHeaders(),
       });
 
       setRequests(response?.data?.requests || []);
     } catch (error) {
       console.log("MATERIAL REQUEST ERROR:", error);
 
-      toast.error(
-        error?.response?.data?.message || "Failed to load material requests",
-      );
-
       setRequests([]);
+    }
+  };
+
+  // ======================================
+  // FETCH GENERAL REQUESTS
+  // ======================================
+
+  const fetchGeneralRequests = async () => {
+    try {
+      const response = await axios.get(`${GENERAL_REQUEST_API}/all`, {
+        headers: getHeaders(),
+      });
+
+      setGeneralRequests(response?.data?.requests || []);
+    } catch (error) {
+      console.log("GENERAL REQUEST ERROR:", error);
+
+      setGeneralRequests([]);
+    }
+  };
+
+  // ======================================
+  // FETCH ALL
+  // ======================================
+
+  const fetchAllData = async () => {
+    try {
+      setLoading(true);
+
+      await Promise.allSettled([
+        fetchMaterialRequests(),
+        fetchGeneralRequests(),
+      ]);
     } finally {
       setLoading(false);
     }
@@ -125,11 +185,11 @@ const MaterialRequest = () => {
   // ======================================
 
   useEffect(() => {
-    fetchRequests();
+    fetchAllData();
   }, []);
 
   // ======================================
-  // EXISTING REQUEST FOR SELECTED COMPLAINT
+  // EXISTING REQUEST FOR COMPLAINT
   // ======================================
 
   const existingRequest = useMemo(() => {
@@ -150,12 +210,13 @@ const MaterialRequest = () => {
   }, [requests, selectedComplaintId]);
 
   // ======================================
-  // ADD MATERIAL ROW
+  // ADD MATERIAL
   // ======================================
 
   const addMaterial = () => {
     setMaterials((prev) => [
       ...prev,
+
       {
         itemName: "",
         quantity: "",
@@ -165,7 +226,7 @@ const MaterialRequest = () => {
   };
 
   // ======================================
-  // REMOVE MATERIAL ROW
+  // REMOVE MATERIAL
   // ======================================
 
   const removeMaterial = (index) => {
@@ -174,20 +235,21 @@ const MaterialRequest = () => {
     }
 
     setMaterials((prev) =>
-      prev.filter((_, materialIndex) => materialIndex !== index),
+      prev.filter((_, currentIndex) => currentIndex !== index),
     );
   };
 
   // ======================================
-  // UPDATE MATERIAL ROW
+  // UPDATE MATERIAL
   // ======================================
 
   const updateMaterial = (index, field, value) => {
     setMaterials((prev) =>
-      prev.map((material, materialIndex) =>
-        materialIndex === index
+      prev.map((material, currentIndex) =>
+        currentIndex === index
           ? {
               ...material,
+
               [field]: value,
             }
           : material,
@@ -196,39 +258,23 @@ const MaterialRequest = () => {
   };
 
   // ======================================
-  // CREATE MATERIAL REQUEST
+  // CREATE COMPLAINT MATERIAL REQUEST
   // ======================================
 
-  const handleCreateRequest = async (event) => {
-    event.preventDefault();
-
-    // ======================================
-    // COMPLAINT VALIDATION
-    // ======================================
+  const handleComplaintRequest = async (e) => {
+    e.preventDefault();
 
     if (!selectedComplaintId) {
-      return toast.error("Please open Material Request from Assigned Jobs");
+      return toast.error("Please open this page from Assigned Jobs");
     }
-
-    // ======================================
-    // DUPLICATE VALIDATION
-    // ======================================
 
     if (existingRequest) {
       return toast.error("Material request already exists for this complaint");
     }
 
-    // ======================================
-    // REASON VALIDATION
-    // ======================================
-
     if (!reason.trim()) {
-      return toast.error("Please enter material request reason");
+      return toast.error("Please enter reason");
     }
-
-    // ======================================
-    // MATERIAL VALIDATION
-    // ======================================
 
     const invalidMaterial = materials.some(
       (material) =>
@@ -239,17 +285,11 @@ const MaterialRequest = () => {
     );
 
     if (invalidMaterial) {
-      return toast.error("Please fill all material details correctly");
+      return toast.error("Please fill all material details");
     }
 
     try {
       setSubmitting(true);
-
-      const token = localStorage.getItem("token");
-
-      // ======================================
-      // CLEAN DATA
-      // ======================================
 
       const payload = {
         complaintId: selectedComplaintId,
@@ -265,31 +305,21 @@ const MaterialRequest = () => {
         reason: reason.trim(),
       };
 
-      console.log("MATERIAL REQUEST PAYLOAD:", payload);
-
-      // ======================================
-      // API
-      // ======================================
+      console.log("COMPLAINT MATERIAL PAYLOAD:", payload);
 
       const response = await axios.post(
-        `${API_BASE}/create`,
+        `${MATERIAL_API}/create`,
 
         payload,
 
         {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: getHeaders(),
         },
       );
 
       toast.success(
         response?.data?.message || "Material request sent to store",
       );
-
-      // ======================================
-      // RESET
-      // ======================================
 
       setMaterials([
         {
@@ -301,16 +331,71 @@ const MaterialRequest = () => {
 
       setReason("");
 
-      // ======================================
-      // REFRESH REQUESTS
-      // ======================================
-
-      await fetchRequests();
+      await fetchMaterialRequests();
     } catch (error) {
-      console.log("CREATE MATERIAL REQUEST ERROR:", error);
+      console.log(error);
 
       toast.error(
         error?.response?.data?.message || "Failed to create material request",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ======================================
+  // CREATE GENERAL STORE REQUEST
+  // ======================================
+
+  const handleGeneralRequest = async (e) => {
+    e.preventDefault();
+
+    if (
+      !generalHostel.trim() ||
+      !generalItem.trim() ||
+      !generalQuantity ||
+      Number(generalQuantity) <= 0
+    ) {
+      return toast.error("Please fill all general request fields");
+    }
+
+    try {
+      setSubmitting(true);
+
+      const payload = {
+        hostel: generalHostel.trim(),
+
+        item: generalItem.trim(),
+
+        quantity: Number(generalQuantity),
+      };
+
+      console.log("GENERAL REQUEST PAYLOAD:", payload);
+
+      const response = await axios.post(
+        `${GENERAL_REQUEST_API}/add`,
+
+        payload,
+
+        {
+          headers: getHeaders(),
+        },
+      );
+
+      toast.success(response?.data?.message || "General store request created");
+
+      setGeneralHostel("");
+
+      setGeneralItem("");
+
+      setGeneralQuantity("");
+
+      await fetchGeneralRequests();
+    } catch (error) {
+      console.log("GENERAL REQUEST ERROR:", error);
+
+      toast.error(
+        error?.response?.data?.message || "Failed to create general request",
       );
     } finally {
       setSubmitting(false);
@@ -324,78 +409,55 @@ const MaterialRequest = () => {
   const getStatusColor = (status) => {
     switch (status) {
       case "PENDING":
-        return `
-          bg-yellow-100
-          text-yellow-700
-        `;
+      case "Pending":
+        return "bg-yellow-100 text-yellow-700";
 
       case "APPROVED_BY_STORE":
-        return `
-          bg-green-100
-          text-green-700
-        `;
+      case "APPROVED":
+      case "Approved":
+        return "bg-green-100 text-green-700";
 
       case "PARTIALLY_APPROVED":
-        return `
-          bg-purple-100
-          text-purple-700
-        `;
+        return "bg-purple-100 text-purple-700";
 
       case "PARTIALLY_ISSUED":
-        return `
-          bg-orange-100
-          text-orange-700
-        `;
+        return "bg-orange-100 text-orange-700";
 
       case "ISSUED":
-        return `
-          bg-blue-100
-          text-blue-700
-        `;
+        return "bg-blue-100 text-blue-700";
 
       case "REJECTED":
-        return `
-          bg-red-100
-          text-red-700
-        `;
+      case "Rejected":
+        return "bg-red-100 text-red-700";
 
       case "OUT_OF_STOCK":
-        return `
-          bg-orange-100
-          text-orange-700
-        `;
+        return "bg-orange-100 text-orange-700";
 
       default:
-        return `
-          bg-gray-100
-          text-gray-700
-        `;
+        return "bg-gray-100 text-gray-700";
     }
   };
 
   // ======================================
-  // MATERIAL ITEM STATUS COLOR
+  // ITEM STATUS
   // ======================================
 
   const getItemStatusColor = (status) => {
     switch (status) {
       case "APPROVED":
-        return "text-green-700 bg-green-100";
+        return "bg-green-100 text-green-700";
 
       case "ISSUED":
-        return "text-blue-700 bg-blue-100";
+        return "bg-blue-100 text-blue-700";
 
       case "REJECTED":
-        return "text-red-700 bg-red-100";
+        return "bg-red-100 text-red-700";
 
       case "OUT_OF_STOCK":
-        return "text-orange-700 bg-orange-100";
-
-      case "PARTIALLY_ISSUED":
-        return "text-purple-700 bg-purple-100";
+        return "bg-orange-100 text-orange-700";
 
       default:
-        return "text-yellow-700 bg-yellow-100";
+        return "bg-yellow-100 text-yellow-700";
     }
   };
 
@@ -415,21 +477,8 @@ const MaterialRequest = () => {
 
   if (loading) {
     return (
-      <div
-        className="
-          flex
-          items-center
-          justify-center
-          min-h-screen
-        "
-      >
-        <Loader2
-          size={55}
-          className="
-            animate-spin
-            text-[#001B54]
-          "
-        />
+      <div className="flex items-center justify-center min-h-screen">
+        <Loader2 size={55} className="animate-spin text-[#001B54]" />
       </div>
     );
   }
@@ -448,9 +497,7 @@ const MaterialRequest = () => {
           to-[#7A0019]
 
           text-white
-
           rounded-3xl
-
           shadow-2xl
 
           p-6
@@ -462,10 +509,8 @@ const MaterialRequest = () => {
             flex
             flex-col
             lg:flex-row
-
             lg:items-center
             lg:justify-between
-
             gap-5
           "
         >
@@ -473,18 +518,12 @@ const MaterialRequest = () => {
             <Package size={50} />
 
             <div>
-              <h1
-                className="
-                  text-3xl
-                  md:text-5xl
-                  font-extrabold
-                "
-              >
+              <h1 className="text-3xl md:text-5xl font-extrabold">
                 Material Requests
               </h1>
 
               <p className="mt-2 text-blue-100">
-                Create complaint-wise material requests for the store.
+                Complaint materials and general store requirements.
               </p>
             </div>
           </div>
@@ -494,14 +533,9 @@ const MaterialRequest = () => {
               onClick={() => navigate(-1)}
               className="
                 bg-white/20
-
-                text-white
-
                 px-5
                 py-3
-
                 rounded-2xl
-
                 font-bold
 
                 flex
@@ -514,7 +548,7 @@ const MaterialRequest = () => {
             </button>
 
             <button
-              onClick={fetchRequests}
+              onClick={fetchAllData}
               className="
                 bg-white
                 text-[#001B54]
@@ -539,405 +573,359 @@ const MaterialRequest = () => {
       </div>
 
       {/* ======================================
-          SELECTED COMPLAINT
+          TABS
       ====================================== */}
 
-      {selectedComplaint ? (
-        <div
-          className="
-            bg-white
-            rounded-3xl
-            shadow-xl
-            border
-            border-gray-100
-            overflow-hidden
-          "
-        >
-          <div
-            className="
-              bg-blue-50
+      <div
+        className="
+          bg-white
+          rounded-3xl
+          shadow-xl
+          p-3
 
-              px-6
-              py-5
-
-              border-b
-            "
-          >
-            <div className="flex items-center gap-3">
-              <ClipboardList size={25} className="text-[#001B54]" />
-
-              <div>
-                <p className="text-xs text-gray-500">Selected Complaint</p>
-
-                <h2
-                  className="
-                    text-2xl
-                    font-extrabold
-                    text-[#001B54]
-                  "
-                >
-                  {selectedComplaint.complaintId}
-                </h2>
-              </div>
-            </div>
-          </div>
-
-          <div
-            className="
-              grid
-              grid-cols-1
-              md:grid-cols-2
-              xl:grid-cols-4
-
-              gap-5
-
-              p-6
-            "
-          >
-            {/* ISSUE */}
-
-            <div
-              className="
-                bg-gray-50
-                rounded-2xl
-                p-4
-              "
-            >
-              <p className="text-xs text-gray-500">Complaint</p>
-
-              <p className="font-bold mt-1">
-                {selectedComplaint.title || "--"}
-              </p>
-            </div>
-
-            {/* LOCATION */}
-
-            <div
-              className="
-                bg-blue-50
-                rounded-2xl
-                p-4
-              "
-            >
-              <div className="flex gap-2 items-center">
-                <MapPin size={17} className="text-blue-700" />
-
-                <div>
-                  <p className="text-xs text-gray-500">Location</p>
-
-                  <p className="font-bold text-blue-700">
-                    {selectedComplaint.hostel ||
-                      selectedComplaint.block ||
-                      "--"}
-                  </p>
-
-                  <p className="text-xs text-gray-500 mt-1">
-                    Floor: {selectedComplaint.floor || "-"} | Room:{" "}
-                    {selectedComplaint.roomNumber || "-"}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* CATEGORY */}
-
-            <div
-              className="
-                bg-purple-50
-                rounded-2xl
-                p-4
-              "
-            >
-              <div className="flex items-center gap-2">
-                <Wrench size={17} className="text-purple-700" />
-
-                <div>
-                  <p className="text-xs text-gray-500">Category</p>
-
-                  <p className="font-bold text-purple-700">
-                    {selectedComplaint.category}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* WORKER */}
-
-            <div
-              className="
-                bg-green-50
-                rounded-2xl
-                p-4
-              "
-            >
-              <div className="flex items-center gap-2">
-                <UserCheck size={17} className="text-green-700" />
-
-                <div>
-                  <p className="text-xs text-gray-500">Worker</p>
-
-                  <p className="font-bold text-green-700">
-                    {selectedComplaint?.assignedTo?.name || "Not Assigned"}
-                  </p>
-
-                  <p className="text-xs text-gray-500">
-                    {selectedComplaint?.assignedTo?.department || ""}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div
-          className="
-            bg-yellow-50
-
-            border
-            border-yellow-200
-
-            rounded-3xl
-
-            p-6
+          grid
+          grid-cols-1
+          sm:grid-cols-2
+          gap-3
+        "
+      >
+        <button
+          onClick={() => setActiveTab("COMPLAINT")}
+          className={`
+            px-5
+            py-4
+            rounded-2xl
+            font-bold
 
             flex
-            gap-4
-            items-start
-          "
+            items-center
+            justify-center
+            gap-2
+
+            transition
+
+            ${
+              activeTab === "COMPLAINT"
+                ? `
+                  bg-gradient-to-r
+                  from-[#001B54]
+                  to-[#7A0019]
+                  text-white
+                `
+                : `
+                  bg-gray-100
+                  text-gray-600
+                `
+            }
+          `}
         >
-          <AlertTriangle className="text-yellow-700" size={26} />
+          <ClipboardList size={20} />
+          Complaint Material Request
+        </button>
 
-          <div>
-            <h2 className="font-bold text-yellow-800 text-lg">
-              No Complaint Selected
-            </h2>
+        <button
+          onClick={() => setActiveTab("GENERAL")}
+          className={`
+            px-5
+            py-4
+            rounded-2xl
+            font-bold
 
-            <p className="text-yellow-700 mt-1">
-              Open this page using the Material YES button from Assigned Jobs to
-              create a new request.
-            </p>
-          </div>
-        </div>
-      )}
+            flex
+            items-center
+            justify-center
+            gap-2
+
+            transition
+
+            ${
+              activeTab === "GENERAL"
+                ? `
+                  bg-gradient-to-r
+                  from-[#001B54]
+                  to-[#7A0019]
+                  text-white
+                `
+                : `
+                  bg-gray-100
+                  text-gray-600
+                `
+            }
+          `}
+        >
+          <Building2 size={20} />
+          General Store Request
+        </button>
+      </div>
 
       {/* ======================================
-          EXISTING REQUEST
+          COMPLAINT TAB
       ====================================== */}
 
-      {selectedComplaint && existingRequest && (
-        <div
-          className="
-              bg-white
-              rounded-3xl
-              shadow-xl
-              overflow-hidden
-              border
-            "
-        >
-          <div
-            className="
-                bg-gradient-to-r
-                from-[#001B54]
-                to-[#7A0019]
+      {activeTab === "COMPLAINT" && (
+        <>
+          {/* SELECTED COMPLAINT */}
 
-                text-white
-
-                p-6
-              "
-          >
+          {selectedComplaint ? (
             <div
               className="
-                  flex
-                  flex-col
-                  sm:flex-row
-
-                  sm:items-center
-                  sm:justify-between
-
-                  gap-4
-                "
+                bg-white
+                rounded-3xl
+                shadow-xl
+                border
+                border-gray-100
+                overflow-hidden
+              "
             >
-              <div>
-                <p className="text-blue-100 text-sm">Existing Request</p>
+              <div className="bg-blue-50 px-6 py-5 border-b">
+                <div className="flex items-center gap-3">
+                  <ClipboardList size={25} className="text-[#001B54]" />
 
-                <h2 className="text-2xl font-bold mt-1">
-                  {existingRequest.requestId}
-                </h2>
+                  <div>
+                    <p className="text-xs text-gray-500">Selected Complaint</p>
+
+                    <h2 className="text-2xl font-extrabold text-[#001B54]">
+                      {selectedComplaint.complaintId}
+                    </h2>
+                  </div>
+                </div>
               </div>
 
-              <span
-                className={`
-                    px-4
-                    py-2
-                    rounded-full
-                    font-bold
-                    text-sm
-                    bg-white
-                    ${getStatusColor(existingRequest.status)}
-                  `}
+              <div
+                className="
+                  grid
+                  grid-cols-1
+                  md:grid-cols-2
+                  xl:grid-cols-4
+
+                  gap-5
+                  p-6
+                "
               >
-                {existingRequest.status}
-              </span>
+                <div className="bg-gray-50 rounded-2xl p-4">
+                  <p className="text-xs text-gray-500">Complaint</p>
+
+                  <p className="font-bold mt-1">
+                    {selectedComplaint.title || "--"}
+                  </p>
+                </div>
+
+                <div className="bg-blue-50 rounded-2xl p-4">
+                  <div className="flex gap-2">
+                    <MapPin size={18} className="text-blue-700" />
+
+                    <div>
+                      <p className="text-xs text-gray-500">Location</p>
+
+                      <p className="font-bold text-blue-700">
+                        {selectedComplaint.hostel ||
+                          selectedComplaint.block ||
+                          "--"}
+                      </p>
+
+                      <p className="text-xs text-gray-500 mt-1">
+                        Floor: {selectedComplaint.floor || "-"} | Room:{" "}
+                        {selectedComplaint.roomNumber || "-"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-purple-50 rounded-2xl p-4">
+                  <div className="flex gap-2">
+                    <Wrench size={18} className="text-purple-700" />
+
+                    <div>
+                      <p className="text-xs text-gray-500">Category</p>
+
+                      <p className="font-bold text-purple-700">
+                        {selectedComplaint.category}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-green-50 rounded-2xl p-4">
+                  <div className="flex gap-2">
+                    <UserCheck size={18} className="text-green-700" />
+
+                    <div>
+                      <p className="text-xs text-gray-500">Worker</p>
+
+                      <p className="font-bold text-green-700">
+                        {selectedComplaint?.assignedTo?.name || "--"}
+                      </p>
+
+                      <p className="text-xs text-gray-500">
+                        {selectedComplaint?.assignedTo?.department || ""}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          ) : (
+            <div
+              className="
+                bg-yellow-50
+                border
+                border-yellow-200
 
-          <div className="p-6">
-            <div className="space-y-3">
-              {existingRequest?.materials?.map((material, index) => (
-                <div
-                  key={material._id || index}
-                  className="
-                          grid
-                          grid-cols-1
-                          sm:grid-cols-4
+                rounded-3xl
+                p-6
 
-                          gap-4
+                flex
+                gap-4
+              "
+            >
+              <AlertTriangle size={25} className="text-yellow-700" />
 
+              <div>
+                <h2 className="font-bold text-yellow-800">
+                  No Complaint Selected
+                </h2>
+
+                <p className="text-yellow-700 mt-1">
+                  Assigned Jobs page par Material YES click karke yahan aao.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* EXISTING REQUEST */}
+
+          {selectedComplaint && existingRequest && (
+            <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
+              <div
+                className="
+                    bg-gradient-to-r
+                    from-[#001B54]
+                    to-[#7A0019]
+
+                    text-white
+                    p-6
+                  "
+              >
+                <div className="flex justify-between gap-4">
+                  <div>
+                    <p className="text-blue-100 text-sm">Existing Request</p>
+
+                    <h2 className="text-2xl font-bold">
+                      {existingRequest.requestId}
+                    </h2>
+                  </div>
+
+                  <span
+                    className={`
+                        bg-white
+                        h-fit
+
+                        px-4
+                        py-2
+
+                        rounded-full
+
+                        text-sm
+                        font-bold
+
+                        ${getStatusColor(existingRequest.status)}
+                      `}
+                  >
+                    {existingRequest.status}
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-6 space-y-3">
+                {existingRequest.materials?.map((material, index) => (
+                  <div
+                    key={material._id || index}
+                    className="
                           bg-gray-50
-
                           rounded-2xl
-
                           p-4
 
-                          items-center
+                          flex
+                          flex-col
+                          sm:flex-row
+                          sm:items-center
+                          sm:justify-between
+                          gap-3
                         "
-                >
-                  <div>
-                    <p className="text-xs text-gray-500">Material</p>
+                  >
+                    <div>
+                      <p className="font-bold">{material.itemName}</p>
 
-                    <p className="font-bold">{material.itemName}</p>
-                  </div>
+                      <p className="text-sm text-gray-500">
+                        Requested: {material.quantity} {material.unit}
+                      </p>
+                    </div>
 
-                  <div>
-                    <p className="text-xs text-gray-500">Requested</p>
-
-                    <p className="font-bold">
-                      {material.quantity} {material.unit}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500">Approved</p>
-
-                    <p className="font-bold">
-                      {material.approvedQuantity || 0} {material.unit}
-                    </p>
-                  </div>
-
-                  <div>
                     <span
                       className={`
-                              inline-block
+                            px-3
+                            py-1.5
+                            rounded-full
+                            text-xs
+                            font-bold
 
-                              px-3
-                              py-1.5
-
-                              rounded-full
-
-                              text-xs
-                              font-bold
-
-                              ${getItemStatusColor(material.status)}
-                            `}
+                            ${getItemStatusColor(material.status)}
+                          `}
                     >
                       {material.status}
                     </span>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
 
-            <div
+                <div className="bg-blue-50 rounded-2xl p-4 mt-4">
+                  <p className="text-xs text-gray-500">Reason</p>
+
+                  <p className="font-semibold mt-1">{existingRequest.reason}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CREATE COMPLAINT REQUEST */}
+
+          {selectedComplaint && !existingRequest && (
+            <form
+              onSubmit={handleComplaintRequest}
               className="
-                  mt-5
-                  bg-blue-50
-                  rounded-2xl
-                  p-4
+                  bg-white
+                  rounded-3xl
+                  shadow-2xl
+                  p-6
+                  md:p-8
+
+                  space-y-6
                 "
             >
-              <p className="text-xs text-gray-500">Reason</p>
+              <div className="flex items-center gap-3">
+                <PlusCircle size={32} className="text-[#001B54]" />
 
-              <p className="font-semibold mt-1">{existingRequest.reason}</p>
-            </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-[#001B54]">
+                    Required Materials
+                  </h2>
 
-            <div className="mt-4 text-sm text-gray-500">
-              Created: {formatDate(existingRequest.createdAt)}
-            </div>
-          </div>
-        </div>
-      )}
+                  <p className="text-gray-500 text-sm">
+                    Multiple materials add kar sakte ho.
+                  </p>
+                </div>
+              </div>
 
-      {/* ======================================
-          CREATE MATERIAL REQUEST FORM
-      ====================================== */}
-
-      {selectedComplaint && !existingRequest && (
-        <div
-          className="
-              bg-white
-
-              rounded-3xl
-
-              shadow-2xl
-
-              p-6
-              md:p-8
-            "
-        >
-          <div className="flex items-center gap-3 mb-8">
-            <PlusCircle size={35} className="text-[#001B54]" />
-
-            <div>
-              <h2
-                className="
-                    text-2xl
-                    md:text-3xl
-
-                    font-bold
-
-                    text-[#001B54]
-                  "
-              >
-                Create Material Request
-              </h2>
-
-              <p className="text-gray-500 mt-1">
-                Add all materials required for this complaint.
-              </p>
-            </div>
-          </div>
-
-          <form onSubmit={handleCreateRequest} className="space-y-6">
-            {/* ======================================
-                  MATERIAL ROWS
-              ====================================== */}
-
-            <div className="space-y-4">
               {materials.map((material, index) => (
                 <div
                   key={index}
                   className="
                         bg-gray-50
-
                         border
-                        border-gray-100
-
                         rounded-2xl
-
                         p-5
                       "
                 >
-                  <div
-                    className="
-                          flex
-                          items-center
-                          justify-between
-
-                          gap-4
-
-                          mb-4
-                        "
-                  >
+                  <div className="flex justify-between mb-4">
                     <h3 className="font-bold text-[#001B54]">
                       Material {index + 1}
                     </h3>
@@ -947,20 +935,10 @@ const MaterialRequest = () => {
                         type="button"
                         onClick={() => removeMaterial(index)}
                         className="
-                              w-9
-                              h-9
-
-                              rounded-xl
-
                               bg-red-100
-
                               text-red-700
-
-                              flex
-                              items-center
-                              justify-center
-
-                              hover:bg-red-200
+                              p-2
+                              rounded-xl
                             "
                       >
                         <Trash2 size={18} />
@@ -973,16 +951,11 @@ const MaterialRequest = () => {
                           grid
                           grid-cols-1
                           md:grid-cols-12
-
                           gap-4
                         "
                   >
-                    {/* ITEM */}
-
                     <div className="md:col-span-6">
-                      <label className="font-semibold text-gray-700">
-                        Material Name
-                      </label>
+                      <label className="font-semibold">Material Name</label>
 
                       <input
                         type="text"
@@ -990,33 +963,20 @@ const MaterialRequest = () => {
                         onChange={(e) =>
                           updateMaterial(index, "itemName", e.target.value)
                         }
-                        placeholder="Example: Electrical Wire"
+                        placeholder="Electrical Wire"
                         className="
                               w-full
                               mt-2
-
                               border
-                              border-gray-200
-
                               rounded-2xl
-
                               px-4
                               py-4
-
-                              outline-none
-
-                              focus:ring-2
-                              focus:ring-[#001B54]
                             "
                       />
                     </div>
 
-                    {/* QUANTITY */}
-
                     <div className="md:col-span-3">
-                      <label className="font-semibold text-gray-700">
-                        Quantity
-                      </label>
+                      <label className="font-semibold">Quantity</label>
 
                       <input
                         type="number"
@@ -1030,29 +990,16 @@ const MaterialRequest = () => {
                         className="
                               w-full
                               mt-2
-
                               border
-                              border-gray-200
-
                               rounded-2xl
-
                               px-4
                               py-4
-
-                              outline-none
-
-                              focus:ring-2
-                              focus:ring-[#001B54]
                             "
                       />
                     </div>
 
-                    {/* UNIT */}
-
                     <div className="md:col-span-3">
-                      <label className="font-semibold text-gray-700">
-                        Unit
-                      </label>
+                      <label className="font-semibold">Unit</label>
 
                       <select
                         value={material.unit}
@@ -1062,15 +1009,10 @@ const MaterialRequest = () => {
                         className="
                               w-full
                               mt-2
-
                               border
-                              border-gray-200
-
                               rounded-2xl
-
                               px-4
                               py-4
-
                               bg-white
                             "
                       >
@@ -1084,241 +1026,396 @@ const MaterialRequest = () => {
                   </div>
                 </div>
               ))}
-            </div>
 
-            {/* ADD MORE */}
-
-            <button
-              type="button"
-              onClick={addMaterial}
-              className="
-                  border-2
-                  border-dashed
-                  border-[#001B54]
-
-                  text-[#001B54]
-
-                  w-full
-
-                  py-4
-
-                  rounded-2xl
-
-                  font-bold
-
-                  flex
-                  items-center
-                  justify-center
-                  gap-2
-
-                  hover:bg-blue-50
-                "
-            >
-              <PlusCircle size={20} />
-              Add More Material
-            </button>
-
-            {/* ======================================
-                  EXAMPLE PREVIEW
-              ====================================== */}
-
-            <div
-              className="
-                  bg-blue-50
-                  rounded-2xl
-                  p-5
-                "
-            >
-              <p className="text-sm font-bold text-[#001B54]">Example</p>
-
-              <p className="text-sm text-gray-600 mt-2">
-                Electrical Wire — 10 METER
-              </p>
-
-              <p className="text-sm text-gray-600">Switch — 2 PIECE</p>
-
-              <p className="text-sm text-gray-600">Insulation Tape — 1 ROLL</p>
-            </div>
-
-            {/* REASON */}
-
-            <div>
-              <label className="font-semibold text-gray-700">
-                Reason / Work Requirement
-              </label>
-
-              <textarea
-                rows="4"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                placeholder="Example: Materials required to repair electrical fault in the assigned complaint..."
+              <button
+                type="button"
+                onClick={addMaterial}
                 className="
                     w-full
-                    mt-2
+                    border-2
+                    border-dashed
+                    border-[#001B54]
 
-                    border
-                    border-gray-200
+                    text-[#001B54]
+
+                    py-4
+
+                    rounded-2xl
+                    font-bold
+                  "
+              >
+                + Add More Material
+              </button>
+
+              <div>
+                <label className="font-semibold">Reason</label>
+
+                <textarea
+                  rows="4"
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                  placeholder="Why are these materials required?"
+                  className="
+                      w-full
+                      mt-2
+                      border
+                      rounded-2xl
+                      px-4
+                      py-4
+                      resize-none
+                    "
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="
+                    w-full
+
+                    bg-gradient-to-r
+                    from-[#001B54]
+                    to-[#7A0019]
+
+                    text-white
+
+                    py-4
 
                     rounded-2xl
 
-                    px-4
-                    py-4
+                    font-bold
 
-                    outline-none
+                    flex
+                    items-center
+                    justify-center
+                    gap-2
 
-                    resize-none
-
-                    focus:ring-2
-                    focus:ring-[#001B54]
+                    disabled:opacity-50
                   "
-              />
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 size={20} className="animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send size={20} />
+                    Send To Store
+                  </>
+                )}
+              </button>
+            </form>
+          )}
+        </>
+      )}
+
+      {/* ======================================
+          GENERAL REQUEST TAB
+      ====================================== */}
+
+      {activeTab === "GENERAL" && (
+        <>
+          <form
+            onSubmit={handleGeneralRequest}
+            className="
+              bg-white
+              rounded-3xl
+              shadow-2xl
+
+              p-6
+              md:p-8
+
+              space-y-6
+            "
+          >
+            <div className="flex gap-3 items-center">
+              <Building2 size={32} className="text-[#001B54]" />
+
+              <div>
+                <h2 className="text-2xl font-bold text-[#001B54]">
+                  General Store Request
+                </h2>
+
+                <p className="text-gray-500 text-sm">
+                  Complaint ke bina normal departmental requirement.
+                </p>
+              </div>
             </div>
 
-            {/* SUBMIT */}
+            <div
+              className="
+                grid
+                grid-cols-1
+                md:grid-cols-3
+                gap-5
+              "
+            >
+              <div>
+                <label className="font-semibold">Hostel / Location</label>
+
+                <input
+                  type="text"
+                  value={generalHostel}
+                  onChange={(e) => setGeneralHostel(e.target.value)}
+                  placeholder="Example: H1"
+                  className="
+                    w-full
+                    mt-2
+                    border
+                    rounded-2xl
+                    px-4
+                    py-4
+                  "
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold">Item</label>
+
+                <input
+                  type="text"
+                  value={generalItem}
+                  onChange={(e) => setGeneralItem(e.target.value)}
+                  placeholder="Example: Cleaning Gloves"
+                  className="
+                    w-full
+                    mt-2
+                    border
+                    rounded-2xl
+                    px-4
+                    py-4
+                  "
+                />
+              </div>
+
+              <div>
+                <label className="font-semibold">Quantity</label>
+
+                <input
+                  type="number"
+                  min="1"
+                  value={generalQuantity}
+                  onChange={(e) => setGeneralQuantity(e.target.value)}
+                  placeholder="20"
+                  className="
+                    w-full
+                    mt-2
+                    border
+                    rounded-2xl
+                    px-4
+                    py-4
+                  "
+                />
+              </div>
+            </div>
 
             <button
               type="submit"
               disabled={submitting}
               className="
-                  w-full
+                w-full
 
-                  bg-gradient-to-r
-                  from-[#001B54]
-                  to-[#7A0019]
+                bg-gradient-to-r
+                from-[#001B54]
+                to-[#7A0019]
 
-                  text-white
+                text-white
 
-                  px-8
-                  py-4
+                py-4
 
-                  rounded-2xl
+                rounded-2xl
 
-                  font-bold
+                font-bold
 
-                  flex
-                  items-center
-                  justify-center
-                  gap-3
+                flex
+                justify-center
+                items-center
+                gap-2
 
-                  disabled:opacity-50
-                  disabled:cursor-not-allowed
-                "
+                disabled:opacity-50
+              "
             >
               {submitting ? (
                 <>
                   <Loader2 size={20} className="animate-spin" />
-                  Sending To Store...
+                  Sending...
                 </>
               ) : (
                 <>
                   <Send size={20} />
-                  Send Material Request To Store
+                  Send General Request
                 </>
               )}
             </button>
           </form>
-        </div>
+
+          {/* GENERAL HISTORY */}
+
+          <div
+            className="
+              bg-white
+              rounded-3xl
+              shadow-xl
+              p-6
+            "
+          >
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h2 className="text-2xl font-bold text-[#001B54]">
+                  General Request History
+                </h2>
+
+                <p className="text-sm text-gray-500">Normal store requests.</p>
+              </div>
+
+              <span
+                className="
+                  bg-blue-100
+                  text-blue-700
+                  px-4
+                  py-2
+                  rounded-full
+                  font-bold
+                "
+              >
+                {generalRequests.length}
+              </span>
+            </div>
+
+            {generalRequests.length === 0 ? (
+              <div className="py-10 text-center">
+                <Package size={50} className="mx-auto text-gray-300" />
+
+                <p className="text-gray-500 mt-4">No general requests.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {generalRequests.map((request) => (
+                  <div
+                    key={request._id}
+                    className="
+                        border
+                        rounded-2xl
+                        p-5
+
+                        grid
+                        grid-cols-1
+                        md:grid-cols-5
+
+                        gap-4
+                        items-center
+                      "
+                  >
+                    <div>
+                      <p className="text-xs text-gray-500">Hostel</p>
+
+                      <p className="font-bold">{request.hostel}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-gray-500">Item</p>
+
+                      <p className="font-bold">{request.item}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-gray-500">Quantity</p>
+
+                      <p className="font-bold">{request.quantity}</p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-gray-500">Requested By</p>
+
+                      <p className="font-semibold">{request.requestedBy}</p>
+                    </div>
+
+                    <div>
+                      <span
+                        className={`
+                            inline-block
+
+                            px-3
+                            py-1.5
+
+                            rounded-full
+
+                            text-xs
+                            font-bold
+
+                            ${getStatusColor(request.status)}
+                          `}
+                      >
+                        {request.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
       )}
 
       {/* ======================================
-          ALL REQUESTS SUMMARY
+          COMPLAINT MATERIAL HISTORY
       ====================================== */}
 
-      <div
-        className="
-          bg-white
-
-          rounded-3xl
-
-          shadow-xl
-
-          p-6
-        "
-      >
+      {activeTab === "COMPLAINT" && (
         <div
           className="
-            flex
-            flex-col
-            sm:flex-row
-
-            sm:items-center
-            sm:justify-between
-
-            gap-4
-
-            mb-6
+            bg-white
+            rounded-3xl
+            shadow-xl
+            p-6
           "
         >
-          <div>
-            <h2
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h2 className="text-2xl font-bold text-[#001B54]">
+                Material Request History
+              </h2>
+
+              <p className="text-sm text-gray-500">
+                Complaint linked requests sent to Store Manager.
+              </p>
+            </div>
+
+            <span
               className="
-                text-2xl
+                bg-blue-100
+                text-blue-700
+                px-4
+                py-2
+                rounded-full
                 font-bold
-                text-[#001B54]
               "
             >
-              Material Request History
-            </h2>
-
-            <p className="text-gray-500 text-sm mt-1">
-              Requests sent to the store manager.
-            </p>
+              {requests.length}
+            </span>
           </div>
 
-          <div
-            className="
-              bg-blue-100
-              text-blue-700
+          {requests.length === 0 ? (
+            <div className="py-10 text-center">
+              <Package size={50} className="mx-auto text-gray-300" />
 
-              px-4
-              py-2
-
-              rounded-full
-
-              font-bold
-            "
-          >
-            {requests.length} Requests
-          </div>
-        </div>
-
-        {requests.length === 0 ? (
-          <div
-            className="
-              py-12
-              text-center
-            "
-          >
-            <Package
-              size={55}
-              className="
-                mx-auto
-                text-gray-300
-              "
-            />
-
-            <p className="text-gray-500 mt-4">No material requests found.</p>
-          </div>
-        ) : (
-          <div className="space-y-5">
-            {requests.map((request) => (
-              <div
-                key={request._id}
-                className="
+              <p className="text-gray-500 mt-4">No material requests.</p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {requests.map((request) => (
+                <div
+                  key={request._id}
+                  className="
                     border
-                    border-gray-100
-
                     rounded-2xl
-
                     overflow-hidden
                   "
-              >
-                {/* REQUEST TOP */}
-
-                <div
-                  className="
+                >
+                  <div
+                    className="
                       bg-gray-50
-
                       p-5
 
                       flex
@@ -1330,199 +1427,91 @@ const MaterialRequest = () => {
 
                       gap-4
                     "
-                >
-                  <div>
-                    <h3
-                      className="
-                          text-xl
-                          font-bold
-                          text-[#001B54]
-                        "
-                    >
-                      {request.requestId}
-                    </h3>
+                  >
+                    <div>
+                      <h3 className="font-bold text-xl text-[#001B54]">
+                        {request.requestId}
+                      </h3>
 
-                    <p className="text-sm text-gray-500 mt-1">
-                      Complaint:{" "}
-                      <span className="font-semibold">
-                        {request?.complaint?.complaintId || "--"}
-                      </span>
-                    </p>
-                  </div>
+                      <p className="text-sm text-gray-500">
+                        Complaint: {request?.complaint?.complaintId || "--"}
+                      </p>
+                    </div>
 
-                  <span
-                    className={`
+                    <span
+                      className={`
+                        h-fit
                         px-4
                         py-2
-
                         rounded-full
-
                         text-sm
                         font-bold
 
                         ${getStatusColor(request.status)}
                       `}
-                  >
-                    {request.status}
-                  </span>
-                </div>
+                    >
+                      {request.status}
+                    </span>
+                  </div>
 
-                {/* MATERIAL LIST */}
-
-                <div className="p-5">
-                  <div
-                    className="
+                  <div className="p-5">
+                    <div
+                      className="
                         grid
                         grid-cols-1
                         md:grid-cols-2
-
                         gap-3
                       "
-                  >
-                    {request?.materials?.map((material, index) => (
-                      <div
-                        key={material._id || index}
-                        className="
-                                bg-blue-50
-
-                                rounded-xl
-
-                                p-4
-                              "
-                      >
+                    >
+                      {request.materials?.map((material, index) => (
                         <div
+                          key={material._id || index}
                           className="
-                                  flex
-                                  justify-between
-                                  gap-4
-                                "
+                              bg-blue-50
+                              rounded-xl
+                              p-4
+                            "
                         >
-                          <div>
-                            <p className="font-bold text-[#001B54]">
-                              {material.itemName}
-                            </p>
-
-                            <p className="text-sm text-gray-500 mt-1">
-                              Requested: {material.quantity} {material.unit}
-                            </p>
-
-                            {material.approvedQuantity > 0 && (
-                              <p className="text-sm text-green-700 mt-1">
-                                Approved: {material.approvedQuantity}{" "}
-                                {material.unit}
+                          <div className="flex justify-between gap-4">
+                            <div>
+                              <p className="font-bold text-[#001B54]">
+                                {material.itemName}
                               </p>
-                            )}
 
-                            {material.issuedQuantity > 0 && (
-                              <p className="text-sm text-blue-700 mt-1">
-                                Issued: {material.issuedQuantity}{" "}
-                                {material.unit}
+                              <p className="text-sm text-gray-500">
+                                {material.quantity} {material.unit}
                               </p>
-                            )}
+                            </div>
+
+                            <span
+                              className={`
+                                  h-fit
+                                  px-3
+                                  py-1
+                                  rounded-full
+                                  text-xs
+                                  font-bold
+
+                                  ${getItemStatusColor(material.status)}
+                                `}
+                            >
+                              {material.status}
+                            </span>
                           </div>
-
-                          <span
-                            className={`
-                                    h-fit
-
-                                    px-3
-                                    py-1
-
-                                    rounded-full
-
-                                    text-xs
-                                    font-bold
-
-                                    ${getItemStatusColor(material.status)}
-                                  `}
-                          >
-                            {material.status}
-                          </span>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* FOOTER */}
-
-                  <div
-                    className="
-                        border-t
-
-                        mt-5
-                        pt-4
-
-                        grid
-                        grid-cols-1
-                        md:grid-cols-3
-
-                        gap-4
-
-                        text-sm
-                      "
-                  >
-                    <div>
-                      <p className="text-gray-500">Requested By</p>
-
-                      <p className="font-semibold">
-                        {request?.requestedBy?.name || "--"}
-                      </p>
+                      ))}
                     </div>
 
-                    <div>
-                      <p className="text-gray-500">Worker</p>
-
-                      <p className="font-semibold">
-                        {request?.assignedWorker?.name || "--"}
-                      </p>
-                    </div>
-
-                    <div>
-                      <p className="text-gray-500">Created</p>
-
-                      <p className="font-semibold">
-                        {formatDate(request.createdAt)}
-                      </p>
+                    <div className="mt-4 text-sm text-gray-500">
+                      Created: {formatDate(request.createdAt)}
                     </div>
                   </div>
-
-                  {request.reason && (
-                    <div
-                      className="
-                          bg-gray-50
-                          rounded-xl
-                          p-4
-                          mt-4
-                        "
-                    >
-                      <p className="text-xs text-gray-500">Reason</p>
-
-                      <p className="font-semibold mt-1">{request.reason}</p>
-                    </div>
-                  )}
-
-                  {request.storeSlipNo && (
-                    <div
-                      className="
-                          bg-green-50
-                          rounded-xl
-                          p-4
-                          mt-4
-                        "
-                    >
-                      <p className="text-xs text-gray-500">Store Slip Number</p>
-
-                      <p className="font-bold text-green-700 mt-1">
-                        {request.storeSlipNo}
-                      </p>
-                    </div>
-                  )}
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
