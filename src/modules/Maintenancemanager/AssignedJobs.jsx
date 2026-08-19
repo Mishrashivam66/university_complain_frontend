@@ -1,10 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
 import toast from "react-hot-toast";
-
-import { useNavigate } from "react-router-dom";
 
 import {
   ClipboardList,
@@ -32,11 +30,10 @@ const AssignedJobs = () => {
   // NAVIGATION
   // ======================================
 
-  const navigate = useNavigate();
-
   // ======================================
   // ROUTES
   // ======================================
+  const navigate = useNavigate();
 
   const MATERIAL_REQUEST_ROUTE = "/maintenance/material-requests";
 
@@ -77,8 +74,6 @@ const AssignedJobs = () => {
   // ======================================
   // TEMPORARY NO MATERIAL STATE
   // ======================================
-
-  const [noMaterialRequired, setNoMaterialRequired] = useState({});
 
   // ======================================
   // NORMALIZE
@@ -133,16 +128,11 @@ const AssignedJobs = () => {
   // ======================================
   // FETCH ALL DATA
   // ======================================
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
 
       const headers = getHeaders();
-
-      // ======================================
-      // COMPLAINTS + WORKERS
-      // ======================================
 
       const [complaintsRes, workersRes] = await Promise.all([
         axios.get(`${API_BASE}/assign-worker/complaints`, {
@@ -158,10 +148,6 @@ const AssignedJobs = () => {
 
       setWorkers(workersRes?.data?.workers || []);
 
-      // ======================================
-      // MATERIAL REQUESTS
-      // ======================================
-
       try {
         const materialRes = await axios.get(`${API_BASE}/material-requests`, {
           headers,
@@ -173,10 +159,6 @@ const AssignedJobs = () => {
 
         setMaterialRequests([]);
       }
-
-      // ======================================
-      // EXISTING JOB CARDS
-      // ======================================
 
       try {
         const jobCardRes = await axios.get(JOB_CARD_API, {
@@ -192,12 +174,6 @@ const AssignedJobs = () => {
     } catch (error) {
       console.log("ASSIGNED JOBS ERROR:", error);
 
-      console.log("STATUS:", error?.response?.status);
-
-      console.log("DATA:", error?.response?.data);
-
-      console.log("URL:", error?.config?.url);
-
       toast.error(
         error?.response?.data?.message || "Failed to load assigned jobs",
       );
@@ -209,15 +185,14 @@ const AssignedJobs = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getHeaders, API_BASE, JOB_CARD_API]);
 
   // ======================================
   // INITIAL FETCH
   // ======================================
-
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   // ======================================
   // ONLY ASSIGNED COMPLAINTS
@@ -291,16 +266,49 @@ const AssignedJobs = () => {
   // NEW JOB CARD
   // ======================================
 
+  // ======================================
+  // COMPLAINTS AVAILABLE FOR NEW JOB CARD
+  // ======================================
+
   const jobCardEligibleComplaints = useMemo(() => {
     return assignedComplaints.filter((complaint) => {
       if (!complaint?._id) {
         return false;
       }
 
-      return !complaintsAlreadyInJobCard.has(complaint._id.toString());
-    });
-  }, [assignedComplaints, complaintsAlreadyInJobCard]);
+      const complaintId = complaint._id.toString();
 
+      // Already Job Card me hai
+      if (complaintsAlreadyInJobCard.has(complaintId)) {
+        return false;
+      }
+
+      // ======================================
+      // MATERIAL NOT REQUIRED
+      // DIRECTLY READY FOR JOB CARD
+      // ======================================
+
+      if (complaint.materialDecision === "NOT_REQUIRED") {
+        return true;
+      }
+
+      // ======================================
+      // MATERIAL REQUIRED
+      // REQUEST CREATE HONA REQUIRED
+      // ======================================
+
+      if (complaint.materialDecision === "REQUIRED") {
+        return materialComplaintIds.has(complaintId);
+      }
+
+      // ======================================
+      // MATERIAL DECISION PENDING
+      // JOB CARD READY NAHI
+      // ======================================
+
+      return false;
+    });
+  }, [assignedComplaints, complaintsAlreadyInJobCard, materialComplaintIds]);
   // ======================================
   // AUTOMATIC JOB CARD GROUPING
   //
@@ -564,38 +572,98 @@ const AssignedJobs = () => {
   // MATERIAL YES
   // ======================================
 
-  const handleMaterialYes = (complaint) => {
-    const existingRequest = getMaterialRequest(complaint);
+  const handleMaterialYes = async (complaint) => {
+    try {
+      const headers = getHeaders();
 
-    navigate(MATERIAL_REQUEST_ROUTE, {
-      state: {
-        complaintId: complaint._id,
+      // ======================================
+      // SAVE YES DECISION
+      // ======================================
 
-        complaint,
+      await axios.put(
+        `${API_BASE}/assign-worker/material-decision/${complaint._id}`,
 
-        materialRequest: existingRequest || null,
-      },
-    });
+        {
+          decision: "REQUIRED",
+        },
+
+        {
+          headers,
+        },
+      );
+
+      const existingRequest = getMaterialRequest(complaint);
+
+      // ======================================
+      // OPEN MATERIAL REQUEST PAGE
+      // ======================================
+
+      navigate(MATERIAL_REQUEST_ROUTE, {
+        state: {
+          complaintId: complaint._id,
+
+          complaint: {
+            ...complaint,
+
+            materialDecision: "REQUIRED",
+
+            materialRequired: true,
+          },
+
+          materialRequest: existingRequest || null,
+        },
+      });
+    } catch (error) {
+      console.log("MATERIAL YES ERROR:", error);
+
+      toast.error(
+        error?.response?.data?.message || "Failed to save material decision",
+      );
+    }
   };
 
   // ======================================
   // MATERIAL NO
   // ======================================
 
-  const handleMaterialNo = (complaint) => {
-    const existingRequest = getMaterialRequest(complaint);
+  const handleMaterialNo = async (complaint) => {
+    try {
+      const existingRequest = getMaterialRequest(complaint);
 
-    if (existingRequest) {
-      return toast.error("Material request already exists for this complaint");
+      if (existingRequest) {
+        return toast.error(
+          "Material request already exists for this complaint",
+        );
+      }
+
+      const headers = getHeaders();
+
+      await axios.put(
+        `${API_BASE}/assign-worker/material-decision/${complaint._id}`,
+
+        {
+          decision: "NOT_REQUIRED",
+        },
+
+        {
+          headers,
+        },
+      );
+
+      toast.success("Material marked as not required");
+
+      // ======================================
+      // REFRESH FROM DATABASE
+      // ======================================
+
+      await fetchData();
+    } catch (error) {
+      console.log("MATERIAL NO ERROR:", error);
+
+      toast.error(
+        error?.response?.data?.message || "Failed to save material decision",
+      );
     }
-
-    setNoMaterialRequired((prev) => ({
-      ...prev,
-
-      [complaint._id]: true,
-    }));
-
-    toast.success("No material required for this complaint");
   };
 
   // ======================================
@@ -1446,8 +1514,6 @@ const AssignedJobs = () => {
                 filteredComplaints.map((item) => {
                   const material = getMaterialRequest(item);
 
-                  const markedNo = noMaterialRequired[item._id];
-
                   const alreadyInJobCard = complaintsAlreadyInJobCard.has(
                     item._id.toString(),
                   );
@@ -1578,56 +1644,155 @@ const AssignedJobs = () => {
                       </td>
 
                       {/* MATERIAL */}
-
                       <td className="p-5 min-w-[270px]">
                         {material ? (
+                          // ======================================
+                          // MATERIAL REQUEST EXISTS
+                          // ======================================
+
                           <div className="space-y-2">
                             <span
-                              className={`
-                                  inline-block
-                                  px-3
-                                  py-1.5
-                                  rounded-full
-                                  text-xs
-                                  font-bold
+                              className="
+          inline-block
 
-                                  ${getMaterialStatusColor(material.status)}
-                                `}
+          bg-blue-100
+          text-blue-700
+
+          px-3
+          py-1.5
+
+          rounded-full
+
+          text-xs
+          font-bold
+        "
                             >
-                              {material.status}
+                              REQUIRED
+                            </span>
+
+                            {/* ======================================
+          MATERIAL ITEMS
+      ====================================== */}
+
+                            {material?.materials?.length > 0 ? (
+                              <div className="space-y-1 mt-2">
+                                {material.materials.map(
+                                  (materialItem, index) => (
+                                    <div
+                                      key={materialItem._id || index}
+                                      className="
+                  bg-gray-50
+                  rounded-lg
+                  px-3
+                  py-2
+
+                  text-xs
+                "
+                                    >
+                                      <span className="font-semibold text-gray-700">
+                                        {materialItem.itemName}
+                                      </span>
+
+                                      <span className="text-gray-500">
+                                        {" — "}
+                                        {materialItem.quantity}{" "}
+                                        {materialItem.unit}
+                                      </span>
+                                    </div>
+                                  ),
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-gray-500">
+                                Material items not added yet
+                              </p>
+                            )}
+
+                            <button
+                              onClick={() => handleMaterialYes(item)}
+                              className="
+          block
+
+          text-sm
+          font-bold
+
+          text-[#001B54]
+
+          hover:underline
+        "
+                            >
+                              View Material Request
+                            </button>
+                          </div>
+                        ) : item.materialDecision === "NOT_REQUIRED" ? (
+                          // ======================================
+                          // MATERIAL NOT REQUIRED
+                          // ======================================
+
+                          <span
+                            className="
+        inline-block
+
+        bg-green-100
+        text-green-700
+
+        px-3
+        py-1.5
+
+        rounded-full
+
+        text-xs
+        font-bold
+      "
+                          >
+                            NOT REQUIRED
+                          </span>
+                        ) : item.materialDecision === "REQUIRED" ? (
+                          // ======================================
+                          // YES SELECTED BUT REQUEST NOT CREATED
+                          // ======================================
+
+                          <div className="space-y-2">
+                            <span
+                              className="
+          inline-block
+
+          bg-orange-100
+          text-orange-700
+
+          px-3
+          py-1.5
+
+          rounded-full
+
+          text-xs
+          font-bold
+        "
+                            >
+                              MATERIAL DETAILS PENDING
                             </span>
 
                             <button
                               onClick={() => handleMaterialYes(item)}
                               className="
-                                  block
-                                  text-sm
-                                  font-bold
-                                  text-[#001B54]
-                                  hover:underline
-                                "
+          block
+
+          text-sm
+          font-bold
+
+          text-[#001B54]
+
+          hover:underline
+        "
                             >
-                              View Material Request
+                              Add Material
                             </button>
                           </div>
-                        ) : markedNo ? (
-                          <span
-                            className="
-                                bg-green-100
-                                text-green-700
-
-                                px-3
-                                py-1.5
-
-                                rounded-full
-
-                                text-xs
-                                font-bold
-                              "
-                          >
-                            NOT REQUIRED
-                          </span>
                         ) : (
+                          // ======================================
+                          // MATERIAL DECISION PENDING
+                          // ======================================
+
                           <div>
                             <p className="text-xs text-gray-500 mb-2">
                               Material Required?
@@ -1637,19 +1802,19 @@ const AssignedJobs = () => {
                               <button
                                 onClick={() => handleMaterialYes(item)}
                                 className="
-                                    bg-[#001B54]
-                                    hover:bg-[#002B7F]
+            bg-[#001B54]
+            hover:bg-[#002B7F]
 
-                                    text-white
+            text-white
 
-                                    px-4
-                                    py-2
+            px-4
+            py-2
 
-                                    rounded-xl
+            rounded-xl
 
-                                    text-sm
-                                    font-bold
-                                  "
+            text-sm
+            font-bold
+          "
                               >
                                 YES
                               </button>
@@ -1657,19 +1822,19 @@ const AssignedJobs = () => {
                               <button
                                 onClick={() => handleMaterialNo(item)}
                                 className="
-                                    bg-green-100
-                                    hover:bg-green-200
+            bg-green-100
+            hover:bg-green-200
 
-                                    text-green-700
+            text-green-700
 
-                                    px-4
-                                    py-2
+            px-4
+            py-2
 
-                                    rounded-xl
+            rounded-xl
 
-                                    text-sm
-                                    font-bold
-                                  "
+            text-sm
+            font-bold
+          "
                               >
                                 NO
                               </button>
@@ -2213,7 +2378,7 @@ const AssignedJobs = () => {
                       );
                     })()}
                   </div>
-                ) : noMaterialRequired[selectedComplaint._id] ? (
+                ) : selectedComplaint.materialDecision === "NOT_REQUIRED" ? (
                   <div
                     className="
                       mt-4

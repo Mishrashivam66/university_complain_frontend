@@ -323,30 +323,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
         return "#001B54";
     }
   };
-
-  const materialStatusColor = (status) => {
-    switch (status) {
-      case "ISSUED":
-        return "#2563eb";
-
-      case "APPROVED":
-      case "APPROVED_BY_STORE":
-        return "#15803d";
-
-      case "REJECTED":
-        return "#dc2626";
-
-      case "OUT_OF_STOCK":
-        return "#ea580c";
-
-      case "NOT_REQUIRED":
-        return "#64748b";
-
-      default:
-        return "#f97316";
-    }
-  };
-
   // ==========================================
   // QR VALUE
   // ==========================================
@@ -1018,10 +994,10 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
                   Required
                 </th>
 
-                <th rowSpan="2" className="w-[8%] p-[1mm]">
-                  Store Status
+                <th rowSpan="2" className="w-[10%] p-[1mm]">
+                  Material Items
                   <br />
-                  स्टोर स्थिति
+                  आवश्यक सामग्री
                 </th>
 
                 <th colSpan="3" className="w-[19%] p-[1mm]">
@@ -1129,27 +1105,32 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
                       {item?.materialRequired ? "Yes" : "No"}
                     </td>
 
-                    <td className="p-[0.8mm]">
-                      {item?.materialRequired ? (
-                        <span
-                          className="
-                              inline-block
+                    <td className="p-[0.8mm] text-left">
+                      {item?.materialRequired &&
+                      item?.materialRequest?.materials?.length > 0 ? (
+                        <div className="space-y-[0.5mm]">
+                          {item.materialRequest.materials.map(
+                            (material, materialIndex) => (
+                              <div
+                                key={material._id || materialIndex}
+                                className="leading-tight"
+                              >
+                                <span className="font-semibold">
+                                  {material.itemName || "Material"}
+                                </span>
 
-                              px-[1.5mm]
-                              py-[0.4mm]
+                                {" — "}
 
-                              rounded-[1mm]
-
-                              text-white
-                              font-bold
-                            "
-                          style={{
-                            backgroundColor: materialStatusColor(
-                              item?.materialStatus,
+                                <span>
+                                  {material.quantity || 0} {material.unit || ""}
+                                </span>
+                              </div>
                             ),
-                          }}
-                        >
-                          {item?.materialStatus || "PENDING"}
+                          )}
+                        </div>
+                      ) : item?.materialRequired ? (
+                        <span className="text-orange-600 font-semibold">
+                          Material details not available
                         </span>
                       ) : (
                         "-"

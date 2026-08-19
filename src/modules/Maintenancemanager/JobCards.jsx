@@ -5,8 +5,7 @@ import axios from "axios";
 import toast from "react-hot-toast";
 
 import { createPortal } from "react-dom";
-
-import PrintableJobCards from "./PrintableJobCard";
+import PrintableJobCard from "./PrintableJobCard";
 
 import {
   ClipboardList,
@@ -32,7 +31,7 @@ const JobCards = () => {
 
   const [jobCards, setJobCards] = useState([]);
 
-  const [printJobs, setPrintJobs] = useState([]);
+  const [printJob, setPrintJob] = useState(null);
   // ==========================================
 
   const [loading, setLoading] = useState(true);
@@ -303,17 +302,19 @@ const JobCards = () => {
 
   // ==========================================
   // PRINT
-  const handlePrintAll = () => {
-    if (filteredJobCards.length === 0) {
-      return toast.error("No Job Cards available to print");
-    }
+  // ==========================================
+  // ==========================================
+  // PRINT JOB CARD
+  // ==========================================
 
-    setPrintJobs(filteredJobCards);
+  const handlePrint = (job) => {
+    setPrintJob(job);
 
     setTimeout(() => {
       window.print();
     }, 500);
   };
+
   // ==========================================
   // LOADING
   // ==========================================
@@ -465,25 +466,7 @@ const JobCards = () => {
                 "
               />
             </div>
-            <button
-              onClick={handlePrintAll}
-              className="
-    bg-yellow-400
-    text-[#001B54]
-    px-5
-    py-3
-    rounded-2xl
-    font-bold
 
-    flex
-    items-center
-    justify-center
-    gap-2
-  "
-            >
-              <Printer size={18} />
-              Print All Job Cards
-            </button>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
@@ -653,21 +636,22 @@ const JobCards = () => {
                     </button>
 
                     <button
-                      onClick={handlePrintAll}
+                      onClick={() => handlePrint(job)}
                       className="
-    bg-yellow-400
-    text-[#001B54]
-    py-3
-    rounded-2xl
-    font-bold
-    flex
-    items-center
-    justify-center
-    gap-2
-  "
+                        bg-yellow-400
+                        text-[#001B54]
+                        py-3
+                        rounded-2xl
+                        font-bold
+
+                        flex
+                        items-center
+                        justify-center
+                        gap-2
+                      "
                     >
                       <Printer size={18} />
-                      Print All
+                      Print
                     </button>
                   </div>
                 </div>
@@ -737,8 +721,9 @@ const JobCards = () => {
                 <X size={18} />
                 Close
               </button>
+
               <button
-                onClick={handlePrintAll}
+                onClick={() => handlePrint(selectedJobCard)}
                 className="
     bg-yellow-400
     text-[#001B54]
@@ -752,7 +737,7 @@ const JobCards = () => {
   "
               >
                 <Printer size={18} />
-                Print All Job Cards
+                Print Job Card
               </button>
             </div>
 
@@ -1217,10 +1202,10 @@ const JobCards = () => {
         </div>
       )}
 
-      {printJobs.length > 0 &&
+      {printJob &&
         createPortal(
           <div id="job-card-print-root">
-            <PrintableJobCards jobs={printJobs} />
+            <PrintableJobCard job={printJob} />
           </div>,
           document.body,
         )}
