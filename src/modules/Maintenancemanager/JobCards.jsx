@@ -53,6 +53,8 @@ const JobCards = () => {
   const [statusFilter, setStatusFilter] = useState("ALL");
 
   const [selectedJobCard, setSelectedJobCard] = useState(null);
+
+  const [activeTab, setActiveTab] = useState("PRINT_QUEUE");
   // API
   // ==========================================
 
@@ -198,6 +200,34 @@ const JobCards = () => {
     }
   };
 
+  const tabJobCards = useMemo(() => {
+    if (activeTab === "PRINT_QUEUE") {
+      return jobCards.filter(
+        (job) =>
+          job.printStatus !== "PRINTED" &&
+          job.status !== "COMPLETED" &&
+          job.status !== "CLOSED",
+      );
+    }
+
+    if (activeTab === "PRINTED") {
+      return jobCards.filter(
+        (job) =>
+          job.printStatus === "PRINTED" &&
+          job.status !== "COMPLETED" &&
+          job.status !== "CLOSED",
+      );
+    }
+
+    if (activeTab === "COMPLETED") {
+      return jobCards.filter(
+        (job) => job.status === "COMPLETED" || job.status === "CLOSED",
+      );
+    }
+
+    return jobCards;
+  }, [jobCards, activeTab]);
+
   // ==========================================
   // FILTER
   // ==========================================
@@ -205,7 +235,7 @@ const JobCards = () => {
   const filteredJobCards = useMemo(() => {
     const searchValue = normalize(search);
 
-    return jobCards.filter((job) => {
+    return tabJobCards.filter((job) => {
       const matchSearch =
         !searchValue ||
         normalize(job.jobCardId).includes(searchValue) ||
@@ -218,7 +248,7 @@ const JobCards = () => {
 
       return matchSearch && matchStatus;
     });
-  }, [jobCards, search, statusFilter]);
+  }, [tabJobCards, search, statusFilter]);
 
   // ==========================================
   // BULK PRINT SELECTION
@@ -468,10 +498,81 @@ const JobCards = () => {
       {/* ==========================================
           NORMAL PAGE
       ========================================== */}
+      {/* ==========================================
+    JOB CARD TABS
+========================================== */}
 
+      <div
+        className="
+    bg-white
+    rounded-3xl
+    shadow-xl
+    p-3
+
+    grid
+    grid-cols-1
+    sm:grid-cols-3
+    gap-3
+  "
+      >
+        <button
+          onClick={() => setActiveTab("PRINT_QUEUE")}
+          className={`
+      px-5
+      py-3
+      rounded-2xl
+      font-bold
+      transition
+
+      ${
+        activeTab === "PRINT_QUEUE"
+          ? "bg-[#001B54] text-white"
+          : "bg-blue-50 text-[#001B54] hover:bg-blue-100"
+      }
+    `}
+        >
+          Print Queue
+        </button>
+
+        <button
+          onClick={() => setActiveTab("PRINTED")}
+          className={`
+      px-5
+      py-3
+      rounded-2xl
+      font-bold
+      transition
+
+      ${
+        activeTab === "PRINTED"
+          ? "bg-[#001B54] text-white"
+          : "bg-blue-50 text-[#001B54] hover:bg-blue-100"
+      }
+    `}
+        >
+          Printed / Active
+        </button>
+
+        <button
+          onClick={() => setActiveTab("COMPLETED")}
+          className={`
+      px-5
+      py-3
+      rounded-2xl
+      font-bold
+      transition
+
+      ${
+        activeTab === "COMPLETED"
+          ? "bg-[#001B54] text-white"
+          : "bg-blue-50 text-[#001B54] hover:bg-blue-100"
+      }
+    `}
+        >
+          Completed
+        </button>
+      </div>
       <div className="space-y-8 print:hidden">
-        {/* HEADER */}
-
         <div
           className="
             bg-gradient-to-r
@@ -551,9 +652,7 @@ const JobCards = () => {
             </div>
           </div>
         </div>
-
         {/* STATS */}
-
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5">
           <div className="bg-blue-100 rounded-3xl p-6 shadow-xl">
             <ClipboardList size={30} className="text-blue-700" />
@@ -595,9 +694,7 @@ const JobCards = () => {
             <p className="mt-2 text-green-700 font-medium">Completed</p>
           </div>
         </div>
-
         {/* SEARCH */}
-
         <div className="bg-white rounded-3xl shadow-xl p-5">
           <div className="flex flex-col lg:flex-row gap-4">
             <div className="relative flex-1">
@@ -653,11 +750,9 @@ const JobCards = () => {
             </select>
           </div>
         </div>
-
         {/* ==========================================
             BULK PRINT TOOLBAR
         ========================================== */}
-
         {bulkSelectionMode && (
           <div
             className="
@@ -760,9 +855,7 @@ const JobCards = () => {
             </div>
           </div>
         )}
-
         {/* JOB CARD LIST */}
-
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
           {filteredJobCards.length === 0 ? (
             <div className="xl:col-span-2 bg-white rounded-3xl shadow-xl p-12 text-center">
