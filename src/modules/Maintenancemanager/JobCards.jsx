@@ -381,14 +381,13 @@ const JobCards = () => {
   const handleClearSelection = () => {
     setSelectedJobIds([]);
   };
-
   const handleBulkPrint = () => {
     if (selectedJobs.length === 0) {
       return toast.error("Select at least one Job Card");
     }
 
     // ======================================
-    // CLEAR ALL OLD PRINT / VIEW STATES
+    // CLEAR OLD PRINT STATES
     // ======================================
 
     setPrintJob(null);
@@ -397,14 +396,12 @@ const JobCards = () => {
 
     // ======================================
     // ONLY ONE SELECTED
-    // USE THE BEAUTIFUL FULL A4 TEMPLATE
+    // USE FULL SINGLE PRINT DESIGN
     // ======================================
 
     if (selectedJobs.length === 1) {
-      const singleJob = selectedJobs[0];
-
       setTimeout(() => {
-        setPrintJob(singleJob);
+        setPrintJob(selectedJobs[0]);
 
         setTimeout(() => {
           window.print();
@@ -415,23 +412,18 @@ const JobCards = () => {
     }
 
     // ======================================
-    // TWO OR MORE SELECTED
-    // USE COMPACT AUTO-FIT BULK TEMPLATE
+    // MULTIPLE SELECTED
+    // USE COMPACT BULK PRINT DESIGN
     // ======================================
 
-    const jobsForBulkPrint = [...selectedJobs];
-
     setTimeout(() => {
-      setBulkPrintJobs(jobsForBulkPrint);
+      setBulkPrintJobs(selectedJobs);
 
-      // Give React + QR codes enough time to mount
-      // before the browser captures the print DOM.
       setTimeout(() => {
         window.print();
-      }, 900);
-    }, 120);
+      }, 800);
+    }, 100);
   };
-
   // ==========================================
   // CLEAN PRINT STATE AFTER PRINT
   // ==========================================
@@ -1551,7 +1543,8 @@ const JobCards = () => {
   );
 };
 
-// ==========================================
+// =========
+//=================================
 // SMALL COMPONENTS
 // ==========================================
 
