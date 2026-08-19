@@ -181,6 +181,19 @@ const BulkJobCard = ({ job, density }) => {
 
   return (
     <article className={`bulk-card bulk-card-${density}`}>
+      <div
+        style={{
+          position: "absolute",
+          top: "1mm",
+          right: "45mm",
+          zIndex: 999,
+          fontSize: "5px",
+          fontWeight: "bold",
+          color: "red",
+        }}
+      >
+        BULK-V2
+      </div>
       {/* ======================================
           HEADER
       ====================================== */}

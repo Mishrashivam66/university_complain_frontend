@@ -381,18 +381,32 @@ const JobCards = () => {
   const handleClearSelection = () => {
     setSelectedJobIds([]);
   };
-
   const handleBulkPrint = () => {
     if (selectedJobs.length === 0) {
       return toast.error("Select at least one Job Card");
     }
 
+    // ======================================
+    // CLEAR SINGLE / VIEW PRINT
+    // ======================================
+
     setPrintJob(null);
-    setBulkPrintJobs(selectedJobs);
+
+    setSelectedJobCard(null);
+
+    // ======================================
+    // BULK PRINT ONLY
+    // ======================================
+
+    setBulkPrintJobs([]);
 
     setTimeout(() => {
-      window.print();
-    }, 600);
+      setBulkPrintJobs(selectedJobs);
+
+      setTimeout(() => {
+        window.print();
+      }, 800);
+    }, 100);
   };
 
   // ==========================================
@@ -1514,7 +1528,21 @@ const JobCards = () => {
   );
 };
 
-// ==========================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+// =========
+//=================================
 // SMALL COMPONENTS
 // ==========================================
 
