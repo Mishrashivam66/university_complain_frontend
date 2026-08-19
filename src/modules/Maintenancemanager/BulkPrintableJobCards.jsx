@@ -401,18 +401,8 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
   return (
     <div id="bulk-job-card-print-root" data-bulk-print-version="3">
       {pages.map((page, pageIndex) => {
-        const templateRows = page.cards
-          .map(({ weight }) => `${weight}fr`)
-          .join(" ");
-
         return (
-          <section
-            key={`bulk-page-${pageIndex}`}
-            className="bulk-a4-sheet"
-            style={{
-              gridTemplateRows: templateRows,
-            }}
-          >
+          <section key={`bulk-page-${pageIndex}`} className="bulk-a4-sheet">
             {page.cards.map(({ job, density }, index) => (
               <div
                 key={job?._id || job?.jobCardId || `${pageIndex}-${index}`}
@@ -501,6 +491,10 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
 
               display: grid !important;
 
+              grid-template-columns: 1fr !important;
+              grid-auto-rows: max-content !important;
+              align-content: start !important;
+
               gap: 1.2mm;
 
               margin: 0 !important;
@@ -521,7 +515,7 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
 
             .bulk-card-slot {
               width: 100%;
-              height: 100%;
+              height: auto !important;
               min-height: 0;
 
               overflow: hidden;
@@ -538,7 +532,7 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
               position: relative;
 
               width: 100%;
-              height: 100%;
+              height: auto !important;
 
               box-sizing: border-box;
 
@@ -745,7 +739,7 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
             .bulk-table-wrap {
               min-height: 0;
 
-              flex: 1;
+              flex: 0 0 auto !important;
 
               display: flex;
               flex-direction: column;
@@ -856,6 +850,7 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
 
             .bulk-footer {
               min-height: 5mm;
+              margin-top: 0 !important;
 
               display: grid;
               grid-template-columns: 1fr 1fr 1.15fr 0.9fr;
@@ -893,6 +888,32 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
             .bulk-final-status {
               justify-content: center;
               color: #001B54;
+            }
+
+            /* ======================================
+               DYNAMIC CARD HEIGHT
+               Keeps content tight instead of stretching
+               every card to a huge fractional row.
+            ====================================== */
+
+            .bulk-card-micro {
+              min-height: 36mm;
+            }
+
+            .bulk-card-compact {
+              min-height: 45mm;
+            }
+
+            .bulk-card-small {
+              min-height: 60mm;
+            }
+
+            .bulk-card-medium {
+              min-height: 84mm;
+            }
+
+            .bulk-card-full {
+              min-height: 198mm;
             }
 
             /* ======================================
