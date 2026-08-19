@@ -120,6 +120,124 @@ const JobCards = () => {
     return "--";
   };
 
+  const handleMarkPrinted = async (job) => {
+    try {
+      const token = localStorage.getItem("token");
+
+      await axios.put(
+        `${API}/${job._id}/mark-printed`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
+
+      toast.success("Job Card moved to Printed / Active");
+
+      setJobCards((prev) =>
+        prev.map((item) =>
+          item._id === job._id
+            ? {
+                ...item,
+                printStatus: "PRINTED",
+                printedAt: new Date().toISOString(),
+              }
+            : item,
+        ),
+      );
+    } catch (error) {
+      console.log("MARK PRINTED ERROR:", error);
+
+      toast.error(
+        error?.response?.data?.message || "Failed to mark Job Card as printed",
+      );
+    }
+  };
+
+  // ==========================================
+  // MARK SELECTED JOB CARDS AS PRINTED
+  // ==========================================
+
+  const handleMarkSelectedPrinted = async () => {
+    if (selectedJobs.length === 0) {
+      return toast.error("Select at least one Job Card");
+    }
+
+    try {
+      const token = localStorage.getItem("token");
+
+      const results = await Promise.allSettled(
+        selectedJobs.map((job) =>
+          axios.put(
+            `${API}/${job._id}/mark-printed`,
+            {},
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            },
+          ),
+        ),
+      );
+
+      const successIds = selectedJobs
+        .filter((_, index) => results[index].status === "fulfilled")
+        .map((job) => job._id);
+
+      const failedCount = results.filter(
+        (result) => result.status === "rejected",
+      ).length;
+
+      if (successIds.length > 0) {
+        const printedAt = new Date().toISOString();
+
+        setJobCards((prev) =>
+          prev.map((job) =>
+            successIds.includes(job._id)
+              ? {
+                  ...job,
+                  printStatus: "PRINTED",
+                  printedAt,
+                }
+              : job,
+          ),
+        );
+
+        setSelectedJobIds((prev) =>
+          prev.filter((id) => !successIds.includes(id)),
+        );
+
+        toast.success(
+          `${successIds.length} Job Card${
+            successIds.length !== 1 ? "s" : ""
+          } moved to Printed / Active`,
+        );
+      }
+
+      if (failedCount > 0) {
+        toast.error(`${failedCount} Job Card(s) could not be updated`);
+      }
+    } catch (error) {
+      console.log("MARK SELECTED PRINTED ERROR:", error);
+
+      toast.error("Failed to mark selected Job Cards as printed");
+    }
+  };
+
+  // ==========================================
+  // TAB CHANGE
+  // ==========================================
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setBulkSelectionMode(false);
+    setSelectedJobIds([]);
+    setSearch("");
+    setStatusFilter("ALL");
+  };
+
   // ==========================================
   // STATUS COLOR
   // ==========================================
@@ -254,11 +372,15 @@ const JobCards = () => {
   // BULK PRINT SELECTION
   // ==========================================
 
-  const selectedJobs = useMemo(() => {
-    const selectedIds = new Set(selectedJobIds);
+  const selectedIds = new Set(selectedJobIds);
 
-    return jobCards.filter((job) => selectedIds.has(job._id));
-  }, [jobCards, selectedJobIds]);
+  const selectedJobs = jobCards.filter(
+    (job) =>
+      selectedIds.has(job._id) &&
+      job.printStatus !== "PRINTED" &&
+      job.status !== "COMPLETED" &&
+      job.status !== "CLOSED",
+  );
 
   const allVisibleSelected =
     filteredJobCards.length > 0 &&
@@ -285,6 +407,20 @@ const JobCards = () => {
 
   const completedCards = jobCards.filter(
     (job) => job.status === "COMPLETED" || job.status === "CLOSED",
+  ).length;
+
+  const printQueueCount = jobCards.filter(
+    (job) =>
+      job.printStatus !== "PRINTED" &&
+      job.status !== "COMPLETED" &&
+      job.status !== "CLOSED",
+  ).length;
+
+  const printedActiveCount = jobCards.filter(
+    (job) =>
+      job.printStatus === "PRINTED" &&
+      job.status !== "COMPLETED" &&
+      job.status !== "CLOSED",
   ).length;
 
   // ==========================================
@@ -498,81 +634,148 @@ const JobCards = () => {
       {/* ==========================================
           NORMAL PAGE
       ========================================== */}
-      {/* ==========================================
-    JOB CARD TABS
-========================================== */}
 
-      <div
-        className="
-    bg-white
-    rounded-3xl
-    shadow-xl
-    p-3
-
-    grid
-    grid-cols-1
-    sm:grid-cols-3
-    gap-3
-  "
-      >
-        <button
-          onClick={() => setActiveTab("PRINT_QUEUE")}
-          className={`
-      px-5
-      py-3
-      rounded-2xl
-      font-bold
-      transition
-
-      ${
-        activeTab === "PRINT_QUEUE"
-          ? "bg-[#001B54] text-white"
-          : "bg-blue-50 text-[#001B54] hover:bg-blue-100"
-      }
-    `}
-        >
-          Print Queue
-        </button>
-
-        <button
-          onClick={() => setActiveTab("PRINTED")}
-          className={`
-      px-5
-      py-3
-      rounded-2xl
-      font-bold
-      transition
-
-      ${
-        activeTab === "PRINTED"
-          ? "bg-[#001B54] text-white"
-          : "bg-blue-50 text-[#001B54] hover:bg-blue-100"
-      }
-    `}
-        >
-          Printed / Active
-        </button>
-
-        <button
-          onClick={() => setActiveTab("COMPLETED")}
-          className={`
-      px-5
-      py-3
-      rounded-2xl
-      font-bold
-      transition
-
-      ${
-        activeTab === "COMPLETED"
-          ? "bg-[#001B54] text-white"
-          : "bg-blue-50 text-[#001B54] hover:bg-blue-100"
-      }
-    `}
-        >
-          Completed
-        </button>
-      </div>
       <div className="space-y-8 print:hidden">
+        {/* ==========================================
+            JOB CARD WORKFLOW TABS
+        ========================================== */}
+
+        <div
+          className="
+            bg-white
+            rounded-3xl
+            shadow-xl
+            p-3
+
+            grid
+            grid-cols-1
+            sm:grid-cols-3
+            gap-3
+          "
+        >
+          <button
+            onClick={() => handleTabChange("PRINT_QUEUE")}
+            className={`
+              px-5
+              py-3
+              rounded-2xl
+              font-bold
+              transition
+
+              flex
+              items-center
+              justify-center
+              gap-2
+
+              ${
+                activeTab === "PRINT_QUEUE"
+                  ? "bg-[#001B54] text-white shadow-lg"
+                  : "bg-blue-50 text-[#001B54] hover:bg-blue-100"
+              }
+            `}
+          >
+            <Printer size={18} />
+            Print Queue
+            <span
+              className={`
+                px-2
+                py-0.5
+                rounded-full
+                text-xs
+
+                ${
+                  activeTab === "PRINT_QUEUE"
+                    ? "bg-white/20 text-white"
+                    : "bg-white text-[#001B54]"
+                }
+              `}
+            >
+              {printQueueCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange("PRINTED")}
+            className={`
+              px-5
+              py-3
+              rounded-2xl
+              font-bold
+              transition
+
+              flex
+              items-center
+              justify-center
+              gap-2
+
+              ${
+                activeTab === "PRINTED"
+                  ? "bg-[#001B54] text-white shadow-lg"
+                  : "bg-blue-50 text-[#001B54] hover:bg-blue-100"
+              }
+            `}
+          >
+            <Clock3 size={18} />
+            Printed / Active
+            <span
+              className={`
+                px-2
+                py-0.5
+                rounded-full
+                text-xs
+
+                ${
+                  activeTab === "PRINTED"
+                    ? "bg-white/20 text-white"
+                    : "bg-white text-[#001B54]"
+                }
+              `}
+            >
+              {printedActiveCount}
+            </span>
+          </button>
+
+          <button
+            onClick={() => handleTabChange("COMPLETED")}
+            className={`
+              px-5
+              py-3
+              rounded-2xl
+              font-bold
+              transition
+
+              flex
+              items-center
+              justify-center
+              gap-2
+
+              ${
+                activeTab === "COMPLETED"
+                  ? "bg-[#001B54] text-white shadow-lg"
+                  : "bg-blue-50 text-[#001B54] hover:bg-blue-100"
+              }
+            `}
+          >
+            <CheckCircle2 size={18} />
+            Completed
+            <span
+              className={`
+                px-2
+                py-0.5
+                rounded-full
+                text-xs
+
+                ${
+                  activeTab === "COMPLETED"
+                    ? "bg-white/20 text-white"
+                    : "bg-white text-[#001B54]"
+                }
+              `}
+            >
+              {completedCards}
+            </span>
+          </button>
+        </div>
         <div
           className="
             bg-gradient-to-r
@@ -604,29 +807,31 @@ const JobCards = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3">
-              <button
-                onClick={toggleBulkSelectionMode}
-                className={`
-                  px-5
-                  py-3
-                  rounded-2xl
-                  font-bold
-                  flex
-                  items-center
-                  justify-center
-                  gap-2
-                  transition
+              {activeTab === "PRINT_QUEUE" && (
+                <button
+                  onClick={toggleBulkSelectionMode}
+                  className={`
+                    px-5
+                    py-3
+                    rounded-2xl
+                    font-bold
+                    flex
+                    items-center
+                    justify-center
+                    gap-2
+                    transition
 
-                  ${
-                    bulkSelectionMode
-                      ? "bg-yellow-400 text-[#001B54]"
-                      : "bg-white/15 text-white border border-white/30"
-                  }
-                `}
-              >
-                <CheckCircle2 size={18} />
-                {bulkSelectionMode ? "Exit Selection" : "Bulk Select"}
-              </button>
+                    ${
+                      bulkSelectionMode
+                        ? "bg-yellow-400 text-[#001B54]"
+                        : "bg-white/15 text-white border border-white/30"
+                    }
+                  `}
+                >
+                  <CheckCircle2 size={18} />
+                  {bulkSelectionMode ? "Exit Selection" : "Bulk Select"}
+                </button>
+              )}
 
               <button
                 onClick={fetchJobCards}
@@ -753,7 +958,7 @@ const JobCards = () => {
         {/* ==========================================
             BULK PRINT TOOLBAR
         ========================================== */}
-        {bulkSelectionMode && (
+        {activeTab === "PRINT_QUEUE" && bulkSelectionMode && (
           <div
             className="
               sticky
@@ -793,7 +998,8 @@ const JobCards = () => {
                 className="
                   grid
                   grid-cols-1
-                  sm:grid-cols-3
+                  sm:grid-cols-2
+                  xl:grid-cols-4
                   gap-3
                 "
               >
@@ -851,6 +1057,28 @@ const JobCards = () => {
                   <Printer size={18} />
                   Print Selected ({selectedJobs.length})
                 </button>
+
+                <button
+                  onClick={handleMarkSelectedPrinted}
+                  disabled={selectedJobs.length === 0}
+                  className="
+                    bg-green-600
+                    hover:bg-green-700
+                    text-white
+                    px-4
+                    py-3
+                    rounded-xl
+                    font-extrabold
+                    flex
+                    items-center
+                    justify-center
+                    gap-2
+                    disabled:opacity-50
+                  "
+                >
+                  <CheckCircle2 size={18} />
+                  Mark Printed ({selectedJobs.length})
+                </button>
               </div>
             </div>
           </div>
@@ -868,7 +1096,7 @@ const JobCards = () => {
               <div
                 key={job._id}
                 onClick={() => {
-                  if (bulkSelectionMode) {
+                  if (activeTab === "PRINT_QUEUE" && bulkSelectionMode) {
                     toggleJobSelection(job._id);
                   }
                 }}
@@ -902,7 +1130,7 @@ const JobCards = () => {
                 >
                   <div className="flex justify-between gap-4">
                     <div className="flex items-start gap-3">
-                      {bulkSelectionMode && (
+                      {activeTab === "PRINT_QUEUE" && bulkSelectionMode && (
                         <label
                           className="
                             mt-1
@@ -1020,7 +1248,21 @@ const JobCards = () => {
 
                   {/* ACTIONS */}
 
-                  <div className="grid grid-cols-2 gap-3 mt-6">
+                  <div
+                    className={`
+                      grid
+                      gap-3
+                      mt-6
+
+                      ${
+                        activeTab === "PRINT_QUEUE"
+                          ? "grid-cols-1 sm:grid-cols-3"
+                          : "grid-cols-1"
+                      }
+                    `}
+                  >
+                    {/* VIEW */}
+
                     <button
                       onClick={(event) => {
                         event.stopPropagation();
@@ -1029,6 +1271,7 @@ const JobCards = () => {
                       disabled={bulkSelectionMode}
                       className="
                         bg-[#001B54]
+                        hover:bg-[#002B7F]
                         text-white
                         py-3
                         rounded-2xl
@@ -1038,38 +1281,76 @@ const JobCards = () => {
                         items-center
                         justify-center
                         gap-2
+
                         disabled:opacity-40
                         disabled:cursor-not-allowed
                       "
                     >
                       <Eye size={18} />
-                      View
+                      {activeTab === "PRINTED" ? "View / Verify" : "View"}
                     </button>
 
-                    <button
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        handlePrint(job);
-                      }}
-                      disabled={bulkSelectionMode}
-                      className="
-                        bg-yellow-400
-                        text-[#001B54]
-                        py-3
-                        rounded-2xl
-                        font-bold
+                    {/* PRINT - ONLY PRINT QUEUE */}
 
-                        flex
-                        items-center
-                        justify-center
-                        gap-2
-                        disabled:opacity-40
-                        disabled:cursor-not-allowed
-                      "
-                    >
-                      <Printer size={18} />
-                      Print
-                    </button>
+                    {activeTab === "PRINT_QUEUE" && (
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handlePrint(job);
+                        }}
+                        disabled={bulkSelectionMode}
+                        className="
+                          bg-yellow-400
+                          hover:bg-yellow-500
+                          text-[#001B54]
+                          py-3
+                          rounded-2xl
+                          font-bold
+
+                          flex
+                          items-center
+                          justify-center
+                          gap-2
+
+                          disabled:opacity-40
+                          disabled:cursor-not-allowed
+                        "
+                      >
+                        <Printer size={18} />
+                        Print
+                      </button>
+                    )}
+
+                    {/* MARK PRINTED - ONLY PRINT QUEUE */}
+
+                    {activeTab === "PRINT_QUEUE" && (
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleMarkPrinted(job);
+                        }}
+                        disabled={bulkSelectionMode}
+                        className="
+                          bg-green-600
+                          hover:bg-green-700
+                          text-white
+                          py-3
+                          rounded-2xl
+                          font-bold
+
+                          flex
+                          items-center
+                          justify-center
+                          gap-2
+
+                          disabled:opacity-40
+                          disabled:cursor-not-allowed
+                        "
+                      >
+                        <CheckCircle2 size={18} />
+                        Mark Printed
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1139,23 +1420,46 @@ const JobCards = () => {
                 Close
               </button>
 
-              <button
-                onClick={() => handlePrint(selectedJobCard)}
-                className="
-    bg-yellow-400
-    text-[#001B54]
-    px-5
-    py-3
-    rounded-xl
-    font-bold
-    flex
-    items-center
-    gap-2
-  "
-              >
-                <Printer size={18} />
-                Print Job Card
-              </button>
+              {activeTab === "PRINT_QUEUE" && (
+                <button
+                  onClick={() => handlePrint(selectedJobCard)}
+                  className="
+                    bg-yellow-400
+                    text-[#001B54]
+                    px-5
+                    py-3
+                    rounded-xl
+                    font-bold
+                    flex
+                    items-center
+                    gap-2
+                  "
+                >
+                  <Printer size={18} />
+                  Print Job Card
+                </button>
+              )}
+
+              {activeTab === "PRINT_QUEUE" && (
+                <button
+                  onClick={() => handleMarkPrinted(selectedJobCard)}
+                  className="
+                    bg-green-600
+                    hover:bg-green-700
+                    text-white
+                    px-5
+                    py-3
+                    rounded-xl
+                    font-bold
+                    flex
+                    items-center
+                    gap-2
+                  "
+                >
+                  <CheckCircle2 size={18} />
+                  Mark Printed
+                </button>
+              )}
             </div>
 
             {/* ==================================
