@@ -185,7 +185,7 @@ const AssignedJobs = () => {
     } finally {
       setLoading(false);
     }
-  }, [getHeaders, API_BASE, JOB_CARD_API]);
+  }, [getHeaders]);
 
   // ======================================
   // INITIAL FETCH
