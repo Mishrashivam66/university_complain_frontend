@@ -181,19 +181,6 @@ const BulkJobCard = ({ job, density }) => {
 
   return (
     <article className={`bulk-card bulk-card-${density}`}>
-      <div
-        style={{
-          position: "absolute",
-          top: "1mm",
-          right: "45mm",
-          zIndex: 999,
-          fontSize: "5px",
-          fontWeight: "bold",
-          color: "red",
-        }}
-      >
-        BULK-V2
-      </div>
       {/* ======================================
           HEADER
       ====================================== */}
@@ -412,7 +399,7 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
   }
 
   return (
-    <div id="bulk-job-card-print-root">
+    <div id="bulk-job-card-print-root" data-bulk-print-version="3">
       {pages.map((page, pageIndex) => {
         const templateRows = page.cards
           .map(({ weight }) => `${weight}fr`)
@@ -477,12 +464,24 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
               print-color-adjust: exact !important;
             }
 
+            /*
+             * Bulk print is fully isolated from the normal app and from
+             * PrintableJobCard. Only this portal is printable.
+             */
+            body {
+              overflow: visible !important;
+            }
+
             body > *:not(#bulk-job-card-print-root) {
               display: none !important;
             }
 
             #bulk-job-card-print-root {
               display: block !important;
+
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
 
               width: 289mm !important;
 
@@ -521,6 +520,8 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
             }
 
             .bulk-card-slot {
+              width: 100%;
+              height: 100%;
               min-height: 0;
 
               overflow: hidden;
@@ -914,6 +915,18 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
 
             .bulk-card-micro .bulk-section-title {
               min-height: 3.5mm;
+            }
+
+            .bulk-card-micro .bulk-meta {
+              min-height: 4mm;
+              padding-top: 0.35mm;
+              padding-bottom: 0.35mm;
+              font-size: 4.1px;
+            }
+
+            .bulk-card-micro .bulk-footer {
+              min-height: 4mm;
+              font-size: 3.8px;
             }
 
             .bulk-card-compact .bulk-summary > div,
