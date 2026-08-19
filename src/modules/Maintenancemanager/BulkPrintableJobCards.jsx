@@ -23,7 +23,7 @@ import QRCode from "react-qr-code";
 // 6-10         -> 1 card / A4
 // ==========================================
 
-const PAGE_CAPACITY = 10;
+const PAGE_CAPACITY = 18;
 
 // ==========================================
 // HELPERS
@@ -38,12 +38,15 @@ const getComplaintCount = (job) => {
 const getCardWeight = (job) => {
   const count = getComplaintCount(job);
 
-  if (count <= 1) return 2; // 5 per A4
-  if (count <= 2) return 2.5; // 4 per A4
-  if (count <= 3) return 3.3; // 3 per A4
-  if (count <= 5) return 5; // 2 per A4
-
-  return 10; // 6-10 => full A4
+  // Base cost of one Job Card header/meta/footer ~= 2 units.
+  // Each complaint row ~= 1 unit.
+  //
+  // This gives much better real-world packing:
+  // 5 x 1 complaint  => 15 / 18  -> same A4
+  // 4 x 2 complaints => 16 / 18  -> same A4
+  // 3 x 3 complaints => 15 / 18  -> same A4
+  // 2 x 5 complaints => 14 / 18  -> same A4
+  return Math.min(12, count + 2);
 };
 
 const getDensity = (job) => {
@@ -493,7 +496,7 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
 
               grid-template-columns: 1fr !important;
               grid-auto-rows: max-content !important;
-              align-content: start !important;
+              align-content: space-between !important;
 
               gap: 1.2mm;
 
@@ -512,6 +515,12 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
               page-break-after: auto;
               break-after: auto;
             }
+
+            /*
+             * Cards stay at their real content height.
+             * Remaining A4 space is distributed BETWEEN cards,
+             * not as a giant blank area inside each card.
+             */
 
             .bulk-card-slot {
               width: 100%;
@@ -775,7 +784,7 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
             .bulk-table td {
               border: 0.45px solid #94a3b8;
 
-              padding: 0.45mm;
+              padding: 0.6mm 0.45mm;
 
               text-align: center;
 
@@ -891,32 +900,6 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
             }
 
             /* ======================================
-               DYNAMIC CARD HEIGHT
-               Keeps content tight instead of stretching
-               every card to a huge fractional row.
-            ====================================== */
-
-            .bulk-card-micro {
-              min-height: 36mm;
-            }
-
-            .bulk-card-compact {
-              min-height: 45mm;
-            }
-
-            .bulk-card-small {
-              min-height: 60mm;
-            }
-
-            .bulk-card-medium {
-              min-height: 84mm;
-            }
-
-            .bulk-card-full {
-              min-height: 198mm;
-            }
-
-            /* ======================================
                DENSITY ADJUSTMENTS
             ====================================== */
 
@@ -930,8 +913,8 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
 
             .bulk-card-micro .bulk-table th,
             .bulk-card-micro .bulk-table td {
-              padding: 0.35mm;
-              font-size: 4px;
+              padding: 0.5mm 0.35mm;
+              font-size: 4.2px;
             }
 
             .bulk-card-micro .bulk-section-title {
@@ -962,7 +945,7 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
             }
 
             .bulk-card-full .bulk-card-header {
-              min-height: 13mm;
+              min-height: 10mm;
             }
 
             .bulk-card-full .bulk-university {
@@ -981,7 +964,7 @@ const BulkPrintableJobCards = ({ jobs = [] }) => {
             }
 
             .bulk-card-full .bulk-footer {
-              min-height: 12mm;
+              min-height: 6mm;
               font-size: 5px;
             }
           }
