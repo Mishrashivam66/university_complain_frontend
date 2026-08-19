@@ -412,13 +412,15 @@ const AssignedJobs = () => {
   // DASHBOARD STATS
   // ======================================
 
-  const totalAssigned = assignedComplaints.length;
+  const totalAssigned = visibleAssignedComplaints.length;
 
   const activeWorkers = new Set(
-    assignedComplaints.map((item) => item?.assignedTo?._id).filter(Boolean),
+    visibleAssignedComplaints
+      .map((item) => item?.assignedTo?._id)
+      .filter(Boolean),
   ).size;
 
-  const totalMaterialRequired = assignedComplaints.filter((item) =>
+  const totalMaterialRequired = visibleAssignedComplaints.filter((item) =>
     materialComplaintIds.has(item._id.toString()),
   ).length;
 
@@ -432,7 +434,7 @@ const AssignedJobs = () => {
 
   const workerSummary = useMemo(() => {
     return workers.map((worker) => {
-      const assigned = assignedComplaints.filter(
+      const assigned = visibleAssignedComplaints.filter(
         (item) => item?.assignedTo?._id === worker._id,
       );
 
@@ -466,7 +468,7 @@ const AssignedJobs = () => {
         materialCount: material.length,
       };
     });
-  }, [workers, assignedComplaints, materialRequests]);
+  }, [workers, visibleAssignedComplaints, materialRequests]);
 
   // ======================================
   // FILTERED COMPLAINTS
