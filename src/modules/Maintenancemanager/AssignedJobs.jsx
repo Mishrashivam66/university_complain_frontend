@@ -295,6 +295,47 @@ const AssignedJobs = () => {
       return false;
     });
   }, [assignedComplaints, complaintsAlreadyInJobCard, materialComplaintIds]);
+
+  // ======================================
+  // ASSIGNED JOBS STILL WAITING
+  // BATCH ME GAYE COMPLAINTS HIDE KARO
+
+  // ======================================
+  // ASSIGNED JOBS STILL WAITING
+  // BATCH ME GAYE COMPLAINTS HIDE KARO
+  // ======================================
+
+  const visibleAssignedComplaints = useMemo(() => {
+    const batchComplaintIds = new Set(
+      jobCardEligibleComplaints.map((complaint) => complaint._id.toString()),
+    );
+
+    return assignedComplaints.filter((complaint) => {
+      if (!complaint?._id) {
+        return false;
+      }
+
+      const complaintId = complaint._id.toString();
+
+      // Already final Job Card me chala gaya
+      if (complaintsAlreadyInJobCard.has(complaintId)) {
+        return false;
+      }
+
+      // Job Card Batch me aa gaya
+      if (batchComplaintIds.has(complaintId)) {
+        return false;
+      }
+
+      // Abhi Assigned Jobs me hi rahe
+      return true;
+    });
+  }, [
+    assignedComplaints,
+    jobCardEligibleComplaints,
+    complaintsAlreadyInJobCard,
+  ]);
+  // ======================================
   // ======================================
   // AUTOMATIC JOB CARD GROUPING
   //
@@ -434,7 +475,7 @@ const AssignedJobs = () => {
   const filteredComplaints = useMemo(() => {
     const searchValue = normalize(search);
 
-    return assignedComplaints.filter((item) => {
+    return visibleAssignedComplaints.filter((item) => {
       const matchSearch =
         !searchValue ||
         normalize(item.complaintId).includes(searchValue) ||
@@ -453,7 +494,7 @@ const AssignedJobs = () => {
 
       return matchSearch && matchStatus && matchWorker;
     });
-  }, [assignedComplaints, search, statusFilter, selectedWorker]);
+  }, [visibleAssignedComplaints, search, statusFilter, selectedWorker]);
 
   // ======================================
   // CREATE ALL READY JOB CARDS
