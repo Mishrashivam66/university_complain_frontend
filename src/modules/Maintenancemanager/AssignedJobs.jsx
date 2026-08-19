@@ -25,6 +25,18 @@ import {
   Layers3,
 } from "lucide-react";
 
+const API_BASE = "https://complaine-backend.vercel.app/api/maintenance";
+
+const JOB_CARD_API = `${API_BASE}/job-cards`;
+
+const getHeaders = () => {
+  const token = localStorage.getItem("token");
+
+  return {
+    Authorization: `Bearer ${token}`,
+  };
+};
+
 const AssignedJobs = () => {
   // ======================================
   // NAVIGATION
@@ -38,15 +50,6 @@ const AssignedJobs = () => {
   const MATERIAL_REQUEST_ROUTE = "/maintenance/material-requests";
 
   const JOB_CARD_ROUTE = "/maintenance/job-cards";
-
-  // ======================================
-  // API
-  // ======================================
-
-  const API_BASE = "https://complaine-backend.vercel.app/api/maintenance";
-
-  const JOB_CARD_API = `${API_BASE}/job-cards`;
-
   // ======================================
   // STATES
   // ======================================
@@ -115,15 +118,6 @@ const AssignedJobs = () => {
 
   // ======================================
   // GET TOKEN HEADERS
-  // ======================================
-
-  const getHeaders = () => {
-    const token = localStorage.getItem("token");
-
-    return {
-      Authorization: `Bearer ${token}`,
-    };
-  };
 
   // ======================================
   // FETCH ALL DATA
@@ -133,6 +127,10 @@ const AssignedJobs = () => {
       setLoading(true);
 
       const headers = getHeaders();
+
+      // ======================================
+      // COMPLAINTS + WORKERS
+      // ======================================
 
       const [complaintsRes, workersRes] = await Promise.all([
         axios.get(`${API_BASE}/assign-worker/complaints`, {
@@ -147,7 +145,6 @@ const AssignedJobs = () => {
       setComplaints(complaintsRes?.data?.complaints || []);
 
       setWorkers(workersRes?.data?.workers || []);
-
       try {
         const materialRes = await axios.get(`${API_BASE}/material-requests`, {
           headers,
@@ -160,6 +157,9 @@ const AssignedJobs = () => {
         setMaterialRequests([]);
       }
 
+      // ======================================
+      // JOB CARDS
+      // ======================================
       try {
         const jobCardRes = await axios.get(JOB_CARD_API, {
           headers,
@@ -173,6 +173,11 @@ const AssignedJobs = () => {
       }
     } catch (error) {
       console.log("ASSIGNED JOBS ERROR:", error);
+      console.log("STATUS:", error?.response?.status);
+
+      console.log("DATA:", error?.response?.data);
+
+      console.log("URL:", error?.config?.url);
 
       toast.error(
         error?.response?.data?.message || "Failed to load assigned jobs",
@@ -185,7 +190,7 @@ const AssignedJobs = () => {
     } finally {
       setLoading(false);
     }
-  }, [getHeaders]);
+  }, []);
 
   // ======================================
   // INITIAL FETCH
