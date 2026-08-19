@@ -6,6 +6,7 @@ import toast from "react-hot-toast";
 
 import { createPortal } from "react-dom";
 import PrintableJobCard from "./PrintableJobCard";
+import BulkPrintableJobCards from "./BulkPrintableJobCards";
 
 import {
   ClipboardList,
@@ -32,6 +33,17 @@ const JobCards = () => {
   const [jobCards, setJobCards] = useState([]);
 
   const [printJob, setPrintJob] = useState(null);
+
+  // ==========================================
+  // BULK PRINT STATES
+  // ==========================================
+
+  const [bulkSelectionMode, setBulkSelectionMode] = useState(false);
+
+  const [selectedJobIds, setSelectedJobIds] = useState([]);
+
+  const [bulkPrintJobs, setBulkPrintJobs] = useState([]);
+
   // ==========================================
 
   const [loading, setLoading] = useState(true);
@@ -209,6 +221,20 @@ const JobCards = () => {
   }, [jobCards, search, statusFilter]);
 
   // ==========================================
+  // BULK PRINT SELECTION
+  // ==========================================
+
+  const selectedJobs = useMemo(() => {
+    const selectedIds = new Set(selectedJobIds);
+
+    return jobCards.filter((job) => selectedIds.has(job._id));
+  }, [jobCards, selectedJobIds]);
+
+  const allVisibleSelected =
+    filteredJobCards.length > 0 &&
+    filteredJobCards.every((job) => selectedJobIds.includes(job._id));
+
+  // ==========================================
   // STATS
   // ==========================================
 
@@ -308,12 +334,93 @@ const JobCards = () => {
   // ==========================================
 
   const handlePrint = (job) => {
+    setBulkPrintJobs([]);
     setPrintJob(job);
 
     setTimeout(() => {
       window.print();
     }, 500);
   };
+
+  // ==========================================
+  // BULK SELECTION
+  // ==========================================
+
+  const toggleBulkSelectionMode = () => {
+    setBulkSelectionMode((prev) => {
+      if (prev) {
+        setSelectedJobIds([]);
+      }
+
+      return !prev;
+    });
+  };
+
+  const toggleJobSelection = (jobId) => {
+    setSelectedJobIds((prev) =>
+      prev.includes(jobId)
+        ? prev.filter((id) => id !== jobId)
+        : [...prev, jobId],
+    );
+  };
+
+  const handleSelectAllVisible = () => {
+    const visibleIds = filteredJobCards.map((job) => job._id);
+
+    if (allVisibleSelected) {
+      setSelectedJobIds((prev) =>
+        prev.filter((id) => !visibleIds.includes(id)),
+      );
+
+      return;
+    }
+
+    setSelectedJobIds((prev) => [...new Set([...prev, ...visibleIds])]);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedJobIds([]);
+  };
+
+  const handleBulkPrint = () => {
+    if (selectedJobs.length === 0) {
+      return toast.error("Select at least one Job Card");
+    }
+
+    setPrintJob(null);
+    setBulkPrintJobs(selectedJobs);
+
+    setTimeout(() => {
+      window.print();
+    }, 600);
+  };
+
+  // ==========================================
+  // CLEAN PRINT STATE AFTER PRINT
+  // ==========================================
+
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      setPrintJob(null);
+      setBulkPrintJobs([]);
+    };
+
+    window.addEventListener("afterprint", handleAfterPrint);
+
+    return () => {
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, []);
+
+  // ==========================================
+  // KEEP SELECTION VALID AFTER REFRESH
+  // ==========================================
+
+  useEffect(() => {
+    const validIds = new Set(jobCards.map((job) => job._id));
+
+    setSelectedJobIds((prev) => prev.filter((id) => validIds.has(id)));
+  }, [jobCards]);
 
   // ==========================================
   // LOADING
@@ -366,27 +473,53 @@ const JobCards = () => {
               </div>
             </div>
 
-            <button
-              onClick={fetchJobCards}
-              className="
-                bg-white
-                text-[#001B54]
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={toggleBulkSelectionMode}
+                className={`
+                  px-5
+                  py-3
+                  rounded-2xl
+                  font-bold
+                  flex
+                  items-center
+                  justify-center
+                  gap-2
+                  transition
 
-                px-5
-                py-3
+                  ${
+                    bulkSelectionMode
+                      ? "bg-yellow-400 text-[#001B54]"
+                      : "bg-white/15 text-white border border-white/30"
+                  }
+                `}
+              >
+                <CheckCircle2 size={18} />
+                {bulkSelectionMode ? "Exit Selection" : "Bulk Select"}
+              </button>
 
-                rounded-2xl
-                font-bold
+              <button
+                onClick={fetchJobCards}
+                className="
+                  bg-white
+                  text-[#001B54]
 
-                flex
-                items-center
-                justify-center
-                gap-2
-              "
-            >
-              <RefreshCw size={18} />
-              Refresh
-            </button>
+                  px-5
+                  py-3
+
+                  rounded-2xl
+                  font-bold
+
+                  flex
+                  items-center
+                  justify-center
+                  gap-2
+                "
+              >
+                <RefreshCw size={18} />
+                Refresh
+              </button>
+            </div>
           </div>
         </div>
 
@@ -492,6 +625,113 @@ const JobCards = () => {
           </div>
         </div>
 
+        {/* ==========================================
+            BULK PRINT TOOLBAR
+        ========================================== */}
+
+        {bulkSelectionMode && (
+          <div
+            className="
+              sticky
+              top-3
+              z-30
+
+              bg-white
+              border
+              border-blue-100
+              rounded-3xl
+              shadow-2xl
+
+              p-4
+              md:p-5
+            "
+          >
+            <div
+              className="
+                flex
+                flex-col
+                lg:flex-row
+                lg:items-center
+                lg:justify-between
+                gap-4
+              "
+            >
+              <div>
+                <p className="text-sm text-gray-500">Bulk Print Selection</p>
+
+                <p className="text-xl font-extrabold text-[#001B54]">
+                  {selectedJobIds.length} Job Card
+                  {selectedJobIds.length !== 1 ? "s" : ""} Selected
+                </p>
+              </div>
+
+              <div
+                className="
+                  grid
+                  grid-cols-1
+                  sm:grid-cols-3
+                  gap-3
+                "
+              >
+                <button
+                  onClick={handleSelectAllVisible}
+                  disabled={filteredJobCards.length === 0}
+                  className="
+                    bg-blue-50
+                    text-blue-700
+                    px-4
+                    py-3
+                    rounded-xl
+                    font-bold
+                    disabled:opacity-50
+                  "
+                >
+                  {allVisibleSelected
+                    ? "Unselect Visible"
+                    : "Select All Visible"}
+                </button>
+
+                <button
+                  onClick={handleClearSelection}
+                  disabled={selectedJobIds.length === 0}
+                  className="
+                    bg-gray-100
+                    text-gray-700
+                    px-4
+                    py-3
+                    rounded-xl
+                    font-bold
+                    disabled:opacity-50
+                  "
+                >
+                  Clear
+                </button>
+
+                <button
+                  onClick={handleBulkPrint}
+                  disabled={selectedJobs.length === 0}
+                  className="
+                    bg-yellow-400
+                    text-[#001B54]
+                    px-4
+                    py-3
+                    rounded-xl
+                    font-extrabold
+                    flex
+                    items-center
+                    justify-center
+                    gap-2
+                    disabled:opacity-50
+                  "
+                >
+                  <Printer size={18} />
+                  Print Selected ({selectedJobs.length})
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* JOB CARD LIST */}
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
@@ -505,15 +745,26 @@ const JobCards = () => {
             filteredJobCards.map((job) => (
               <div
                 key={job._id}
-                className="
+                onClick={() => {
+                  if (bulkSelectionMode) {
+                    toggleJobSelection(job._id);
+                  }
+                }}
+                className={`
                   bg-white
                   rounded-3xl
                   shadow-xl
                   overflow-hidden
                   border
-                  border-gray-100
                   h-fit
-                "
+                  transition
+
+                  ${
+                    selectedJobIds.includes(job._id)
+                      ? "border-yellow-400 ring-4 ring-yellow-200"
+                      : "border-gray-100"
+                  }
+                `}
               >
                 {/* CARD HEADER */}
 
@@ -528,12 +779,44 @@ const JobCards = () => {
                   "
                 >
                   <div className="flex justify-between gap-4">
-                    <div>
-                      <p className="text-blue-100 text-sm">Job Card</p>
+                    <div className="flex items-start gap-3">
+                      {bulkSelectionMode && (
+                        <label
+                          className="
+                            mt-1
+                            w-7
+                            h-7
+                            rounded-lg
+                            bg-white
+                            flex
+                            items-center
+                            justify-center
+                            cursor-pointer
+                            shrink-0
+                          "
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedJobIds.includes(job._id)}
+                            onChange={() => toggleJobSelection(job._id)}
+                            className="
+                              w-5
+                              h-5
+                              accent-yellow-400
+                              cursor-pointer
+                            "
+                          />
+                        </label>
+                      )}
 
-                      <h2 className="text-2xl font-extrabold mt-1">
-                        {job.jobCardId}
-                      </h2>
+                      <div>
+                        <p className="text-blue-100 text-sm">Job Card</p>
+
+                        <h2 className="text-2xl font-extrabold mt-1">
+                          {job.jobCardId}
+                        </h2>
+                      </div>
                     </div>
 
                     <span
@@ -617,7 +900,11 @@ const JobCards = () => {
 
                   <div className="grid grid-cols-2 gap-3 mt-6">
                     <button
-                      onClick={() => setSelectedJobCard(job)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setSelectedJobCard(job);
+                      }}
+                      disabled={bulkSelectionMode}
                       className="
                         bg-[#001B54]
                         text-white
@@ -629,6 +916,8 @@ const JobCards = () => {
                         items-center
                         justify-center
                         gap-2
+                        disabled:opacity-40
+                        disabled:cursor-not-allowed
                       "
                     >
                       <Eye size={18} />
@@ -636,7 +925,11 @@ const JobCards = () => {
                     </button>
 
                     <button
-                      onClick={() => handlePrint(job)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        handlePrint(job);
+                      }}
+                      disabled={bulkSelectionMode}
                       className="
                         bg-yellow-400
                         text-[#001B54]
@@ -648,6 +941,8 @@ const JobCards = () => {
                         items-center
                         justify-center
                         gap-2
+                        disabled:opacity-40
+                        disabled:cursor-not-allowed
                       "
                     >
                       <Printer size={18} />
@@ -1207,6 +1502,12 @@ const JobCards = () => {
           <div id="job-card-print-root">
             <PrintableJobCard job={printJob} />
           </div>,
+          document.body,
+        )}
+
+      {bulkPrintJobs.length > 0 &&
+        createPortal(
+          <BulkPrintableJobCards jobs={bulkPrintJobs} />,
           document.body,
         )}
     </>
