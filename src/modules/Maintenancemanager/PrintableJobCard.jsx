@@ -6,7 +6,7 @@ import QRCode from "react-qr-code";
 // PRINTABLE JOB CARD
 // ==========================================
 
-const PrintableJobCard = ({ job }) => {
+const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
   // ==========================================
   // BASIC DATA
   // ==========================================
@@ -364,13 +364,6 @@ const PrintableJobCard = ({ job }) => {
 
     complaints: complaints.map((item) => item?.complaint?.complaintId),
   });
-
-  // ==========================================
-  // COMPACT MODE
-  // ==========================================
-
-  const compactMode = complaints.length >= 8 || materialRows.length >= 6;
-
   // ==========================================
   // QTY DISPLAY
   // ==========================================
@@ -393,85 +386,123 @@ const PrintableJobCard = ({ job }) => {
     <>
       <style>
         {`
-        #job-card-print-root {
-          display: none;
-        }
+    /* ==========================================
+       SCREEN
+    ========================================== */
 
-        .print-job-card-page {
-          width: 289mm;
-          height: 202mm;
+    #job-card-print-root {
+      display: none;
+    }
 
-          box-sizing: border-box;
+    .print-job-card {
+      width: 100%;
+      height: 100%;
 
-          background: white;
-          color: #0f172a;
+      box-sizing: border-box;
 
-          overflow: hidden;
+      background: white;
+      color: #0f172a;
 
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
-        }
+      overflow: hidden;
 
-        .job-print-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
 
-        .job-print-table th,
-        .job-print-table td {
-          border: 0.7px solid #94a3b8;
-        }
+    .job-print-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
 
-        @page {
-          size: A4 landscape;
-          margin: 4mm;
-        }
+    .job-print-table th,
+    .job-print-table td {
+      border: 0.7px solid #94a3b8;
+    }
 
-        @media print {
-          html,
-          body {
-            margin: 0 !important;
-            padding: 0 !important;
+    /* ==========================================
+       A4 LANDSCAPE
+    ========================================== */
 
-            width: 297mm !important;
-            height: 210mm !important;
+    @page {
+      size: A4 landscape;
+      margin: 4mm;
+    }
 
-            background: white !important;
+    @media print {
+      html,
+      body {
+        margin: 0 !important;
+        padding: 0 !important;
 
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
+        width: 297mm !important;
 
-          body > *:not(#job-card-print-root) {
-            display: none !important;
-          }
+        background: white !important;
 
-          #job-card-print-root {
-            display: block !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+      }
 
-            width: 289mm !important;
+      /* HIDE NORMAL APP */
 
-            margin: 0 !important;
-            padding: 0 !important;
+      body > *:not(#job-card-print-root) {
+        display: none !important;
+      }
 
-            background: white !important;
-          }
+      /* SHOW PRINT ROOT */
 
-          .print-job-card-page {
-            display: block !important;
+      #job-card-print-root {
+        display: block !important;
 
-            width: 289mm !important;
-            height: 202mm !important;
+        width: 289mm !important;
 
-            margin: 0 !important;
-            padding: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
 
-            overflow: hidden !important;
+        background: white !important;
+      }
 
-            box-shadow: none !important;
-          }
-        }
-      `}
+      /* ONE PHYSICAL A4 SHEET */
+
+      .a4-job-sheet {
+        width: 289mm !important;
+        height: 202mm !important;
+
+        box-sizing: border-box;
+
+        display: grid;
+
+        gap: 2mm;
+
+        overflow: hidden;
+
+        background: white;
+
+        page-break-after: always;
+        break-after: page;
+      }
+
+      .a4-job-sheet:last-child {
+        page-break-after: auto;
+        break-after: auto;
+      }
+
+      /* EACH JOB CARD INSIDE A4 */
+
+      .dynamic-job-slot {
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      .print-job-card {
+        width: 100% !important;
+        height: 100% !important;
+
+        margin: 0 !important;
+
+        box-shadow: none !important;
+      }
+    }
+  `}
       </style>
 
       {/* YAHAN TUMHARA EXISTING FULL JOB CARD */}
@@ -482,13 +513,19 @@ const PrintableJobCard = ({ job }) => {
 
       <div
         className={`
-          print-job-card-page
+    print-job-card
 
-          border
-          border-[#94a3b8]
+    border
+    border-[#94a3b8]
 
-          ${compactMode ? "text-[6.5px]" : "text-[7px]"}
-        `}
+    ${
+      cardsOnPage >= 4
+        ? "text-[5px]"
+        : cardsOnPage >= 2
+          ? "text-[6px]"
+          : "text-[7px]"
+    }
+  `}
       >
         {/* ======================================
             WATERMARK
