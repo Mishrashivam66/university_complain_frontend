@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 
@@ -122,15 +122,11 @@ const AssignedJobs = () => {
   // ======================================
   // FETCH ALL DATA
   // ======================================
-  const fetchData = useCallback(async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
 
       const headers = getHeaders();
-
-      // ======================================
-      // COMPLAINTS + WORKERS
-      // ======================================
 
       const [complaintsRes, workersRes] = await Promise.all([
         axios.get(`${API_BASE}/assign-worker/complaints`, {
@@ -143,8 +139,8 @@ const AssignedJobs = () => {
       ]);
 
       setComplaints(complaintsRes?.data?.complaints || []);
-
       setWorkers(workersRes?.data?.workers || []);
+
       try {
         const materialRes = await axios.get(`${API_BASE}/material-requests`, {
           headers,
@@ -153,13 +149,9 @@ const AssignedJobs = () => {
         setMaterialRequests(materialRes?.data?.requests || []);
       } catch (materialError) {
         console.log("MATERIAL API ERROR:", materialError);
-
         setMaterialRequests([]);
       }
 
-      // ======================================
-      // JOB CARDS
-      // ======================================
       try {
         const jobCardRes = await axios.get(JOB_CARD_API, {
           headers,
@@ -168,36 +160,25 @@ const AssignedJobs = () => {
         setJobCards(jobCardRes?.data?.jobCards || []);
       } catch (jobCardError) {
         console.log("JOB CARD API ERROR:", jobCardError);
-
         setJobCards([]);
       }
     } catch (error) {
       console.log("ASSIGNED JOBS ERROR:", error);
-      console.log("STATUS:", error?.response?.status);
-
-      console.log("DATA:", error?.response?.data);
-
-      console.log("URL:", error?.config?.url);
 
       toast.error(
         error?.response?.data?.message || "Failed to load assigned jobs",
       );
-
-      setComplaints([]);
-      setWorkers([]);
-      setMaterialRequests([]);
-      setJobCards([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  };
 
   // ======================================
   // INITIAL FETCH
   // ======================================
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+  }, []);
 
   // ======================================
   // ONLY ASSIGNED COMPLAINTS
