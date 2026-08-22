@@ -16,6 +16,16 @@ const hostelLocations = [
   "Other",
 ];
 
+const departmentLocations = [
+  "Classroom",
+  "Lab",
+  "Washroom",
+  "Corridor",
+  "Department Office",
+  "Water Cooler",
+  "Other",
+];
+
 const campusLocations = [
   "Block A",
   "Block B",
@@ -24,7 +34,6 @@ const campusLocations = [
   "Block E",
   "Block F",
   "Sports Complex",
-  "Lab",
   "Library",
   "Cafeteria",
   "Ground",
@@ -55,7 +64,13 @@ const availabilityTimes = [
 ];
 
 const CreateComplaint = () => {
-  const user = JSON.parse(localStorage.getItem("user"));
+  const user = JSON.parse(localStorage.getItem("user")) || {};
+
+  // Use the official User schema flag as the source of truth
+  const isHosteller = user?.isHosteller === true;
+
+  // Support either department or branch depending on your user object
+  const studentDepartment = user?.department || user?.branch || "";
 
   // ==========================================
   // STATES
@@ -88,13 +103,15 @@ const CreateComplaint = () => {
 
     otherLocation: "",
 
-    complaintArea: "HOSTEL",
+    complaintArea: isHosteller ? "HOSTEL" : "DEPARTMENT",
 
-    hostel: user?.hostel || "",
+    hostel: isHosteller ? user?.hostel || "" : "",
 
     block: user?.block || "",
 
-    roomNumber: user?.roomNumber || "",
+    department: studentDepartment,
+
+    roomNumber: isHosteller ? user?.roomNumber || "" : "",
   });
 
   // ==========================================
@@ -147,8 +164,20 @@ const CreateComplaint = () => {
     // Prevent duplicate submissions from double-clicking
     if (isSubmitting) return;
 
-    // Validate availability time
-    if (formData.availableFrom && formData.availableTo) {
+    // Day scholars can submit only Department complaints.
+    // This is a frontend guard; the backend should enforce the same rule too.
+    if (!isHosteller && formData.complaintArea !== "DEPARTMENT") {
+      toast.error("Day Scholars can submit only Department complaints");
+      return;
+    }
+
+    // Availability time is only for hostel complaints raised by hostellers.
+    if (
+      isHosteller &&
+      formData.complaintArea === "HOSTEL" &&
+      formData.availableFrom &&
+      formData.availableTo
+    ) {
       const fromIndex = availabilityTimes.indexOf(formData.availableFrom);
       const toIndex = availabilityTimes.indexOf(formData.availableTo);
 
@@ -175,24 +204,39 @@ const CreateComplaint = () => {
 
         priority: "MEDIUM",
 
-        complaintArea: formData.complaintArea,
+        complaintArea: isHosteller ? formData.complaintArea : "DEPARTMENT",
 
-        hostel: formData.hostel,
+        hostel:
+          isHosteller && formData.complaintArea === "HOSTEL"
+            ? formData.hostel
+            : "",
 
-        block: formData.block,
+        block: !isHosteller ? user?.block || "" : formData.block,
+
+        department:
+          formData.complaintArea === "DEPARTMENT" ? studentDepartment : "",
 
         floor: formData.floor,
 
-        roomNumber: formData.roomNumber,
+        roomNumber:
+          isHosteller && formData.complaintArea === "HOSTEL"
+            ? formData.roomNumber
+            : "",
 
         issueLocation:
           formData.issueLocation === "Other"
             ? formData.otherLocation
             : formData.issueLocation,
 
-        availableFrom: formData.availableFrom,
+        availableFrom:
+          isHosteller && formData.complaintArea === "HOSTEL"
+            ? formData.availableFrom
+            : "",
 
-        availableTo: formData.availableTo,
+        availableTo:
+          isHosteller && formData.complaintArea === "HOSTEL"
+            ? formData.availableTo
+            : "",
       };
 
       const response = await createComplaint(payload);
@@ -235,13 +279,15 @@ const CreateComplaint = () => {
 
         otherLocation: "",
 
-        complaintArea: "HOSTEL",
+        complaintArea: isHosteller ? "HOSTEL" : "DEPARTMENT",
 
-        hostel: user?.hostel || "",
+        hostel: isHosteller ? user?.hostel || "" : "",
 
         block: user?.block || "",
 
-        roomNumber: user?.roomNumber || "",
+        department: studentDepartment,
+
+        roomNumber: isHosteller ? user?.roomNumber || "" : "",
       });
 
       setSelectedCategory(null);
@@ -347,42 +393,158 @@ const CreateComplaint = () => {
               Complaint Area
             </label>
 
-            <select
-              name="complaintArea"
-              value={formData.complaintArea}
-              onChange={handleChange}
-              className="
-                w-full
+            {isHosteller ? (
+              <select
+                name="complaintArea"
+                value={formData.complaintArea}
+                onChange={(e) => {
+                  const nextArea = e.target.value;
 
-                border
-                border-gray-200
-
-                rounded-2xl
-
-                px-5
-                py-4
-              "
-            >
-              <option value="HOSTEL">Hostel Complaint</option>
-
-              <option value="DEPARTMENT">Department Complaint</option>
-
-              <option value="CAMPUS">Campus Complaint</option>
-            </select>
-          </div>
-
-          {/* CAMPUS / DEPARTMENT BLOCK */}
-
-          {formData.complaintArea !== "HOSTEL" && (
-            <div>
-              <label
+                  setFormData((prev) => ({
+                    ...prev,
+                    complaintArea: nextArea,
+                    block:
+                      nextArea === "HOSTEL" ? user?.block || "" : prev.block,
+                    hostel: nextArea === "HOSTEL" ? user?.hostel || "" : "",
+                    roomNumber:
+                      nextArea === "HOSTEL" ? user?.roomNumber || "" : "",
+                    availableFrom:
+                      nextArea === "HOSTEL" ? prev.availableFrom : "",
+                    availableTo: nextArea === "HOSTEL" ? prev.availableTo : "",
+                    issueLocation: "",
+                    otherLocation: "",
+                  }));
+                }}
                 className="
-                  font-bold
-                  block
-                  mb-3
-                  text-gray-700
+                  w-full
+                  border
+                  border-gray-200
+                  rounded-2xl
+                  px-5
+                  py-4
                 "
               >
+                <option value="HOSTEL">Hostel Complaint</option>
+                <option value="DEPARTMENT">Department Complaint</option>
+                <option value="CAMPUS">Campus Complaint</option>
+              </select>
+            ) : (
+              <div
+                className="
+                  w-full
+                  border
+                  border-blue-200
+                  bg-blue-50
+                  rounded-2xl
+                  px-5
+                  py-4
+                "
+              >
+                <p className="font-bold text-[#0b2a7d]">Department Complaint</p>
+                <p className="text-sm text-gray-600 mt-1">
+                  Day Scholars can raise complaints only for their own
+                  department and assigned block.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* DEPARTMENT DETAILS */}
+
+          {formData.complaintArea === "DEPARTMENT" && (
+            <div
+              className="
+                bg-blue-50
+                border
+                border-blue-100
+                rounded-3xl
+                p-6
+              "
+            >
+              <h2 className="text-xl font-black mb-5 text-[#0b2a7d]">
+                Department Details
+              </h2>
+
+              <div className="grid md:grid-cols-2 gap-5">
+                {isHosteller ? (
+                  <select
+                    name="block"
+                    value={formData.block}
+                    onChange={handleChange}
+                    required
+                    className="
+                      w-full
+                      border
+                      border-gray-200
+                      rounded-2xl
+                      px-5
+                      py-4
+                      bg-white
+                    "
+                  >
+                    <option value="">Select Block / Building</option>
+                    {campusBlocks.map((block) => (
+                      <option key={block} value={block}>
+                        {block}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div>
+                    <label className="text-sm font-semibold text-gray-600">
+                      Your Block
+                    </label>
+                    <input
+                      type="text"
+                      value={user?.block || "Block not assigned"}
+                      readOnly
+                      className="
+                        mt-2
+                        w-full
+                        border
+                        border-gray-200
+                        bg-gray-100
+                        rounded-2xl
+                        px-5
+                        py-4
+                        font-semibold
+                        cursor-not-allowed
+                      "
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-sm font-semibold text-gray-600">
+                    Your Department
+                  </label>
+                  <input
+                    type="text"
+                    value={studentDepartment || "Department not assigned"}
+                    readOnly
+                    className="
+                      mt-2
+                      w-full
+                      border
+                      border-gray-200
+                      bg-gray-100
+                      rounded-2xl
+                      px-5
+                      py-4
+                      font-semibold
+                      cursor-not-allowed
+                    "
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CAMPUS BLOCK */}
+
+          {isHosteller && formData.complaintArea === "CAMPUS" && (
+            <div>
+              <label className="font-bold block mb-3 text-gray-700">
                 Block / Building
               </label>
 
@@ -401,7 +563,6 @@ const CreateComplaint = () => {
                 "
               >
                 <option value="">Select Block / Building</option>
-
                 {campusBlocks.map((block) => (
                   <option key={block} value={block}>
                     {block}
@@ -573,7 +734,7 @@ const CreateComplaint = () => {
 
           {/* HOSTEL DETAILS */}
 
-          {formData.complaintArea === "HOSTEL" && (
+          {isHosteller && formData.complaintArea === "HOSTEL" && (
             <div
               className="
                 bg-[#fff7f7]
@@ -678,7 +839,9 @@ const CreateComplaint = () => {
 
               {(formData.complaintArea === "HOSTEL"
                 ? hostelLocations
-                : campusLocations
+                : formData.complaintArea === "DEPARTMENT"
+                  ? departmentLocations
+                  : campusLocations
               ).map((location) => (
                 <option key={location} value={location}>
                   {location}
@@ -710,21 +873,22 @@ const CreateComplaint = () => {
             />
           )}
 
-          {/* TIME */}
+          {/* HOSTELLER AVAILABILITY TIME */}
 
-          <div
-            className="
+          {isHosteller && formData.complaintArea === "HOSTEL" && (
+            <div
+              className="
               grid
               md:grid-cols-2
 
               gap-5
             "
-          >
-            <select
-              name="availableFrom"
-              value={formData.availableFrom}
-              onChange={handleChange}
-              className="
+            >
+              <select
+                name="availableFrom"
+                value={formData.availableFrom}
+                onChange={handleChange}
+                className="
                 border
                 border-gray-200
 
@@ -733,21 +897,21 @@ const CreateComplaint = () => {
                 px-5
                 py-4
               "
-            >
-              <option value="">Available From</option>
+              >
+                <option value="">Available From</option>
 
-              {availabilityTimes.map((time) => (
-                <option key={`from-${time}`} value={time}>
-                  {time}
-                </option>
-              ))}
-            </select>
+                {availabilityTimes.map((time) => (
+                  <option key={`from-${time}`} value={time}>
+                    {time}
+                  </option>
+                ))}
+              </select>
 
-            <select
-              name="availableTo"
-              value={formData.availableTo}
-              onChange={handleChange}
-              className="
+              <select
+                name="availableTo"
+                value={formData.availableTo}
+                onChange={handleChange}
+                className="
                 border
                 border-gray-200
 
@@ -756,16 +920,17 @@ const CreateComplaint = () => {
                 px-5
                 py-4
               "
-            >
-              <option value="">Available To</option>
+              >
+                <option value="">Available To</option>
 
-              {availabilityTimes.map((time) => (
-                <option key={`to-${time}`} value={time}>
-                  {time}
-                </option>
-              ))}
-            </select>
-          </div>
+                {availabilityTimes.map((time) => (
+                  <option key={`to-${time}`} value={time}>
+                    {time}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* BUTTON */}
 
@@ -924,6 +1089,13 @@ const CreateComplaint = () => {
                 </div>
               )}
 
+              {submittedComplaint.department && (
+                <div>
+                  <p className="text-gray-500 font-semibold">Department</p>
+                  <p className="font-bold">{submittedComplaint.department}</p>
+                </div>
+              )}
+
               {submittedComplaint.roomNumber && (
                 <div>
                   <p className="text-gray-500 font-semibold">Room Number</p>
@@ -940,19 +1112,21 @@ const CreateComplaint = () => {
                 </div>
               )}
 
-              <div>
-                <p className="text-gray-500 font-semibold">Available From</p>
-                <p className="font-bold">
-                  {submittedComplaint.availableFrom || "-"}
-                </p>
-              </div>
+              {submittedComplaint.availableFrom && (
+                <div>
+                  <p className="text-gray-500 font-semibold">Available From</p>
+                  <p className="font-bold">
+                    {submittedComplaint.availableFrom}
+                  </p>
+                </div>
+              )}
 
-              <div>
-                <p className="text-gray-500 font-semibold">Available To</p>
-                <p className="font-bold">
-                  {submittedComplaint.availableTo || "-"}
-                </p>
-              </div>
+              {submittedComplaint.availableTo && (
+                <div>
+                  <p className="text-gray-500 font-semibold">Available To</p>
+                  <p className="font-bold">{submittedComplaint.availableTo}</p>
+                </div>
+              )}
 
               <div className="md:col-span-2">
                 <p className="text-gray-500 font-semibold">Description</p>
