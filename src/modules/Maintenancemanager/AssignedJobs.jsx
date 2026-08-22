@@ -49,12 +49,48 @@ const normalize = (value) => {
   return value?.toString()?.trim()?.toLowerCase() || "";
 };
 
-const getComplaintIdFromRequest = (request) => {
-  if (typeof request?.complaint === "object") {
-    return request?.complaint?._id?.toString() || "";
+const getComplaintIdsFromRequest = (request) => {
+  const ids = [];
+
+  // Current / single complaint structure
+  if (request?.complaint) {
+    const id =
+      typeof request.complaint === "object"
+        ? request.complaint?._id
+        : request.complaint;
+
+    if (id) {
+      ids.push(id.toString());
+    }
   }
 
-  return request?.complaint?.toString() || "";
+  // Batch / multiple complaint structure fallback
+  if (Array.isArray(request?.complaints)) {
+    request.complaints.forEach((item) => {
+      const rawComplaint = item?.complaint ?? item;
+
+      const id =
+        typeof rawComplaint === "object" ? rawComplaint?._id : rawComplaint;
+
+      if (id) {
+        ids.push(id.toString());
+      }
+    });
+  }
+
+  // Additional legacy/API fallback
+  if (request?.complaintId) {
+    const id =
+      typeof request.complaintId === "object"
+        ? request.complaintId?._id
+        : request.complaintId;
+
+    if (id) {
+      ids.push(id.toString());
+    }
+  }
+
+  return [...new Set(ids)];
 };
 
 const getComplaintIdFromJobItem = (item) => {
@@ -190,7 +226,8 @@ const fetchAssignedJobsData = async () => {
   return {
     complaints: complaintsRes?.data?.complaints || [],
     workers: workersRes?.data?.workers || [],
-    materialRequests: materialRes?.data?.requests || [],
+    materialRequests:
+      materialRes?.data?.requests || materialRes?.data?.materialRequests || [],
     jobCards: jobCardRes?.data?.jobCards || [],
   };
 };
@@ -301,6 +338,28 @@ const AssignedJobs = () => {
   };
 
   // ======================================
+  // AUTO REFRESH WHEN USER RETURNS
+  // FROM MATERIAL REQUEST PAGE / TAB
+  // ======================================
+
+  useEffect(() => {
+    const refreshOnFocus = async () => {
+      try {
+        const data = await fetchAssignedJobsData();
+        applyData(data);
+      } catch (error) {
+        console.log("AUTO REFRESH ERROR:", error);
+      }
+    };
+
+    window.addEventListener("focus", refreshOnFocus);
+
+    return () => {
+      window.removeEventListener("focus", refreshOnFocus);
+    };
+  }, []);
+
+  // ======================================
   // ONLY ASSIGNED COMPLAINTS
   // ======================================
 
@@ -319,11 +378,11 @@ const AssignedJobs = () => {
     const map = new Map();
 
     materialRequests.forEach((request) => {
-      const complaintId = getComplaintIdFromRequest(request);
+      const complaintIds = getComplaintIdsFromRequest(request);
 
-      if (complaintId) {
+      complaintIds.forEach((complaintId) => {
         map.set(complaintId, request);
-      }
+      });
     });
 
     return map;
@@ -340,6 +399,13 @@ const AssignedJobs = () => {
   const materialComplaintIds = useMemo(() => {
     return new Set(materialRequestMap.keys());
   }, [materialRequestMap]);
+
+  useEffect(() => {
+    console.log("ASSIGNED JOBS MATERIAL DEBUG:", {
+      materialRequests: materialRequests.length,
+      mappedComplaintIds: Array.from(materialComplaintIds),
+    });
+  }, [materialRequests, materialComplaintIds]);
 
   // ======================================
   // COMPLAINTS ALREADY IN FINAL JOB CARDS
@@ -760,7 +826,14 @@ const AssignedJobs = () => {
       if (failedResults.length > 0) {
         console.log("FAILED JOB CARDS:", failedResults);
 
-        toast.error(`${failedResults.length} Job Card(s) failed`);
+        const firstFailureMessage =
+          failedResults[0]?.reason?.response?.data?.message ||
+          failedResults[0]?.reason?.message ||
+          "Job Card creation failed";
+
+        toast.error(
+          `${failedResults.length} Job Card(s) failed: ${firstFailureMessage}`,
+        );
       }
 
       if (createdCards.length > 0 && failedResults.length === 0) {

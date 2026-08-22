@@ -25,7 +25,11 @@ const AssignWorker = () => {
   // STATES
   // ======================================
 
+  // Only PENDING + unassigned complaints used for assignment cards
   const [complaints, setComplaints] = useState([]);
+
+  // Full backend list kept only for dashboard statistics
+  const [allComplaints, setAllComplaints] = useState([]);
 
   const [workers, setWorkers] = useState([]);
 
@@ -88,7 +92,27 @@ const AssignWorker = () => {
 
       console.log("WORKERS:", workersRes.data);
 
-      setComplaints(complaintsRes?.data?.complaints || []);
+      const backendComplaints = complaintsRes?.data?.complaints || [];
+
+      // Keep full list only for statistics
+      setAllComplaints(backendComplaints);
+
+      // IMPORTANT:
+      // Assign Worker page must NEVER show an already assigned complaint.
+      // We check status, assignedTo and workerAssigned for extra safety.
+      const assignableComplaints = backendComplaints.filter((item) => {
+        const status = String(item?.status || "")
+          .trim()
+          .toUpperCase();
+
+        return (
+          status === "PENDING" &&
+          !item?.assignedTo &&
+          item?.workerAssigned !== true
+        );
+      });
+
+      setComplaints(assignableComplaints);
 
       setWorkers(workersRes?.data?.workers || []);
     } catch (error) {
@@ -97,6 +121,7 @@ const AssignWorker = () => {
       toast.error(error?.response?.data?.message || "Failed to fetch data");
 
       setComplaints([]);
+      setAllComplaints([]);
 
       setWorkers([]);
     } finally {
@@ -171,6 +196,26 @@ const AssignWorker = () => {
           );
 
           successCount += 1;
+
+          // Remove successfully assigned complaint immediately from this page.
+          // This prevents it from remaining visible while the rest of the
+          // batch is being processed or while the refresh is happening.
+          setComplaints((prev) =>
+            prev.filter((item) => item._id !== complaint._id),
+          );
+
+          setAllComplaints((prev) =>
+            prev.map((item) =>
+              item._id === complaint._id
+                ? {
+                    ...item,
+                    status: "IN_PROGRESS",
+                    assignedTo: workerId,
+                    workerAssigned: true,
+                  }
+                : item,
+            ),
+          );
         } catch (error) {
           console.log(`Assignment failed for ${complaint.complaintId}:`, error);
 
@@ -290,17 +335,32 @@ const AssignWorker = () => {
   // STATS
   // ======================================
 
-  const totalComplaints = complaints.length;
+  const totalComplaints = allComplaints.length;
 
   const totalWorkers = workers.length;
 
-  const pendingComplaints = complaints.filter(
-    (item) => item.status === "PENDING",
-  ).length;
+  const pendingComplaints = allComplaints.filter((item) => {
+    const status = String(item?.status || "")
+      .trim()
+      .toUpperCase();
 
-  const assignedComplaints = complaints.filter(
-    (item) => item.status === "ASSIGNED" || item.status === "IN_PROGRESS",
-  ).length;
+    return (
+      status === "PENDING" && !item?.assignedTo && item?.workerAssigned !== true
+    );
+  }).length;
+
+  const assignedComplaints = allComplaints.filter((item) => {
+    const status = String(item?.status || "")
+      .trim()
+      .toUpperCase();
+
+    return (
+      item?.assignedTo ||
+      item?.workerAssigned === true ||
+      status === "ASSIGNED" ||
+      status === "IN_PROGRESS"
+    );
+  }).length;
 
   // ======================================
   // FILTER PENDING COMPLAINTS
@@ -310,13 +370,17 @@ const AssignWorker = () => {
     const searchValue = normalize(search);
 
     return complaints.filter((item) => {
+      const status = String(item?.status || "")
+        .trim()
+        .toUpperCase();
+
       // ONLY PENDING COMPLAINTS
-      if (item.status !== "PENDING") {
+      if (status !== "PENDING") {
         return false;
       }
 
       // DO NOT SHOW ALREADY ASSIGNED
-      if (item.assignedTo) {
+      if (item?.assignedTo || item?.workerAssigned === true) {
         return false;
       }
 
