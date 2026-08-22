@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import QRCode from "react-qr-code";
-
+import amityLogo from "../../assets/amity_logo1.jpg";
 // ==========================================
 // BULK PRINTABLE JOB CARDS
 // ==========================================
@@ -190,11 +190,7 @@ const BulkJobCard = ({ job, density }) => {
 
       <div className="bulk-card-header">
         <div className="bulk-brand">
-          <img
-            src="/imageslogoamity.png"
-            alt="Amity University"
-            className="bulk-logo"
-          />
+          <img src={amityLogo} alt="Amity University" className="bulk-logo" />
 
           <div>
             <div className="bulk-university">AMITY UNIVERSITY</div>

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 
 import QRCode from "react-qr-code";
-
+import amityLogo from "../../assets/amity_logo1.jpg";
 // ==========================================
 // PRINTABLE JOB CARD
 // ==========================================
@@ -508,22 +508,22 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
         ====================================== */}
 
         <img
-          src="/imageslogoamity.png"
+          src={amityLogo}
           alt=""
           className="
-            absolute
-            pointer-events-none
+    absolute
+    pointer-events-none
 
-            left-1/2
-            top-1/2
+    left-1/2
+    top-1/2
 
-            -translate-x-1/2
-            -translate-y-1/2
+    -translate-x-1/2
+    -translate-y-1/2
 
-            w-[75mm]
+    w-[75mm]
 
-            opacity-[0.025]
-          "
+    opacity-[0.025]
+  "
         />
 
         {/* ======================================
@@ -550,13 +550,13 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
 
           <div className="flex items-start gap-[2mm]">
             <img
-              src="/imageslogoamity.png"
+              src={amityLogo}
               alt="Amity University"
               className="
-                w-[15mm]
-                h-[19mm]
-                object-contain
-              "
+    w-[15mm]
+    h-[19mm]
+    object-contain
+  "
             />
 
             <div>
