@@ -13,6 +13,7 @@ import {
   FileText,
   UserCog,
   LogOut,
+  ShieldCheck,
 } from "lucide-react";
 
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
@@ -87,6 +88,11 @@ const MaintenanceManagerLayout = () => {
       path: "/maintenance/material-requests",
 
       icon: Package,
+    },
+    {
+      name: "Verification",
+      path: "/maintenance/verification",
+      icon: ShieldCheck,
     },
 
     {

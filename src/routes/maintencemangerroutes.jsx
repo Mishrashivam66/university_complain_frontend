@@ -14,7 +14,7 @@ import MaintenanceManagerLayout from "../layouts/maintencemanager/MaintenanceMan
 // ==========================================
 // PAGES
 // ==========================================
-
+import Verification from "../modules/Maintenancemanager/Verification";
 import MaintenanceDashboard from "../modules/Maintenancemanager/MaintenanceDashboard";
 
 import AssignWorker from "../modules/Maintenancemanager/AssignWorker";
@@ -75,6 +75,8 @@ const Maintencemangerroutes = (
       path="/maintenance/material-requests"
       element={<MaterialRequest />}
     />
+
+    <Route path="/maintenance/verification" element={<Verification />} />
 
     {/* ========================================== */}
     {/* REOPEN COMPLAINTS */}
