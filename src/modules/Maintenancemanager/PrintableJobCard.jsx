@@ -2,6 +2,7 @@ import { useMemo } from "react";
 
 import QRCode from "react-qr-code";
 import amityLogo from "../../assets/amity_logo1.jpg";
+
 // ==========================================
 // PRINTABLE JOB CARD
 // ==========================================
@@ -323,6 +324,7 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
         return "#001B54";
     }
   };
+
   // ==========================================
   // QR VALUE
   // ==========================================
@@ -340,6 +342,7 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
 
     complaints: complaints.map((item) => item?.complaint?.complaintId),
   });
+
   // ==========================================
   // QTY DISPLAY
   // ==========================================
@@ -418,13 +421,9 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
         print-color-adjust: exact !important;
       }
 
-      /* HIDE NORMAL APP */
-
       body > *:not(#job-card-print-root) {
         display: none !important;
       }
-
-      /* SHOW PRINT ROOT */
 
       #job-card-print-root {
         display: block !important;
@@ -436,8 +435,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
 
         background: white !important;
       }
-
-      /* ONE PHYSICAL A4 SHEET */
 
       .a4-job-sheet {
         width: 289mm !important;
@@ -462,8 +459,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
         break-after: auto;
       }
 
-      /* EACH JOB CARD INSIDE A4 */
-
       .dynamic-job-slot {
         min-height: 0;
         overflow: hidden;
@@ -481,27 +476,21 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
   `}
       </style>
 
-      {/* YAHAN TUMHARA EXISTING FULL JOB CARD */}
-
-      {/* ======================================
-          A4 PAGE
-      ====================================== */}
-
       <div
         className={`
-    print-job-card
+          print-job-card
 
-    border
-    border-[#94a3b8]
+          border
+          border-[#94a3b8]
 
-    ${
-      cardsOnPage >= 4
-        ? "text-[5px]"
-        : cardsOnPage >= 2
-          ? "text-[6px]"
-          : "text-[7px]"
-    }
-  `}
+          ${
+            cardsOnPage >= 4
+              ? "text-[5px]"
+              : cardsOnPage >= 2
+                ? "text-[6px]"
+                : "text-[7px]"
+          }
+        `}
       >
         {/* ======================================
             WATERMARK
@@ -511,19 +500,19 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
           src={amityLogo}
           alt=""
           className="
-    absolute
-    pointer-events-none
+            absolute
+            pointer-events-none
 
-    left-1/2
-    top-1/2
+            left-1/2
+            top-1/2
 
-    -translate-x-1/2
-    -translate-y-1/2
+            -translate-x-1/2
+            -translate-y-1/2
 
-    w-[75mm]
+            w-[75mm]
 
-    opacity-[0.025]
-  "
+            opacity-[0.025]
+          "
         />
 
         {/* ======================================
@@ -546,17 +535,15 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
             border-[#001B54]
           "
         >
-          {/* LEFT */}
-
           <div className="flex items-start gap-[2mm]">
             <img
               src={amityLogo}
               alt="Amity University"
               className="
-    w-[15mm]
-    h-[19mm]
-    object-contain
-  "
+                w-[15mm]
+                h-[19mm]
+                object-contain
+              "
             />
 
             <div>
@@ -599,8 +586,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
             </div>
           </div>
 
-          {/* CENTER */}
-
           <div className="text-center">
             <div
               className="
@@ -634,8 +619,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
             </div>
           </div>
 
-          {/* RIGHT */}
-
           <div
             className="
               flex
@@ -644,8 +627,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
               items-start
             "
           >
-            {/* JOB ID */}
-
             <div
               className="
                 w-[45mm]
@@ -700,8 +681,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
                 {job?.createdAt ? new Date(job.createdAt).getTime() : ""}
               </div>
             </div>
-
-            {/* QR */}
 
             <div className="text-center">
               <div
@@ -815,8 +794,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
             py-[1.5mm]
           "
         >
-          {/* WORKER DETAILS */}
-
           <SectionBox title="WORKER DETAILS / कार्यकारी विवरण">
             <SmallInfoTable
               rows={[
@@ -842,8 +819,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
             />
           </SectionBox>
 
-          {/* LOCATION */}
-
           <SectionBox title="LOCATION DETAILS / स्थान विवरण">
             <SmallInfoTable
               rows={[
@@ -863,8 +838,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
               ]}
             />
           </SectionBox>
-
-          {/* RULES */}
 
           <SectionBox title="JOB CARD RULE / जॉब कार्ड नियम">
             <div
@@ -910,8 +883,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
             overflow-hidden
           "
         >
-          {/* TITLE */}
-
           <div
             className="
               h-[6mm]
@@ -935,8 +906,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
 
             <span>Total Complaints : {complaints.length}</span>
           </div>
-
-          {/* TABLE */}
 
           <table className="job-print-table table-fixed">
             <thead>
@@ -1001,9 +970,9 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
                 </th>
 
                 <th colSpan="3" className="w-[19%] p-[1mm]">
-                  Student / Attendant Signature
+                  Student / Attendant Details
                   <br />
-                  छात्र / परिचर हस्ताक्षर
+                  छात्र / परिचर विवरण
                 </th>
 
                 <th rowSpan="2" className="w-[8%] p-[1mm]">
@@ -1020,9 +989,9 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
                 "
               >
                 <th className="p-[0.7mm]">
-                  Name
+                  Name / Mobile
                   <br />
-                  नाम
+                  नाम / मोबाइल
                 </th>
 
                 <th className="p-[0.7mm]">
@@ -1045,13 +1014,22 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
 
                 const student = complaint?.createdBy || {};
 
+                const studentName =
+                  item?.verifierName ||
+                  item?.studentName ||
+                  student?.name ||
+                  "—";
+
+                const studentPhone =
+                  item?.studentPhone || student?.phone || "Not Provided";
+
                 return (
                   <tr
                     key={complaint?._id || index}
                     className="
-                        text-center
-                        leading-tight
-                      "
+                      text-center
+                      leading-tight
+                    "
                   >
                     <td className="p-[0.8mm] font-semibold">
                       {item?.serialNumber || index + 1}
@@ -1071,29 +1049,29 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
 
                     <td
                       className="
-                          p-[0.8mm]
-                          text-left
-                          break-words
-                        "
+                        p-[0.8mm]
+                        text-left
+                        break-words
+                      "
                     >
                       {item?.title || complaint?.title || "--"}
                     </td>
 
                     <td
                       className="
-                          p-[0.8mm]
-                          text-left
-                          break-words
-                        "
+                        p-[0.8mm]
+                        text-left
+                        break-words
+                      "
                     >
                       {item?.titleHindi || complaint?.titleHindi || "--"}
                     </td>
 
                     <td
                       className="
-                          p-[0.8mm]
-                          font-bold
-                        "
+                        p-[0.8mm]
+                        font-bold
+                      "
                       style={{
                         color: priorityColor(item?.priority),
                       }}
@@ -1137,8 +1115,39 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
                       )}
                     </td>
 
-                    <td className="p-[0.8mm]">
-                      {item?.verifierName || student?.name || "—"}
+                    {/* ==================================
+                        STUDENT NAME + MOBILE NUMBER
+                    ================================== */}
+
+                    <td
+                      className="
+                        p-[0.8mm]
+                        text-left
+                        align-middle
+                      "
+                    >
+                      <div
+                        className="
+                          font-bold
+                          leading-tight
+                        "
+                      >
+                        {studentName}
+                      </div>
+
+                      <div
+                        className="
+                          mt-[0.6mm]
+
+                          text-[5.8px]
+                          font-semibold
+                          text-[#001B54]
+
+                          leading-tight
+                        "
+                      >
+                        Mob: {studentPhone}
+                      </div>
                     </td>
 
                     <td className="p-[0.8mm]">
@@ -1157,8 +1166,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
               })}
             </tbody>
           </table>
-
-          {/* NOTE */}
 
           <div
             className="
@@ -1198,8 +1205,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
             gap-[2mm]
           "
         >
-          {/* MATERIAL SUMMARY */}
-
           <SectionBox title="MATERIAL SUMMARY / सामग्री सारांश">
             <SmallInfoTable
               rows={[
@@ -1215,8 +1220,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
               ]}
             />
           </SectionBox>
-
-          {/* MATERIAL ITEMS */}
 
           <SectionBox title="MATERIAL REQUIRED ITEMS (IF ANY) / आवश्यक सामग्री">
             <table className="job-print-table table-fixed">
@@ -1298,8 +1301,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
             </table>
           </SectionBox>
 
-          {/* MANAGER REMARKS */}
-
           <SectionBox title="MAINTENANCE MANAGER REMARKS / रखरखाव प्रबंधक टिप्पणियाँ">
             <div
               className="
@@ -1324,8 +1325,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
               )}
             </div>
           </SectionBox>
-
-          {/* STORE FLOW */}
 
           <SectionBox title="STORE MANAGER FLOW / स्टोर मैनेजर प्रवाह">
             <div
@@ -1406,8 +1405,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
             gap-[2mm]
           "
         >
-          {/* SIGNATURES */}
-
           <SectionBox title="FINAL VERIFICATION (AFTER COMPLETING ALL COMPLAINTS) / अंतिम सत्यापन">
             <div className="grid grid-cols-3">
               <SignatureBox
@@ -1438,8 +1435,6 @@ const PrintableJobCard = ({ job, cardsOnPage = 1 }) => {
               />
             </div>
           </SectionBox>
-
-          {/* FINAL STATUS */}
 
           <SectionBox title="FINAL STATUS (AFTER VERIFICATION) / अंतिम स्थिति">
             <div
@@ -1749,11 +1744,7 @@ const SignatureBox = ({
         {signed ? "Verified" : ""}
       </div>
 
-      <div
-        className="
-          text-[5.8px]
-        "
-      >
+      <div className="text-[5.8px]">
         Date / दिनांक: {date ? formatDate(date) : "__________"}
       </div>
     </div>
