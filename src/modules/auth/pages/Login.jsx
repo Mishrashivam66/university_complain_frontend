@@ -6,8 +6,6 @@ import { Mail, Lock, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 import api from "../../../services/api";
 
-import AuthPreviewPanel from "../components/AuthPreviewPanel";
-
 import "../styles/auth.css";
 
 const Login = () => {
@@ -130,6 +128,8 @@ const Login = () => {
       setTimeout(() => {
         if (role === "ADMIN" || role === "SUPER_ADMIN") {
           navigate("/admin/dashboard");
+        } else if (role === "HOSTEL_DIRECTOR") {
+          navigate("/hostel-director/dashboard");
         } else if (role === "WARDEN") {
           navigate("/warden/dashboard");
         } else if (role === "MAINTENANCE_MANAGER") {
@@ -142,7 +142,6 @@ const Login = () => {
           navigate("/dashboard");
         } else {
           setMessage("Invalid Role");
-
           setMessageType("error");
         }
       }, 1200);

@@ -34,6 +34,7 @@ import Adminroutes from "./Adminroutes";
 import Studentroutes from "./Studentroutes";
 
 import Wardenroutes from "./wardenroutes";
+import HostelDirectorRoutes from "./HostelDirectorRoutes";
 
 import Maintencemangerroutes from "./maintencemangerroutes";
 
@@ -55,7 +56,7 @@ import MessMenu from "../mess/MessMenu";
 const ProtectedRoute = ({ allowedRoles }) => {
   const token = localStorage.getItem("token");
 
-  let user = null;
+  let user;
 
   try {
     const storedUser = localStorage.getItem("user");
@@ -134,6 +135,12 @@ const AppRoutes = () => {
 
         <Route element={<ProtectedRoute allowedRoles={["WARDEN"]} />}>
           {Wardenroutes}
+        </Route>
+
+        {/* HOSTEL DIRECTOR */}
+
+        <Route element={<ProtectedRoute allowedRoles={["HOSTEL_DIRECTOR"]} />}>
+          {HostelDirectorRoutes}
         </Route>
 
         {/* MAINTENANCE */}
