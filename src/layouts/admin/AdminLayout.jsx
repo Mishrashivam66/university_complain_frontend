@@ -25,12 +25,38 @@ import {
 
 import NotificationBell from "../../modules/notifications/components/NotificationBell";
 
+// ==========================================
+// SAFE USER FETCH
+// ==========================================
+
+const getStoredUser = () => {
+  try {
+    const storedUser = localStorage.getItem("user");
+
+    return storedUser ? JSON.parse(storedUser) : {};
+  } catch (error) {
+    console.log("USER PARSE ERROR:", error);
+
+    return {};
+  }
+};
+
+// ==========================================
+// ADMIN LAYOUT
+// ==========================================
+
 const AdminLayout = () => {
   const navigate = useNavigate();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const user = JSON.parse(localStorage.getItem("user"));
+  // ======================================
+  // USER
+  // ======================================
+
+  const user = getStoredUser();
+
+  const userInitial = user?.name?.trim()?.charAt(0)?.toUpperCase() || "A";
 
   // ======================================
   // ADMIN MENU
@@ -137,31 +163,40 @@ const AdminLayout = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#EEF3FF] ">
-      {/* ====================================== */}
-      {/* MOBILE OVERLAY */}
-      {/* ====================================== */}
+    <div
+      className="
+        flex
+        h-screen
+        bg-[#EEF3FF]
+        overflow-hidden
+      "
+    >
+      {/* ======================================
+          MOBILE OVERLAY
+      ====================================== */}
 
       {sidebarOpen && (
         <div
           className="
             fixed
             inset-0
+
             bg-black/40
+
             z-40
+
             md:hidden
           "
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* ====================================== */}
-      {/* SIDEBAR */}
-      {/* ====================================== */}
+      {/* ======================================
+          SIDEBAR
+      ====================================== */}
 
       <aside
         className={`
-
           fixed
           top-0
           left-0
@@ -185,18 +220,18 @@ const AdminLayout = () => {
           shadow-2xl
 
           transform
+
           transition-transform
           duration-300
 
           ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
           }
-
         `}
       >
-        {/* ====================================== */}
-        {/* LOGO */}
-        {/* ====================================== */}
+        {/* ==================================
+            LOGO
+        ================================== */}
 
         <div
           className="
@@ -214,13 +249,21 @@ const AdminLayout = () => {
             shrink-0
           "
         >
-          <div className="overflow-hidden">
+          <div
+            className="
+              overflow-hidden
+            "
+          >
             <h1
               className="
                 text-[31px]
+
                 font-extrabold
+
                 leading-none
+
                 tracking-wide
+
                 whitespace-nowrap
               "
             >
@@ -230,7 +273,9 @@ const AdminLayout = () => {
             <p
               className="
                 text-yellow-300
+
                 text-sm
+
                 mt-2
               "
             >
@@ -238,27 +283,29 @@ const AdminLayout = () => {
             </p>
           </div>
 
-          {/* MOBILE CLOSE */}
-
           <button
+            type="button"
             onClick={() => setSidebarOpen(false)}
             className="
               md:hidden
               mt-1
             "
+            aria-label="Close sidebar"
           >
             <X size={26} />
           </button>
         </div>
 
-        {/* ====================================== */}
-        {/* NAVIGATION */}
-        {/* ====================================== */}
+        {/* ==================================
+            NAVIGATION
+        ================================== */}
 
         <div
           className="
             flex-1
+
             overflow-y-auto
+
             px-4
             py-5
 
@@ -267,17 +314,20 @@ const AdminLayout = () => {
             scrollbar-track-transparent
           "
         >
-          <nav className="space-y-2">
+          <nav
+            className="
+              space-y-2
+            "
+          >
             {adminMenu.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
-                className={({ isActive }) =>
-                  `
-
+                className={({ isActive }) => `
                     flex
                     items-center
+
                     gap-4
 
                     rounded-2xl
@@ -285,7 +335,8 @@ const AdminLayout = () => {
                     px-4
                     py-3.5
 
-                    text-[19px]
+                    text-[15px]
+
                     font-medium
 
                     transition-all
@@ -294,30 +345,120 @@ const AdminLayout = () => {
                     ${
                       isActive
                         ? `
-                        bg-yellow-400
-                        text-[#001B54]
-                        shadow-xl
-                      `
+                          bg-yellow-400
+                          text-[#001B54]
+                          shadow-xl
+                        `
                         : `
-                        text-white
-                        hover:bg-white/10
-                      `
+                          text-white
+                          hover:bg-white/10
+                        `
                     }
-
-                    `
-                }
+                  `}
               >
-                <item.icon size={21} className="shrink-0" />
+                <item.icon
+                  size={21}
+                  className="
+                      shrink-0
+                    "
+                />
 
-                <span className="leading-5">{item.name}</span>
+                <span
+                  className="
+                      leading-5
+                    "
+                >
+                  {item.name}
+                </span>
               </NavLink>
             ))}
           </nav>
         </div>
 
-        {/* ====================================== */}
-        {/* LOGOUT */}
-        {/* ====================================== */}
+        {/* ==================================
+            ADMIN CARD
+        ================================== */}
+
+        <div
+          className="
+            px-4
+            pb-3
+          "
+        >
+          <div
+            className="
+              rounded-2xl
+
+              border
+              border-white/10
+
+              bg-white/10
+
+              p-4
+
+              flex
+              items-center
+
+              gap-3
+            "
+          >
+            <div
+              className="
+                h-12
+                w-12
+
+                rounded-full
+
+                bg-yellow-400
+
+                text-[#001B54]
+
+                flex
+                items-center
+                justify-center
+
+                font-extrabold
+
+                text-lg
+
+                shrink-0
+              "
+            >
+              {userInitial}
+            </div>
+
+            <div
+              className="
+                min-w-0
+              "
+            >
+              <p
+                className="
+                  font-bold
+
+                  text-white
+
+                  truncate
+                "
+              >
+                {user?.name || "Administrator"}
+              </p>
+
+              <p
+                className="
+                  text-xs
+                  text-white/70
+                "
+              >
+                System Administrator
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ==================================
+            LOGOUT
+        ================================== */}
 
         <div
           className="
@@ -330,14 +471,15 @@ const AdminLayout = () => {
           "
         >
           <button
+            type="button"
             onClick={handleLogout}
             className="
-
               w-full
 
               flex
               items-center
               justify-center
+
               gap-3
 
               rounded-2xl
@@ -353,7 +495,6 @@ const AdminLayout = () => {
               duration-300
 
               font-semibold
-
             "
           >
             <LogOut size={20} />
@@ -363,13 +504,14 @@ const AdminLayout = () => {
         </div>
       </aside>
 
-      {/* ====================================== */}
-      {/* MAIN CONTENT */}
-      {/* ====================================== */}
+      {/* ======================================
+          MAIN CONTENT
+      ====================================== */}
 
       <div
         className="
           flex-1
+
           flex
           flex-col
 
@@ -377,15 +519,19 @@ const AdminLayout = () => {
 
           h-screen
 
+          min-w-0
+
+          overflow-hidden
         "
       >
-        {/* ====================================== */}
-        {/* TOP NAVBAR */}
-        {/* ====================================== */}
+        {/* ==================================
+            TOP NAVBAR
+        ================================== */}
 
         <header
           className="
-            bg-white/90
+            bg-white/95
+
             backdrop-blur-md
 
             border-b
@@ -407,43 +553,99 @@ const AdminLayout = () => {
         >
           {/* LEFT */}
 
-          <div className="flex items-center gap-4">
-            <button onClick={() => setSidebarOpen(true)} className="md:hidden">
+          <div
+            className="
+              flex
+              items-center
+
+              gap-4
+
+              min-w-0
+            "
+          >
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="
+                md:hidden
+
+                shrink-0
+              "
+              aria-label="Open sidebar"
+            >
               <Menu size={24} />
             </button>
 
-            <div>
+            <div
+              className="
+                min-w-0
+              "
+            >
               <h2
                 className="
-                  text-2xl
+                  text-xl
+                  sm:text-2xl
                   md:text-3xl
 
                   font-bold
 
                   text-[#001B54]
+
+                  truncate
                 "
               >
                 Admin ERP Panel
               </h2>
 
-              <p className="text-gray-500 text-sm">Amity University Gwalior</p>
+              <p
+                className="
+                  text-gray-500
+
+                  text-xs
+                  sm:text-sm
+
+                  hidden
+                  sm:block
+                "
+              >
+                Amity University Gwalior
+              </p>
             </div>
           </div>
 
-          {/* RIGHT */}
+          {/* ==================================
+              RIGHT
+          ================================== */}
 
-          <div className="flex items-center gap-6">
-            {/* ====================================== */}
-            {/* REALTIME NOTIFICATION */}
-            {/* ====================================== */}
+          <div
+            className="
+              flex
+              items-center
+
+              gap-3
+              md:gap-6
+            "
+          >
+            {/* ================================
+                NOTIFICATION BELL
+            ================================ */}
 
             <NotificationBell />
 
-            {/* ====================================== */}
-            {/* USER */}
-            {/* ====================================== */}
+            {/* ================================
+                USER
+            ================================ */}
 
-            <div className="flex items-center gap-3">
+            <div
+              className="
+                hidden
+                md:flex
+
+                items-center
+
+                gap-3
+              "
+            >
               <div
                 className="
                   h-11
@@ -460,23 +662,48 @@ const AdminLayout = () => {
                   justify-center
 
                   font-bold
+
+                  shrink-0
                 "
               >
-                A
+                {userInitial}
               </div>
 
-              <div className="hidden md:block">
-                <p className="font-bold text-[#001B54]">{user?.name}</p>
+              <div
+                className="
+                  min-w-0
+                "
+              >
+                <p
+                  className="
+                    font-bold
 
-                <p className="text-xs text-gray-500">ADMIN</p>
+                    text-[#001B54]
+
+                    truncate
+
+                    max-w-[180px]
+                  "
+                >
+                  {user?.name || "Administrator"}
+                </p>
+
+                <p
+                  className="
+                    text-xs
+                    text-gray-500
+                  "
+                >
+                  ADMIN
+                </p>
               </div>
             </div>
           </div>
         </header>
 
-        {/* ====================================== */}
-        {/* PAGE CONTENT */}
-        {/* ====================================== */}
+        {/* ==================================
+            PAGE CONTENT
+        ================================== */}
 
         <main
           className="

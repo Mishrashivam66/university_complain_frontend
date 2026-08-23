@@ -48,9 +48,7 @@ const StudentLayout = () => {
   // ==========================================
 
   useEffect(() => {
-    const storedUser = JSON.parse(localStorage.getItem("user"));
-
-    setUser(storedUser);
+    setUser(getStoredUser());
   }, []);
 
   // ==========================================

@@ -19,11 +19,18 @@ import VerificationFailed from "../modules/auth/pages/VerificationFailed";
 import Login from "../modules/auth/pages/Login";
 
 import Register from "../modules/auth/pages/Register";
+
 import LandingPage from "../modules/auth/pages/LandingPage";
 
 import ForgotPassword from "../modules/auth/pages/ForgotPassword";
 
 import ResetPassword from "../modules/auth/pages/ResetPassword";
+
+// ==========================================
+// NOTIFICATION PROVIDER
+// ==========================================
+
+import { NotificationProvider } from "../modules/notifications/context/NotificationContext";
 
 // ==========================================
 // ROUTE FILES
@@ -34,6 +41,7 @@ import Adminroutes from "./Adminroutes";
 import Studentroutes from "./Studentroutes";
 
 import Wardenroutes from "./wardenroutes";
+
 import HostelDirectorRoutes from "./HostelDirectorRoutes";
 
 import Maintencemangerroutes from "./maintencemangerroutes";
@@ -41,6 +49,7 @@ import Maintencemangerroutes from "./maintencemangerroutes";
 import StoreManagerRoutes from "./StoreManagerRoutes";
 
 import MessManagerLayout from "../layouts/mess/MessManagerLayout.jsx";
+
 import MessDashboard from "../mess/MessDashboard";
 
 import MessAnalytics from "../mess/MessAnalytics";
@@ -72,13 +81,17 @@ const ProtectedRoute = ({ allowedRoles }) => {
     return <Navigate to="/" replace />;
   }
 
+  // ======================================
   // NO TOKEN
+  // ======================================
 
   if (!token || !user) {
     return <Navigate to="/" replace />;
   }
 
+  // ======================================
   // ROLE CHECK
+  // ======================================
 
   if (
     allowedRoles &&
@@ -99,82 +112,108 @@ const ProtectedRoute = ({ allowedRoles }) => {
 const AppRoutes = () => {
   return (
     <BrowserRouter>
-      <Routes>
-        {/* PUBLIC */}
+      {/* ======================================
+          COMMON NOTIFICATION CONTEXT
+      ====================================== */}
 
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<Login />} />
+      <NotificationProvider>
+        <Routes>
+          {/* ==================================
+              PUBLIC
+          ================================== */}
 
-        <Route path="/register" element={<Register />} />
+          <Route path="/" element={<LandingPage />} />
 
-        <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/login" element={<Login />} />
 
-        <Route path="/reset-password/:token" element={<ResetPassword />} />
+          <Route path="/register" element={<Register />} />
 
-        <Route path="/verify-otp" element={<VerifyOTP />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
 
-        <Route path="/verification-success" element={<VerificationSuccess />} />
+          <Route path="/reset-password/:token" element={<ResetPassword />} />
 
-        <Route path="/verification-failed" element={<VerificationFailed />} />
+          <Route path="/verify-otp" element={<VerifyOTP />} />
 
-        {/* PROTECTED */}
+          <Route
+            path="/verification-success"
+            element={<VerificationSuccess />}
+          />
 
-        {/* STUDENT */}
+          <Route path="/verification-failed" element={<VerificationFailed />} />
 
-        <Route element={<ProtectedRoute allowedRoles={["STUDENT"]} />}>
-          {Studentroutes}
-        </Route>
+          {/* ==================================
+              STUDENT
+          ================================== */}
 
-        {/* ADMIN */}
+          <Route element={<ProtectedRoute allowedRoles={["STUDENT"]} />}>
+            {Studentroutes}
+          </Route>
 
-        <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
-          {Adminroutes}
-        </Route>
+          {/* ==================================
+              ADMIN
+          ================================== */}
 
-        {/* WARDEN */}
+          <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
+            {Adminroutes}
+          </Route>
 
-        <Route element={<ProtectedRoute allowedRoles={["WARDEN"]} />}>
-          {Wardenroutes}
-        </Route>
+          {/* ==================================
+              WARDEN
+          ================================== */}
 
-        {/* HOSTEL DIRECTOR */}
+          <Route element={<ProtectedRoute allowedRoles={["WARDEN"]} />}>
+            {Wardenroutes}
+          </Route>
 
-        <Route element={<ProtectedRoute allowedRoles={["HOSTEL_DIRECTOR"]} />}>
-          {HostelDirectorRoutes}
-        </Route>
+          {/* ==================================
+              HOSTEL DIRECTOR
+          ================================== */}
 
-        {/* MAINTENANCE */}
+          <Route
+            element={<ProtectedRoute allowedRoles={["HOSTEL_DIRECTOR"]} />}
+          >
+            {HostelDirectorRoutes}
+          </Route>
 
-        <Route
-          element={<ProtectedRoute allowedRoles={["MAINTENANCE_MANAGER"]} />}
-        >
-          {Maintencemangerroutes}
-        </Route>
+          {/* ==================================
+              MAINTENANCE MANAGER
+          ================================== */}
 
-        <Route path="/mess" element={<MessManagerLayout />}>
-          <Route path="dashboard" element={<MessDashboard />} />
+          <Route
+            element={<ProtectedRoute allowedRoles={["MAINTENANCE_MANAGER"]} />}
+          >
+            {Maintencemangerroutes}
+          </Route>
 
-          <Route path="complaints" element={<MessComplaintsManagement />} />
+          {/* ==================================
+              MESS MANAGER
+          ================================== */}
 
-          <Route path="analytics" element={<MessAnalytics />} />
+          <Route path="/mess" element={<MessManagerLayout />}>
+            <Route path="dashboard" element={<MessDashboard />} />
 
-          <Route path="menu" element={<MessMenu />} />
-        </Route>
+            <Route path="complaints" element={<MessComplaintsManagement />} />
 
-        {/* STORE */}
+            <Route path="analytics" element={<MessAnalytics />} />
 
-        <Route element={<ProtectedRoute allowedRoles={["STORE_MANAGER"]} />}>
-          {StoreManagerRoutes}
-        </Route>
+            <Route path="menu" element={<MessMenu />} />
+          </Route>
 
-        {/* INVALID */}
+          {/* ==================================
+              STORE MANAGER
+          ================================== */}
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+          <Route element={<ProtectedRoute allowedRoles={["STORE_MANAGER"]} />}>
+            {StoreManagerRoutes}
+          </Route>
 
-        <Route path="/mess/dashboard" element={<MessDashboard />} />
+          {/* ==================================
+              INVALID ROUTE
+          ================================== */}
 
-        <Route path="/mess/analytics" element={<MessAnalytics />} />
-      </Routes>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </NotificationProvider>
     </BrowserRouter>
   );
 };

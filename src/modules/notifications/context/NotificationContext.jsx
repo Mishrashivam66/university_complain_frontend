@@ -9,7 +9,7 @@ import {
   markAllAsRead,
   deleteNotification,
   clearAllNotifications,
-} from "../../../services/notificationService";
+} from "../services/notificationService";
 
 // ==========================================
 // CONTEXT

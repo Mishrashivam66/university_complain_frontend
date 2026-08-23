@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+
 import { createPortal } from "react-dom";
 
 import { Bell } from "lucide-react";
@@ -7,54 +8,137 @@ import NotificationDropdown from "./NotificationDropdown";
 
 import { useNotifications } from "../context/NotificationContext";
 
+// ==========================================
+// NOTIFICATION BELL
+// ==========================================
+
 const NotificationBell = () => {
   // ==========================================
   // STATE
   // ==========================================
 
   const [open, setOpen] = useState(false);
-  const [dropdownStyle, setDropdownStyle] = useState({ top: 0, left: 0 });
+
+  const [dropdownStyle, setDropdownStyle] = useState({
+    top: 0,
+    left: 0,
+  });
+
+  // ==========================================
+  // REFS
+  // ==========================================
 
   const bellRef = useRef(null);
+
   const dropdownRef = useRef(null);
 
   // ==========================================
   // CONTEXT
   // ==========================================
 
-  const { unreadCount } = useNotifications();
+  const {
+    unreadCount,
+
+    fetchNotifications,
+
+    fetchUnreadCount,
+  } = useNotifications();
+
+  // ==========================================
+  // PERIODIC UNREAD COUNT REFRESH
+  //
+  // Socket.IO removed hai,
+  // isliye lightweight REST polling
+  // ==========================================
+
+  useEffect(() => {
+    // Initial refresh
+
+    fetchUnreadCount();
+
+    // Every 30 seconds
+
+    const interval = setInterval(() => {
+      fetchUnreadCount();
+    }, 30000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
 
   // ==========================================
   // DROPDOWN POSITION
   // ==========================================
 
   useEffect(() => {
-    if (!open || !bellRef.current) return;
+    if (!open || !bellRef.current) {
+      return;
+    }
 
     const updatePosition = () => {
       const rect = bellRef.current.getBoundingClientRect();
 
+      // ======================================
+      // DESKTOP DROPDOWN WIDTH
+      // ======================================
+
+      const dropdownWidth = Math.min(380, window.innerWidth - 32);
+
+      // ======================================
+      // LEFT POSITION
+      // ======================================
+
+      let left = rect.right - dropdownWidth;
+
+      // Minimum left margin
+
+      left = Math.max(left, 16);
+
+      // Prevent right overflow
+
+      left = Math.min(left, window.innerWidth - dropdownWidth - 16);
+
       setDropdownStyle({
-        top: rect.bottom + 10 + window.scrollY,
-        left: Math.max(rect.right - 380, 16) + window.scrollX,
+        top: rect.bottom + 10,
+
+        left,
+
+        width: dropdownWidth,
       });
     };
 
+    // ======================================
+    // INITIAL POSITION
+    // ======================================
+
     updatePosition();
 
+    // ======================================
+    // EVENTS
+    // ======================================
+
     window.addEventListener("resize", updatePosition);
+
     window.addEventListener("scroll", updatePosition, true);
 
+    // ======================================
+    // CLICK OUTSIDE
+    // ======================================
+
     const handleClickOutside = (event) => {
-      if (
-        bellRef.current &&
-        !bellRef.current.contains(event.target) &&
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target)
-      ) {
+      const clickedBell = bellRef.current?.contains(event.target);
+
+      const clickedDropdown = dropdownRef.current?.contains(event.target);
+
+      if (!clickedBell && !clickedDropdown) {
         setOpen(false);
       }
     };
+
+    // ======================================
+    // ESC KEY
+    // ======================================
 
     const handleEsc = (event) => {
       if (event.key === "Escape") {
@@ -63,12 +147,20 @@ const NotificationBell = () => {
     };
 
     document.addEventListener("mousedown", handleClickOutside);
+
     document.addEventListener("keydown", handleEsc);
+
+    // ======================================
+    // CLEANUP
+    // ======================================
 
     return () => {
       window.removeEventListener("resize", updatePosition);
+
       window.removeEventListener("scroll", updatePosition, true);
+
       document.removeEventListener("mousedown", handleClickOutside);
+
       document.removeEventListener("keydown", handleEsc);
     };
   }, [open]);
@@ -77,71 +169,106 @@ const NotificationBell = () => {
   // TOGGLE DROPDOWN
   // ==========================================
 
-  const toggleDropdown = () => {
-    setOpen((value) => !value);
+  const toggleDropdown = async () => {
+    const nextOpen = !open;
+
+    setOpen(nextOpen);
+
+    // ======================================
+    // FRESH DATA WHEN BELL OPENS
+    // ======================================
+
+    if (nextOpen) {
+      await fetchNotifications();
+    }
   };
+
+  // ==========================================
+  // RETURN
+  // ==========================================
 
   return (
     <div className="relative" ref={bellRef}>
-      {/* ========================================== */}
-      {/* BELL BUTTON */}
-      {/* ========================================== */}
+      {/* ======================================
+          BELL BUTTON
+      ====================================== */}
 
       <button
+        type="button"
         onClick={toggleDropdown}
+        aria-label="Notifications"
+        aria-expanded={open}
         className="
           relative
+
           flex
           items-center
           justify-center
+
           w-11
           h-11
+
           rounded-full
-          bg-white/10
-          backdrop-blur-md
+
+          bg-white
+
           border
-          border-white/10
-          hover:bg-white/20
+          border-slate-200
+
+          hover:bg-slate-50
+          hover:border-slate-300
+
           transition-all
           duration-300
-          shadow-lg
+
+          shadow-md
         "
       >
-        {/* ========================================== */}
-        {/* BELL ICON */}
-        {/* ========================================== */}
+        {/* ==================================
+            BELL ICON
+        ================================== */}
 
         <Bell
           size={22}
           className="
-            text-gray-700
-            dark:text-white
+            text-[#082B66]
           "
         />
 
-        {/* ========================================== */}
-        {/* UNREAD BADGE */}
-        {/* ========================================== */}
+        {/* ==================================
+            UNREAD BADGE
+        ================================== */}
 
         {unreadCount > 0 && (
           <span
             className="
               absolute
+
               -top-1
               -right-1
+
               min-w-[20px]
               h-5
+
               px-1
+
               flex
               items-center
               justify-center
+
               rounded-full
+
               bg-red-500
+
               text-white
+
               text-[11px]
               font-bold
+
               shadow-md
-              animate-pulse
+
+              ring-2
+              ring-white
             "
           >
             {unreadCount > 99 ? "99+" : unreadCount}
@@ -149,9 +276,9 @@ const NotificationBell = () => {
         )}
       </button>
 
-      {/* ========================================== */}
-      {/* DROPDOWN */}
-      {/* ========================================== */}
+      {/* ======================================
+          DROPDOWN
+      ====================================== */}
 
       {open &&
         createPortal(
@@ -161,6 +288,7 @@ const NotificationBell = () => {
               style={dropdownStyle}
             />
           </div>,
+
           document.body,
         )}
     </div>

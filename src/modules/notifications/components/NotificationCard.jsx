@@ -1,4 +1,12 @@
-import { Trash2, CheckCircle2, Clock3, AlertTriangle } from "lucide-react";
+import {
+  Trash2,
+  CheckCircle2,
+  Clock3,
+  AlertTriangle,
+  ExternalLink,
+} from "lucide-react";
+
+import { useNavigate } from "react-router-dom";
 
 import { useNotifications } from "../context/NotificationContext";
 
@@ -10,25 +18,47 @@ const priorityColors = {
   LOW: `
     border-blue-500
     bg-blue-50
-    dark:bg-blue-900/10
   `,
 
   MEDIUM: `
     border-yellow-500
     bg-yellow-50
-    dark:bg-yellow-900/10
   `,
 
   HIGH: `
     border-orange-500
     bg-orange-50
-    dark:bg-orange-900/10
   `,
 
   CRITICAL: `
     border-red-500
     bg-red-50
-    dark:bg-red-900/10
+  `,
+};
+
+// ==========================================
+// PRIORITY BADGE COLORS
+// ==========================================
+
+const priorityBadgeColors = {
+  LOW: `
+    bg-blue-100
+    text-blue-700
+  `,
+
+  MEDIUM: `
+    bg-yellow-100
+    text-yellow-700
+  `,
+
+  HIGH: `
+    bg-orange-100
+    text-orange-700
+  `,
+
+  CRITICAL: `
+    bg-red-100
+    text-red-700
   `,
 };
 
@@ -36,114 +66,232 @@ const priorityColors = {
 // COMPONENT
 // ==========================================
 
-const NotificationCard = ({ notification }) => {
+const NotificationCard = ({ notification, closeDropdown }) => {
+  const navigate = useNavigate();
+
   // ==========================================
   // CONTEXT
   // ==========================================
 
-  const {
-    handleMarkAsRead,
-
-    handleDeleteNotification,
-  } = useNotifications();
+  const { handleMarkAsRead, handleDeleteNotification } = useNotifications();
 
   // ==========================================
   // FORMAT TIME
   // ==========================================
 
   const formatTime = (date) => {
-    return new Date(date).toLocaleString();
+    if (!date) {
+      return "";
+    }
+
+    return new Date(date).toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   };
+
+  // ==========================================
+  // OPEN NOTIFICATION
+  // ==========================================
+
+  const handleOpenNotification = async () => {
+    try {
+      // ====================================
+      // MARK READ
+      // ====================================
+
+      if (!notification.isRead) {
+        await handleMarkAsRead(notification._id);
+      }
+
+      // ====================================
+      // CLOSE DROPDOWN
+      // ====================================
+
+      if (closeDropdown) {
+        closeDropdown();
+      }
+
+      // ====================================
+      // REDIRECT
+      // ====================================
+
+      if (notification.actionUrl && notification.actionUrl !== "#") {
+        navigate(notification.actionUrl);
+      }
+    } catch (error) {
+      console.log("OPEN NOTIFICATION ERROR:", error);
+    }
+  };
+
+  // ==========================================
+  // MARK READ BUTTON
+  // ==========================================
+
+  const handleReadClick = async (event) => {
+    event.stopPropagation();
+
+    await handleMarkAsRead(notification._id);
+  };
+
+  // ==========================================
+  // DELETE BUTTON
+  // ==========================================
+
+  const handleDeleteClick = async (event) => {
+    event.stopPropagation();
+
+    await handleDeleteNotification(notification._id);
+  };
+
+  // ==========================================
+  // RETURN
+  // ==========================================
 
   return (
     <div
+      role="button"
+      tabIndex={0}
+      onClick={handleOpenNotification}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+
+          handleOpenNotification();
+        }
+      }}
       className={`
         relative
+
         px-4
         py-4
+
         border-l-4
         border-b
-        border-gray-100
-        dark:border-gray-800
+        border-slate-100
+
         transition-all
-        duration-300
-        hover:bg-gray-50
-        dark:hover:bg-[#1F2937]
-        ${priorityColors[notification.priority] || ""}
-        ${!notification.isRead ? "bg-opacity-100" : "opacity-80"}
+        duration-200
+
+        cursor-pointer
+
+        hover:shadow-sm
+
+        ${priorityColors[notification.priority] || priorityColors.LOW}
+
+        ${notification.isRead ? "opacity-75" : "opacity-100"}
       `}
     >
-      {/* ========================================== */}
-      {/* UNREAD DOT */}
-      {/* ========================================== */}
+      {/* ======================================
+          UNREAD DOT
+      ====================================== */}
 
       {!notification.isRead && (
         <div
           className="
             absolute
+
             top-4
             right-4
+
             w-2.5
             h-2.5
+
             rounded-full
-            bg-blue-500
-            animate-pulse
+
+            bg-blue-600
+
+            ring-2
+            ring-white
           "
         />
       )}
 
-      {/* ========================================== */}
-      {/* TOP SECTION */}
-      {/* ========================================== */}
+      {/* ======================================
+          MAIN CONTENT
+      ====================================== */}
 
       <div
         className="
           flex
           items-start
           justify-between
+
           gap-3
         "
       >
-        {/* ========================================== */}
-        {/* LEFT CONTENT */}
-        {/* ========================================== */}
+        {/* ==================================
+            LEFT CONTENT
+        ================================== */}
 
-        <div className="flex-1">
+        <div className="flex-1 min-w-0">
           {/* TITLE */}
-
-          <h3
-            className="
-              text-sm
-              font-semibold
-              text-gray-800
-              dark:text-white
-            "
-          >
-            {notification.title}
-          </h3>
-
-          {/* MESSAGE */}
-
-          <p
-            className="
-              mt-1
-              text-sm
-              text-gray-600
-              dark:text-gray-300
-              leading-relaxed
-            "
-          >
-            {notification.message}
-          </p>
-
-          {/* META */}
 
           <div
             className="
               flex
               items-center
-              gap-3
+              gap-2
+
+              pr-5
+            "
+          >
+            <h3
+              className={`
+                text-sm
+
+                text-slate-900
+
+                ${notification.isRead ? "font-semibold" : "font-bold"}
+              `}
+            >
+              {notification.title}
+            </h3>
+
+            {notification.actionUrl && notification.actionUrl !== "#" && (
+              <ExternalLink
+                size={13}
+                className="
+                    text-slate-400
+                    shrink-0
+                  "
+              />
+            )}
+          </div>
+
+          {/* MESSAGE */}
+
+          <p
+            className="
+              mt-1.5
+
+              text-sm
+              text-slate-600
+
+              leading-relaxed
+
+              break-words
+            "
+          >
+            {notification.message}
+          </p>
+
+          {/* ==================================
+              META
+          ================================== */}
+
+          <div
+            className="
+              flex
+              items-center
+
+              gap-2
+
               mt-3
+
               flex-wrap
             "
           >
@@ -153,34 +301,42 @@ const NotificationCard = ({ notification }) => {
               className="
                 px-2
                 py-1
+
                 rounded-full
-                text-[11px]
+
+                text-[10px]
+                sm:text-[11px]
+
                 font-semibold
-                bg-gray-200
-                dark:bg-gray-700
-                text-gray-700
-                dark:text-gray-200
+
+                bg-slate-200
+                text-slate-700
               "
             >
-              {notification.type}
+              {notification.type || "SYSTEM"}
             </span>
 
             {/* PRIORITY */}
 
             <span
-              className="
+              className={`
                 px-2
                 py-1
+
                 rounded-full
-                text-[11px]
-                font-semibold
-                bg-white/70
-                dark:bg-black/20
-                text-gray-700
-                dark:text-gray-200
-              "
+
+                text-[10px]
+                sm:text-[11px]
+
+                font-bold
+
+                ${
+                  priorityBadgeColors[notification.priority] ||
+                  priorityBadgeColors.LOW
+                }
+              `}
             >
-              {notification.priority}
+              {notification.priority || "LOW"}
             </span>
 
             {/* TIME */}
@@ -189,44 +345,84 @@ const NotificationCard = ({ notification }) => {
               className="
                 flex
                 items-center
+
                 gap-1
-                text-xs
-                text-gray-500
+
+                text-[10px]
+                sm:text-xs
+
+                text-slate-500
               "
             >
               <Clock3 size={13} />
 
-              {formatTime(notification.createdAt)}
+              <span>{formatTime(notification.createdAt)}</span>
             </div>
           </div>
+
+          {/* ==================================
+              SENDER
+          ================================== */}
+
+          {notification.sender?.name && (
+            <div
+              className="
+                mt-2
+
+                text-[11px]
+
+                text-slate-500
+              "
+            >
+              From:{" "}
+              <span className="font-semibold text-slate-700">
+                {notification.sender.name}
+              </span>
+              {notification.sender?.role && (
+                <span> ({notification.sender.role})</span>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* ========================================== */}
-        {/* ACTION BUTTONS */}
-        {/* ========================================== */}
+        {/* ==================================
+            ACTION BUTTONS
+        ================================== */}
 
         <div
           className="
             flex
             flex-col
+
             gap-2
+
+            shrink-0
+
+            mt-4
           "
         >
           {/* MARK READ */}
 
           {!notification.isRead && (
             <button
-              onClick={() => handleMarkAsRead(notification._id)}
+              type="button"
+              onClick={handleReadClick}
+              title="Mark as read"
+              aria-label="Mark notification as read"
               className="
                 w-8
                 h-8
+
                 rounded-full
+
                 bg-green-100
+
                 hover:bg-green-200
-                dark:bg-green-900/20
+
                 flex
                 items-center
                 justify-center
+
                 transition
               "
             >
@@ -242,17 +438,24 @@ const NotificationCard = ({ notification }) => {
           {/* DELETE */}
 
           <button
-            onClick={() => handleDeleteNotification(notification._id)}
+            type="button"
+            onClick={handleDeleteClick}
+            title="Delete notification"
+            aria-label="Delete notification"
             className="
               w-8
               h-8
+
               rounded-full
+
               bg-red-100
+
               hover:bg-red-200
-              dark:bg-red-900/20
+
               flex
               items-center
               justify-center
+
               transition
             "
           >
@@ -266,24 +469,55 @@ const NotificationCard = ({ notification }) => {
         </div>
       </div>
 
-      {/* ========================================== */}
-      {/* CRITICAL ALERT */}
-      {/* ========================================== */}
+      {/* ======================================
+          CRITICAL ALERT
+      ====================================== */}
 
       {notification.priority === "CRITICAL" && (
         <div
           className="
             flex
             items-center
+
             gap-2
+
             mt-3
-            text-red-600
+
+            px-3
+            py-2
+
+            rounded-lg
+
+            bg-red-100
+
+            text-red-700
+
             text-xs
-            font-semibold
+            font-bold
           "
         >
           <AlertTriangle size={14} />
           Immediate Attention Required
+        </div>
+      )}
+
+      {/* ======================================
+          CLICK HINT
+      ====================================== */}
+
+      {notification.actionUrl && notification.actionUrl !== "#" && (
+        <div
+          className="
+              mt-3
+
+              text-[11px]
+
+              font-semibold
+
+              text-[#0B3D91]
+            "
+        >
+          Click to view details →
         </div>
       )}
     </div>

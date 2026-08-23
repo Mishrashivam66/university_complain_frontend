@@ -8,7 +8,6 @@ import {
   ClipboardList,
   AlertTriangle,
   BellRing,
-  Bell,
   FileBarChart2,
   LogOut,
   Menu,
@@ -16,69 +15,110 @@ import {
   User,
   ShieldAlert,
   Clock3,
-  Building2,
   History,
   BedDouble,
   UtensilsCrossed,
 } from "lucide-react";
 
 // ==========================================
-// REALTIME NOTIFICATION BELL
+// NOTIFICATION BELL
 // ==========================================
 
 import NotificationBell from "../../modules/notifications/components/NotificationBell";
 
+// ==========================================
+// SAFE USER FETCH
+// ==========================================
+
+const getStoredUser = () => {
+  try {
+    const storedUser = localStorage.getItem("user");
+
+    return storedUser ? JSON.parse(storedUser) : {};
+  } catch (error) {
+    console.log("USER PARSE ERROR:", error);
+
+    return {};
+  }
+};
+
+// ==========================================
+// WARDEN LAYOUT
+// ==========================================
+
 const WardenLayout = () => {
   const navigate = useNavigate();
 
+  // ======================================
+  // STATE
+  // ======================================
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const user = JSON.parse(localStorage.getItem("user")) || {};
+  // ======================================
+  // USER
+  // ======================================
 
-  // ==========================================
+  const user = getStoredUser();
+
+  // ======================================
   // MENU
-  // ==========================================
+  // ======================================
 
   const menuItems = [
     {
       name: "Dashboard",
+
       path: "/warden/dashboard",
+
       icon: LayoutDashboard,
     },
 
     {
       name: "Manage Students",
+
       path: "/warden/manage-students",
+
       icon: Users,
     },
 
     {
       name: "Hostel Complaints",
+
       path: "/warden/complaints",
+
       icon: ClipboardList,
     },
 
     {
       name: "Pending Students",
+
       path: "/warden/pending-students",
+
       icon: Clock3,
     },
 
     {
       name: "Emergency Alerts",
+
       path: "/warden/emergency-alerts",
+
       icon: ShieldAlert,
     },
 
     {
       name: "Complaint Escalation",
+
       path: "/warden/escalation",
+
       icon: AlertTriangle,
     },
 
     {
       name: "Warden Reports",
+
       path: "/warden/reports",
+
       icon: FileBarChart2,
     },
 
@@ -92,26 +132,32 @@ const WardenLayout = () => {
 
     {
       name: "Mess Complaints",
+
       path: "/warden/mess-complaints",
+
       icon: UtensilsCrossed,
     },
 
     {
       name: "Student History",
+
       path: "/warden/student-history",
+
       icon: History,
     },
 
     {
       name: "Room Allocation",
+
       path: "/warden/room-allocation",
+
       icon: BedDouble,
     },
   ];
 
-  // ==========================================
+  // ======================================
   // LOGOUT
-  // ==========================================
+  // ======================================
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -123,35 +169,50 @@ const WardenLayout = () => {
     });
   };
 
+  // ======================================
+  // USER INITIAL
+  // ======================================
+
+  const userInitial = user?.name?.trim()?.charAt(0)?.toUpperCase() || "W";
+
   return (
-    <div className="flex min-h-screen bg-[#EEF3FF]">
-      {/* ========================================== */}
-      {/* MOBILE OVERLAY */}
-      {/* ========================================== */}
+    <div
+      className="
+        flex
+        min-h-screen
+        bg-[#EEF3FF]
+      "
+    >
+      {/* ======================================
+          MOBILE OVERLAY
+      ====================================== */}
 
       {sidebarOpen && (
         <div
           className="
-              fixed
-              inset-0
-              bg-black/40
-              z-40
-              md:hidden
-            "
+            fixed
+            inset-0
+
+            bg-black/40
+
+            z-40
+
+            md:hidden
+          "
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/* ========================================== */}
-      {/* SIDEBAR */}
-      {/* ========================================== */}
+      {/* ======================================
+          SIDEBAR
+      ====================================== */}
 
       <aside
         className={`
-
           fixed
           top-0
           left-0
+
           z-50
 
           h-screen
@@ -168,6 +229,7 @@ const WardenLayout = () => {
           shadow-2xl
 
           transform
+
           transition-transform
           duration-300
 
@@ -177,12 +239,11 @@ const WardenLayout = () => {
           ${
             sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
           }
-
         `}
       >
-        {/* ========================================== */}
-        {/* LOGO */}
-        {/* ========================================== */}
+        {/* ==================================
+            LOGO
+        ================================== */}
 
         <div
           className="
@@ -194,31 +255,59 @@ const WardenLayout = () => {
             border-white/10
           "
         >
-          <div className="flex items-start justify-between">
+          <div
+            className="
+              flex
+              items-start
+              justify-between
+            "
+          >
             <div>
               <h1
                 className="
                   text-[30px]
+
                   font-extrabold
+
                   tracking-wide
+
                   leading-tight
                 "
               >
                 CAMPUSPULSE
               </h1>
 
-              <p className="text-yellow-300 text-sm mt-1">Smart Campus ERP</p>
+              <p
+                className="
+                  text-yellow-300
+
+                  text-sm
+
+                  mt-1
+                "
+              >
+                Smart Campus ERP
+              </p>
             </div>
 
-            <button onClick={() => setSidebarOpen(false)} className="md:hidden">
+            {/* MOBILE CLOSE */}
+
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(false)}
+              className="
+                md:hidden
+              "
+              aria-label="Close sidebar"
+            >
               <X size={24} />
             </button>
           </div>
         </div>
 
-        {/* ========================================== */}
-        {/* NAVIGATION */}
-        {/* ========================================== */}
+        {/* ==================================
+            NAVIGATION
+        ================================== */}
 
         <div
           className="
@@ -237,11 +326,10 @@ const WardenLayout = () => {
               key={item.path}
               to={item.path}
               onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) =>
-                `
-
+              className={({ isActive }) => `
                   flex
                   items-center
+
                   gap-4
 
                   px-5
@@ -257,28 +345,38 @@ const WardenLayout = () => {
                   ${
                     isActive
                       ? `
-                      bg-yellow-400
-                      text-[#001B54]
-                      shadow-xl
-                    `
+                        bg-yellow-400
+                        text-[#001B54]
+                        shadow-xl
+                      `
                       : `
-                      hover:bg-white/10
-                    `
+                        text-white
+                        hover:bg-white/10
+                      `
                   }
-
-                  `
-              }
+                `}
             >
-              <item.icon size={22} />
+              <item.icon
+                size={22}
+                className="
+                    shrink-0
+                  "
+              />
 
-              <span className="text-[15px]">{item.name}</span>
+              <span
+                className="
+                    text-[15px]
+                  "
+              >
+                {item.name}
+              </span>
             </NavLink>
           ))}
         </div>
 
-        {/* ========================================== */}
-        {/* USER CARD */}
-        {/* ========================================== */}
+        {/* ==================================
+            USER CARD
+        ================================== */}
 
         <div
           className="
@@ -296,7 +394,11 @@ const WardenLayout = () => {
 
               flex
               items-center
+
               gap-4
+
+              border
+              border-white/10
             "
           >
             <div
@@ -314,25 +416,70 @@ const WardenLayout = () => {
 
                 text-xl
                 font-bold
+
+                shrink-0
               "
             >
-              {user?.name?.charAt(0)}
+              {userInitial}
             </div>
 
-            <div className="flex-1">
-              <h3 className="font-bold text-lg">{user?.name || "Warden"}</h3>
+            <div
+              className="
+                flex-1
+                min-w-0
+              "
+            >
+              <h3
+                className="
+                  font-bold
 
-              <p className="text-sm text-gray-300">Hostel Warden</p>
+                  text-lg
+
+                  truncate
+                "
+              >
+                {user?.name || "Warden"}
+              </h3>
+
+              <p
+                className="
+                  text-sm
+                  text-gray-300
+                "
+              >
+                Hostel Warden
+              </p>
+
+              {user?.assignedHostel && (
+                <p
+                  className="
+                    mt-1
+
+                    text-xs
+
+                    text-yellow-200
+
+                    truncate
+                  "
+                >
+                  {user.assignedHostel}
+                </p>
+              )}
             </div>
           </div>
         </div>
 
-        {/* ========================================== */}
-        {/* LOGOUT */}
-        {/* ========================================== */}
+        {/* ==================================
+            LOGOUT
+        ================================== */}
 
-        <div className="p-5">
+        <div
+          className="
+            p-5
+          "
+        >
           <button
+            type="button"
             onClick={handleLogout}
             className="
               w-full
@@ -342,6 +489,7 @@ const WardenLayout = () => {
               hover:bg-red-600
 
               transition-all
+              duration-300
 
               rounded-2xl
 
@@ -351,9 +499,12 @@ const WardenLayout = () => {
               flex
               items-center
               justify-center
+
               gap-3
 
               font-semibold
+
+              shadow-lg
             "
           >
             <LogOut size={20} />
@@ -362,28 +513,43 @@ const WardenLayout = () => {
         </div>
       </aside>
 
-      {/* ========================================== */}
-      {/* MAIN */}
-      {/* ========================================== */}
+      {/* ======================================
+          MAIN
+      ====================================== */}
 
-      <div className="flex-1 flex flex-col md:ml-80">
-        {/* ========================================== */}
-        {/* TOPBAR */}
-        {/* ========================================== */}
+      <div
+        className="
+          flex-1
+
+          flex
+          flex-col
+
+          md:ml-80
+
+          min-w-0
+        "
+      >
+        {/* ==================================
+            TOPBAR
+        ================================== */}
 
         <header
           className="
             sticky
             top-0
+
             z-30
 
-            bg-white/90
+            bg-white/95
+
             backdrop-blur-md
 
             border-b
             border-gray-200
 
-            px-6
+            px-4
+            md:px-6
+
             py-4
 
             flex
@@ -395,73 +561,162 @@ const WardenLayout = () => {
         >
           {/* LEFT */}
 
-          <div className="flex items-center gap-4">
-            <button onClick={() => setSidebarOpen(true)} className="md:hidden">
+          <div
+            className="
+              flex
+              items-center
+
+              gap-4
+
+              min-w-0
+            "
+          >
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="
+                md:hidden
+
+                shrink-0
+              "
+              aria-label="Open sidebar"
+            >
               <Menu size={26} />
             </button>
 
-            <div>
+            <div
+              className="
+                min-w-0
+              "
+            >
               <h2
                 className="
-                  text-3xl
+                  text-xl
+                  sm:text-2xl
+                  md:text-3xl
+
                   font-bold
+
                   text-[#001B54]
+
+                  truncate
                 "
               >
                 Warden Panel
               </h2>
 
-              <p className="text-gray-500 text-sm">Hostel Management System</p>
+              <p
+                className="
+                  text-gray-500
+
+                  text-xs
+                  sm:text-sm
+
+                  hidden
+                  sm:block
+                "
+              >
+                Hostel Management System
+              </p>
             </div>
           </div>
 
-          {/* RIGHT */}
+          {/* ==================================
+              RIGHT
+          ================================== */}
 
-          <div className="flex items-center gap-5">
-            {/* ========================================== */}
-            {/* REALTIME NOTIFICATION */}
-            {/* ========================================== */}
+          <div
+            className="
+              flex
+              items-center
+
+              gap-3
+              md:gap-5
+            "
+          >
+            {/* ================================
+                NOTIFICATION BELL
+            ================================ */}
 
             <NotificationBell />
 
-            {/* ========================================== */}
-            {/* USER */}
-            {/* ========================================== */}
+            {/* ================================
+                USER
+            ================================ */}
 
-            <div className="hidden md:flex items-center gap-3">
+            <div
+              className="
+                hidden
+                md:flex
+
+                items-center
+
+                gap-3
+              "
+            >
               <div
                 className="
                   bg-[#001B54]
+
                   text-white
 
-                  p-3
+                  h-11
+                  w-11
 
                   rounded-full
+
+                  flex
+                  items-center
+                  justify-center
+
+                  shrink-0
                 "
               >
                 <User size={18} />
               </div>
 
-              <div>
-                <p className="font-bold text-[#001B54]">
+              <div
+                className="
+                  min-w-0
+                "
+              >
+                <p
+                  className="
+                    font-bold
+
+                    text-[#001B54]
+
+                    truncate
+
+                    max-w-[180px]
+                  "
+                >
                   {user?.name || "Warden"}
                 </p>
 
-                <p className="text-xs text-gray-500">Hostel Warden</p>
+                <p
+                  className="
+                    text-xs
+                    text-gray-500
+                  "
+                >
+                  Hostel Warden
+                </p>
               </div>
             </div>
           </div>
         </header>
 
-        {/* ========================================== */}
-        {/* PAGE CONTENT */}
-        {/* ========================================== */}
+        {/* ==================================
+            PAGE CONTENT
+        ================================== */}
 
         <main
           className="
             flex-1
 
-            p-6
+            p-4
+            md:p-6
 
             overflow-auto
           "

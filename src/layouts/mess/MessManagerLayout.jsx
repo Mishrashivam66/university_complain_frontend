@@ -8,24 +8,57 @@ import {
   Menu,
   X,
   LogOut,
+  User,
 } from "lucide-react";
 
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 // ==========================================
-// REALTIME NOTIFICATION BELL
+// NOTIFICATION BELL
 // ==========================================
 
 import NotificationBell from "../../modules/notifications/components/NotificationBell";
 
+// ==========================================
+// SAFE USER FETCH
+// ==========================================
+
+const getStoredUser = () => {
+  try {
+    const storedUser = localStorage.getItem("user");
+
+    return storedUser ? JSON.parse(storedUser) : {};
+  } catch (error) {
+    console.log("USER PARSE ERROR:", error);
+
+    return {};
+  }
+};
+
+// ==========================================
+// MESS MANAGER LAYOUT
+// ==========================================
+
 const MessManagerLayout = () => {
   const location = useLocation();
 
+  const navigate = useNavigate();
+
+  // ========================================
+  // STATE
+  // ========================================
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // ==========================================
+  // ========================================
+  // USER
+  // ========================================
+
+  const user = getStoredUser();
+
+  // ========================================
   // MENU
-  // ==========================================
+  // ========================================
 
   const menuItems = [
     {
@@ -61,17 +94,25 @@ const MessManagerLayout = () => {
     },
   ];
 
-  // ==========================================
+  // ========================================
   // LOGOUT
-  // ==========================================
+  // ========================================
 
   const handleLogout = () => {
     localStorage.removeItem("token");
 
     localStorage.removeItem("user");
 
-    window.location.href = "/login";
+    navigate("/login", {
+      replace: true,
+    });
   };
+
+  // ========================================
+  // USER INITIAL
+  // ========================================
+
+  const userInitial = user?.name?.trim()?.charAt(0)?.toUpperCase() || "M";
 
   return (
     <div
@@ -86,9 +127,9 @@ const MessManagerLayout = () => {
         flex
       "
     >
-      {/* ========================================== */}
-      {/* MOBILE OVERLAY */}
-      {/* ========================================== */}
+      {/* ======================================
+          MOBILE OVERLAY
+      ====================================== */}
 
       {sidebarOpen && (
         <div
@@ -106,9 +147,9 @@ const MessManagerLayout = () => {
         />
       )}
 
-      {/* ========================================== */}
-      {/* SIDEBAR */}
-      {/* ========================================== */}
+      {/* ======================================
+          SIDEBAR
+      ====================================== */}
 
       <aside
         className={`
@@ -121,16 +162,16 @@ const MessManagerLayout = () => {
           h-screen
           w-[290px]
 
-          bg-white/80
+          bg-white/90
 
           backdrop-blur-2xl
 
           border-r
-          border-white/30
+          border-gray-200
 
           shadow-[0_10px_50px_rgba(0,0,0,0.08)]
 
-          transition-all
+          transition-transform
           duration-300
 
           flex
@@ -141,9 +182,9 @@ const MessManagerLayout = () => {
           lg:translate-x-0
         `}
       >
-        {/* ========================================== */}
-        {/* LOGO */}
-        {/* ========================================== */}
+        {/* ==================================
+            LOGO
+        ================================== */}
 
         <div
           className="
@@ -164,6 +205,7 @@ const MessManagerLayout = () => {
               <h1
                 className="
                   text-3xl
+
                   font-black
 
                   bg-gradient-to-r
@@ -174,29 +216,48 @@ const MessManagerLayout = () => {
                   text-transparent
                 "
               >
-                Mess Panel
+                CAMPUSPULSE
               </h1>
 
               <p
                 className="
                   text-gray-500
-
                   mt-1
                 "
               >
-                Smart Campus ERP
+                Mess Manager ERP
               </p>
             </div>
 
-            <button className="lg:hidden" onClick={() => setSidebarOpen(false)}>
-              <X />
+            <button
+              type="button"
+              className="
+                lg:hidden
+
+                h-9
+                w-9
+
+                rounded-full
+
+                flex
+                items-center
+                justify-center
+
+                hover:bg-gray-100
+
+                transition
+              "
+              onClick={() => setSidebarOpen(false)}
+              aria-label="Close sidebar"
+            >
+              <X size={22} />
             </button>
           </div>
         </div>
 
-        {/* ========================================== */}
-        {/* MENU */}
-        {/* ========================================== */}
+        {/* ==================================
+            MENU
+        ================================== */}
 
         <div
           className="
@@ -221,9 +282,9 @@ const MessManagerLayout = () => {
                 to={item.path}
                 onClick={() => setSidebarOpen(false)}
                 className={`
-
                     flex
                     items-center
+
                     gap-4
 
                     px-5
@@ -233,8 +294,6 @@ const MessManagerLayout = () => {
 
                     transition-all
                     duration-300
-
-                    group
 
                     ${
                       active
@@ -256,7 +315,12 @@ const MessManagerLayout = () => {
                     }
                   `}
               >
-                <Icon size={22} />
+                <Icon
+                  size={22}
+                  className="
+                      shrink-0
+                    "
+                />
 
                 <span
                   className="
@@ -271,9 +335,91 @@ const MessManagerLayout = () => {
           })}
         </div>
 
-        {/* ========================================== */}
-        {/* FOOTER */}
-        {/* ========================================== */}
+        {/* ==================================
+            USER CARD
+        ================================== */}
+
+        <div
+          className="
+            px-5
+            pb-4
+          "
+        >
+          <div
+            className="
+              p-4
+
+              rounded-2xl
+
+              bg-[#7A0019]/5
+
+              border
+              border-[#7A0019]/10
+
+              flex
+              items-center
+
+              gap-3
+            "
+          >
+            <div
+              className="
+                h-12
+                w-12
+
+                rounded-2xl
+
+                bg-gradient-to-r
+                from-[#7A0019]
+                to-[#c2185b]
+
+                text-white
+
+                flex
+                items-center
+                justify-center
+
+                font-bold
+                text-lg
+
+                shrink-0
+              "
+            >
+              {userInitial}
+            </div>
+
+            <div
+              className="
+                min-w-0
+              "
+            >
+              <p
+                className="
+                  font-bold
+
+                  text-gray-800
+
+                  truncate
+                "
+              >
+                {user?.name || "Mess Manager"}
+              </p>
+
+              <p
+                className="
+                  text-xs
+                  text-gray-500
+                "
+              >
+                Food Operations
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ==================================
+            LOGOUT
+        ================================== */}
 
         <div
           className="
@@ -284,6 +430,7 @@ const MessManagerLayout = () => {
           "
         >
           <button
+            type="button"
             onClick={handleLogout}
             className="
               w-full
@@ -291,6 +438,7 @@ const MessManagerLayout = () => {
               flex
               items-center
               justify-center
+
               gap-3
 
               rounded-2xl
@@ -306,6 +454,8 @@ const MessManagerLayout = () => {
               hover:bg-red-600
 
               transition-all
+
+              shadow-lg
             "
           >
             <LogOut size={20} />
@@ -314,20 +464,22 @@ const MessManagerLayout = () => {
         </div>
       </aside>
 
-      {/* ========================================== */}
-      {/* MAIN */}
-      {/* ========================================== */}
+      {/* ======================================
+          MAIN
+      ====================================== */}
 
       <div
         className="
           flex-1
 
+          min-w-0
+
           lg:ml-[290px]
         "
       >
-        {/* ========================================== */}
-        {/* TOPBAR */}
-        {/* ========================================== */}
+        {/* ==================================
+            TOPBAR
+        ================================== */}
 
         <header
           className="
@@ -336,54 +488,79 @@ const MessManagerLayout = () => {
 
             z-30
 
-            bg-white/70
+            bg-white/90
 
             backdrop-blur-xl
 
             border-b
-            border-white/20
+            border-gray-200
 
             px-4
             md:px-8
 
-            py-5
+            py-4
 
             flex
             items-center
             justify-between
+
+            shadow-sm
           "
         >
+          {/* LEFT */}
+
           <div
             className="
               flex
               items-center
+
               gap-4
+
+              min-w-0
             "
           >
             <button
+              type="button"
               className="
                 lg:hidden
 
-                p-2
+                h-10
+                w-10
+
+                flex
+                items-center
+                justify-center
 
                 rounded-xl
 
                 bg-white
 
-                shadow
+                border
+                border-gray-200
+
+                shadow-sm
               "
               onClick={() => setSidebarOpen(true)}
+              aria-label="Open sidebar"
             >
-              <Menu />
+              <Menu size={22} />
             </button>
 
-            <div>
+            <div
+              className="
+                min-w-0
+              "
+            >
               <h2
                 className="
-                  text-2xl
+                  text-xl
+                  sm:text-2xl
+
                   font-black
 
                   text-gray-800
+
+                  truncate
                 "
               >
                 Mess Manager
@@ -392,6 +569,12 @@ const MessManagerLayout = () => {
               <p
                 className="
                   text-gray-500
+
+                  text-xs
+                  sm:text-sm
+
+                  hidden
+                  sm:block
                 "
               >
                 Smart Campus ERP
@@ -399,36 +582,43 @@ const MessManagerLayout = () => {
             </div>
           </div>
 
-          {/* RIGHT */}
+          {/* ==================================
+              RIGHT
+          ================================== */}
 
           <div
             className="
               flex
               items-center
-              gap-5
+
+              gap-3
+              md:gap-5
             "
           >
-            {/* ========================================== */}
-            {/* REALTIME NOTIFICATION */}
-            {/* ========================================== */}
+            {/* ================================
+                NOTIFICATION BELL
+            ================================ */}
 
             <NotificationBell />
 
-            {/* ========================================== */}
-            {/* USER */}
-            {/* ========================================== */}
+            {/* ================================
+                USER
+            ================================ */}
 
             <div
               className="
-                flex
+                hidden
+                md:flex
+
                 items-center
+
                 gap-3
               "
             >
               <div
                 className="
-                  h-12
-                  w-12
+                  h-11
+                  w-11
 
                   rounded-2xl
 
@@ -442,28 +632,34 @@ const MessManagerLayout = () => {
                   items-center
                   justify-center
 
-                  font-bold
-                  text-lg
-
-                  shadow-lg
+                  shadow-md
                 "
               >
-                M
+                <User size={19} />
               </div>
 
-              <div className="hidden md:block">
+              <div
+                className="
+                  min-w-0
+                "
+              >
                 <h3
                   className="
                     font-bold
+
                     text-gray-800
+
+                    truncate
+
+                    max-w-[170px]
                   "
                 >
-                  Mess Manager
+                  {user?.name || "Mess Manager"}
                 </h3>
 
                 <p
                   className="
-                    text-sm
+                    text-xs
                     text-gray-500
                   "
                 >
@@ -474,11 +670,16 @@ const MessManagerLayout = () => {
           </div>
         </header>
 
-        {/* ========================================== */}
-        {/* PAGE CONTENT */}
-        {/* ========================================== */}
+        {/* ==================================
+            PAGE CONTENT
+        ================================== */}
 
-        <main className="p-4 md:p-8">
+        <main
+          className="
+            p-4
+            md:p-8
+          "
+        >
           <Outlet />
         </main>
       </div>

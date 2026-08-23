@@ -19,19 +19,47 @@ import {
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 // ==========================================
-// REALTIME NOTIFICATION BELL
+// NOTIFICATION BELL
 // ==========================================
 
 import NotificationBell from "../../modules/notifications/components/NotificationBell";
 
+// ==========================================
+// SAFE USER FETCH
+// ==========================================
+
+const getStoredUser = () => {
+  try {
+    const storedUser = localStorage.getItem("user");
+
+    return storedUser ? JSON.parse(storedUser) : {};
+  } catch (error) {
+    console.log("USER PARSE ERROR:", error);
+
+    return {};
+  }
+};
+
+// ==========================================
+// MAINTENANCE MANAGER LAYOUT
+// ==========================================
+
 const MaintenanceManagerLayout = () => {
   // ======================================
-  // MOBILE SIDEBAR
+  // STATE
   // ======================================
 
   const [open, setOpen] = useState(false);
 
   const navigate = useNavigate();
+
+  // ======================================
+  // USER
+  // ======================================
+
+  const user = getStoredUser();
+
+  const userInitial = user?.name?.trim()?.charAt(0)?.toUpperCase() || "M";
 
   // ======================================
   // MENU ITEMS
@@ -45,6 +73,7 @@ const MaintenanceManagerLayout = () => {
 
       icon: LayoutDashboard,
     },
+
     {
       name: "Complaints",
 
@@ -60,9 +89,12 @@ const MaintenanceManagerLayout = () => {
 
       icon: Users,
     },
+
     {
       name: "Assigned Jobs",
-      path: "/maintenance/assigned-jobs", // ✅ Ye hona chahiye
+
+      path: "/maintenance/assigned-jobs",
+
       icon: ClipboardList,
     },
 
@@ -89,9 +121,12 @@ const MaintenanceManagerLayout = () => {
 
       icon: Package,
     },
+
     {
       name: "Verification",
+
       path: "/maintenance/verification",
+
       icon: ShieldCheck,
     },
 
@@ -143,34 +178,43 @@ const MaintenanceManagerLayout = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#EEF3FF] overflow-hidden">
-      {/* ====================================== */}
-      {/* MOBILE OVERLAY */}
-      {/* ====================================== */}
+    <div
+      className="
+        flex
+
+        h-screen
+
+        bg-[#EEF3FF]
+
+        overflow-hidden
+      "
+    >
+      {/* ======================================
+          MOBILE OVERLAY
+      ====================================== */}
 
       {open && (
         <div
           className="
-              fixed
-              inset-0
+            fixed
+            inset-0
 
-              bg-black/40
+            bg-black/40
 
-              z-40
+            z-40
 
-              lg:hidden
-            "
+            lg:hidden
+          "
           onClick={() => setOpen(false)}
         />
       )}
 
-      {/* ====================================== */}
-      {/* SIDEBAR */}
-      {/* ====================================== */}
+      {/* ======================================
+          SIDEBAR
+      ====================================== */}
 
       <aside
         className={`
-
           fixed
           top-0
           left-0
@@ -199,12 +243,11 @@ const MaintenanceManagerLayout = () => {
           lg:translate-x-0
 
           ${open ? "translate-x-0" : "-translate-x-full"}
-
         `}
       >
-        {/* ====================================== */}
-        {/* LOGO */}
-        {/* ====================================== */}
+        {/* ==================================
+            LOGO
+        ================================== */}
 
         <div
           className="
@@ -252,23 +295,23 @@ const MaintenanceManagerLayout = () => {
             </p>
           </div>
 
-          {/* MOBILE CLOSE */}
-
           <button
+            type="button"
             onClick={() => setOpen(false)}
             className="
               lg:hidden
 
               mt-1
             "
+            aria-label="Close sidebar"
           >
             <X size={28} />
           </button>
         </div>
 
-        {/* ====================================== */}
-        {/* NAVIGATION */}
-        {/* ====================================== */}
+        {/* ==================================
+            NAVIGATION
+        ================================== */}
 
         <div
           className="
@@ -284,16 +327,20 @@ const MaintenanceManagerLayout = () => {
             scrollbar-track-transparent
           "
         >
-          <nav className="space-y-2">
+          <nav
+            className="
+              space-y-2
+            "
+          >
             {navItems.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
                 onClick={() => setOpen(false)}
                 className={({ isActive }) => `
-
                     flex
                     items-center
+
                     gap-4
 
                     px-4
@@ -302,6 +349,7 @@ const MaintenanceManagerLayout = () => {
                     rounded-2xl
 
                     text-[15px]
+
                     font-medium
 
                     transition-all
@@ -310,29 +358,121 @@ const MaintenanceManagerLayout = () => {
                     ${
                       isActive
                         ? `
-                        bg-yellow-400
-                        text-[#001B54]
-                        shadow-xl
-                      `
+                          bg-yellow-400
+                          text-[#001B54]
+                          shadow-xl
+                        `
                         : `
-                        text-white
-                        hover:bg-white/10
-                      `
+                          text-white
+                          hover:bg-white/10
+                        `
                     }
-
                   `}
               >
-                <item.icon size={21} className="shrink-0" />
+                <item.icon
+                  size={21}
+                  className="
+                      shrink-0
+                    "
+                />
 
-                <span className="leading-5">{item.name}</span>
+                <span
+                  className="
+                      leading-5
+                    "
+                >
+                  {item.name}
+                </span>
               </NavLink>
             ))}
           </nav>
         </div>
 
-        {/* ====================================== */}
-        {/* LOGOUT */}
-        {/* ====================================== */}
+        {/* ==================================
+            MANAGER CARD
+        ================================== */}
+
+        <div
+          className="
+            px-4
+            pb-3
+          "
+        >
+          <div
+            className="
+              rounded-2xl
+
+              border
+              border-white/10
+
+              bg-white/10
+
+              p-4
+
+              flex
+              items-center
+
+              gap-3
+            "
+          >
+            <div
+              className="
+                h-12
+                w-12
+
+                rounded-full
+
+                bg-yellow-400
+
+                text-[#001B54]
+
+                flex
+                items-center
+                justify-center
+
+                font-extrabold
+
+                text-lg
+
+                shrink-0
+              "
+            >
+              {userInitial}
+            </div>
+
+            <div
+              className="
+                min-w-0
+              "
+            >
+              <p
+                className="
+                  font-bold
+
+                  text-white
+
+                  truncate
+                "
+              >
+                {user?.name || "Maintenance Manager"}
+              </p>
+
+              <p
+                className="
+                  text-xs
+
+                  text-white/70
+                "
+              >
+                Maintenance Department
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ==================================
+            LOGOUT
+        ================================== */}
 
         <div
           className="
@@ -345,6 +485,7 @@ const MaintenanceManagerLayout = () => {
           "
         >
           <button
+            type="button"
             onClick={handleLogout}
             className="
               w-full
@@ -352,6 +493,7 @@ const MaintenanceManagerLayout = () => {
               flex
               items-center
               justify-center
+
               gap-3
 
               py-3.5
@@ -374,13 +516,14 @@ const MaintenanceManagerLayout = () => {
         </div>
       </aside>
 
-      {/* ====================================== */}
-      {/* MAIN CONTENT */}
-      {/* ====================================== */}
+      {/* ======================================
+          MAIN CONTENT
+      ====================================== */}
 
       <div
         className="
           flex-1
+
           flex
           flex-col
 
@@ -388,16 +531,19 @@ const MaintenanceManagerLayout = () => {
 
           h-screen
 
+          min-w-0
+
           overflow-hidden
         "
       >
-        {/* ====================================== */}
-        {/* TOPBAR */}
-        {/* ====================================== */}
+        {/* ==================================
+            TOPBAR
+        ================================== */}
 
         <header
           className="
             bg-white/95
+
             backdrop-blur-md
 
             border-b
@@ -419,45 +565,99 @@ const MaintenanceManagerLayout = () => {
         >
           {/* LEFT */}
 
-          <div className="flex items-center gap-4">
-            <button onClick={() => setOpen(true)} className="lg:hidden">
+          <div
+            className="
+              flex
+              items-center
+
+              gap-4
+
+              min-w-0
+            "
+          >
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="
+                lg:hidden
+
+                shrink-0
+              "
+              aria-label="Open sidebar"
+            >
               <Menu size={28} />
             </button>
 
-            <div>
+            <div
+              className="
+                min-w-0
+              "
+            >
               <h2
                 className="
-                  text-2xl
+                  text-xl
+                  sm:text-2xl
                   md:text-3xl
 
                   font-bold
 
                   text-[#001B54]
+
+                  truncate
                 "
               >
                 Maintenance Manager Panel
               </h2>
 
-              <p className="text-sm text-gray-500 mt-1">
+              <p
+                className="
+                  text-sm
+                  text-gray-500
+
+                  mt-1
+
+                  hidden
+                  sm:block
+                "
+              >
                 Smart Campus ERP System
               </p>
             </div>
           </div>
 
-          {/* RIGHT */}
+          {/* ==================================
+              RIGHT
+          ================================== */}
 
-          <div className="flex items-center gap-5">
-            {/* ====================================== */}
-            {/* REALTIME NOTIFICATION */}
-            {/* ====================================== */}
+          <div
+            className="
+              flex
+              items-center
+
+              gap-3
+              md:gap-5
+            "
+          >
+            {/* ================================
+                NOTIFICATION BELL
+            ================================ */}
 
             <NotificationBell />
 
-            {/* ====================================== */}
-            {/* PROFILE */}
-            {/* ====================================== */}
+            {/* ================================
+                PROFILE
+            ================================ */}
 
-            <div className="flex items-center gap-3">
+            <div
+              className="
+                hidden
+                md:flex
+
+                items-center
+
+                gap-3
+              "
+            >
               <div
                 className="
                   h-11
@@ -476,29 +676,44 @@ const MaintenanceManagerLayout = () => {
                   font-bold
                 "
               >
-                M
+                {userInitial}
               </div>
 
-              <div className="hidden md:block">
+              <div
+                className="
+                  min-w-0
+                "
+              >
                 <p
                   className="
                     font-semibold
 
                     text-[#001B54]
+
+                    truncate
+
+                    max-w-[180px]
                   "
                 >
-                  Maintenance Manager
+                  {user?.name || "Maintenance Manager"}
                 </p>
 
-                <p className="text-xs text-gray-500">ERP Department</p>
+                <p
+                  className="
+                    text-xs
+                    text-gray-500
+                  "
+                >
+                  ERP Department
+                </p>
               </div>
             </div>
           </div>
         </header>
 
-        {/* ====================================== */}
-        {/* PAGE CONTENT */}
-        {/* ====================================== */}
+        {/* ==================================
+            PAGE CONTENT
+        ================================== */}
 
         <main
           className="
