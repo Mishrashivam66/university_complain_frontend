@@ -3,8 +3,6 @@ import {
   Building2,
   Users,
   UserPlus,
-  GraduationCap,
-  ClipboardList,
   LogOut,
   ShieldCheck,
 } from "lucide-react";
@@ -18,53 +16,28 @@ import { NavLink } from "react-router-dom";
 const menuItems = [
   {
     name: "Dashboard",
-
     path: "/hostel-director/dashboard",
-
     icon: LayoutDashboard,
   },
 
   {
     name: "Hostel Overview",
-
     path: "/hostel-director/overview",
-
     icon: Building2,
   },
 
   {
     name: "Wardens",
-
     path: "/hostel-director/wardens",
-
     icon: Users,
   },
 
   {
     name: "Create Warden",
-
     path: "/hostel-director/create-warden",
-
     icon: UserPlus,
   },
-
-  {
-    name: "Hostel Students",
-
-    path: "/hostel-director/students",
-
-    icon: GraduationCap,
-  },
-
-  {
-    name: "Hostel Complaints",
-
-    path: "/hostel-director/complaints",
-
-    icon: ClipboardList,
-  },
 ];
-
 const HostelDirectorSidebar = ({ onLogout }) => {
   return (
     <aside

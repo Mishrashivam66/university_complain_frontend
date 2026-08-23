@@ -17,11 +17,6 @@ import HostelOverview from "../modules/hostelDirector/HostelOverview";
 import Wardens from "../modules/hostelDirector/Wardens";
 
 import CreateWarden from "../modules/hostelDirector/CreateWarden";
-
-import HostelStudents from "../modules/hostelDirector/HostelStudents";
-
-import HostelComplaints from "../modules/hostelDirector/HostelComplaints";
-
 // ==========================================
 // HOSTEL DIRECTOR ROUTES
 // ==========================================
@@ -57,18 +52,6 @@ const HostelDirectorRoutes = (
     ====================================== */}
 
     <Route path="create-warden" element={<CreateWarden />} />
-
-    {/* ======================================
-        HOSTEL STUDENTS
-    ====================================== */}
-
-    <Route path="students" element={<HostelStudents />} />
-
-    {/* ======================================
-        HOSTEL COMPLAINTS
-    ====================================== */}
-
-    <Route path="complaints" element={<HostelComplaints />} />
   </Route>
 );
 

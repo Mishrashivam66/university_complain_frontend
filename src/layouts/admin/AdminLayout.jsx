@@ -9,7 +9,6 @@ import {
   Building2,
   ClipboardList,
   AlertTriangle,
-  Bell,
   FileBarChart2,
   Boxes,
   Megaphone,
@@ -66,12 +65,6 @@ const AdminLayout = () => {
       name: "Manage Students",
       path: "/admin/manage-students",
       icon: GraduationCap,
-    },
-
-    {
-      name: "Manage Wardens",
-      path: "/admin/manage-wardens",
-      icon: ShieldCheck,
     },
 
     {
