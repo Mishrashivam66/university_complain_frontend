@@ -1,15 +1,13 @@
-import React from "react";
-
 import {
   ArrowRight,
-  Bell,
-  ShieldCheck,
-  Activity,
-  Users,
+  Building2,
   CheckCircle2,
-  Clock3,
-  Sparkles,
-  Zap,
+  ClipboardCheck,
+  Database,
+  Layers3,
+  ShieldCheck,
+  UserCheck,
+  Wrench,
 } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
@@ -17,111 +15,111 @@ import { useNavigate } from "react-router-dom";
 export default function LandingHero() {
   const navigate = useNavigate();
 
+  // ==========================================
+  // SCROLL TO FEATURES
+  // ==========================================
+
+  const handleExploreFeatures = () => {
+    const element = document.getElementById("solutions");
+
+    if (element) {
+      element.scrollIntoView({
+        behavior: "smooth",
+      });
+    }
+  };
+
   return (
     <section
       className="
         relative
-        overflow-hidden
-
         min-h-screen
-
+        overflow-hidden
         bg-[#06101F]
-
         flex
         items-center
       "
     >
-      {/* ========================================== */}
-      {/* PREMIUM BACKGROUND */}
-      {/* ========================================== */}
+      {/* ======================================
+          BACKGROUND
+      ====================================== */}
 
       <div
         className="
           absolute
           inset-0
-
-          bg-[radial-gradient(circle_at_top_right,rgba(244,196,48,.18),transparent_25%),radial-gradient(circle_at_bottom_left,rgba(37,99,235,.20),transparent_30%)]
+          bg-[radial-gradient(circle_at_top_right,rgba(244,196,48,.14),transparent_28%),radial-gradient(circle_at_bottom_left,rgba(37,99,235,.18),transparent_32%)]
         "
       />
 
+      {/* GRID */}
+
       <div
         className="
           absolute
           inset-0
-
-          opacity-[0.05]
-
+          opacity-[0.045]
           [background-image:linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)]
-
           [background-size:70px_70px]
         "
       />
 
-      {/* GLOW */}
+      {/* BLUE GLOW */}
 
       <div
         className="
           absolute
-          top-[-200px]
-          right-[-150px]
-
-          h-[500px]
-          w-[500px]
-
+          -bottom-48
+          -left-40
+          h-[520px]
+          w-[520px]
           rounded-full
-
-          bg-[#F4C430]/20
-
-          blur-[140px]
+          bg-blue-600/20
+          blur-[150px]
         "
       />
+
+      {/* GOLD GLOW */}
 
       <div
         className="
           absolute
-          bottom-[-200px]
-          left-[-150px]
-
-          h-[500px]
-          w-[500px]
-
+          -right-40
+          -top-48
+          h-[520px]
+          w-[520px]
           rounded-full
-
-          bg-[#2563EB]/20
-
-          blur-[140px]
+          bg-yellow-400/15
+          blur-[150px]
         "
       />
 
-      {/* ========================================== */}
-      {/* MAIN */}
-      {/* ========================================== */}
+      {/* ======================================
+          MAIN CONTENT
+      ====================================== */}
 
       <div
         className="
           relative
           z-10
-
-          max-w-7xl
           mx-auto
-
-          px-6
-          lg:px-10
-
-          pt-36
-          pb-20
-
           grid
-          lg:grid-cols-2
-
-          gap-20
-
+          w-full
+          max-w-7xl
+          grid-cols-1
           items-center
+          gap-14
+          px-6
+          pb-20
+          pt-36
+          lg:grid-cols-2
+          lg:gap-16
+          lg:px-10
         "
       >
-        {/* ========================================== */}
-        {/* LEFT */}
-        {/* ========================================== */}
+        {/* ======================================
+            LEFT CONTENT
+        ====================================== */}
 
         <div>
           {/* BADGE */}
@@ -131,34 +129,26 @@ export default function LandingHero() {
               inline-flex
               items-center
               gap-3
-
+              rounded-full
+              border
+              border-yellow-400/20
+              bg-yellow-400/[0.07]
               px-5
               py-3
-
-              rounded-full
-
-              border
-              border-[#F4C430]/20
-
-              bg-white/5
-
               backdrop-blur-xl
-
-              mb-8
             "
           >
-            <Zap className="text-[#F4C430]" size={18} />
+            <Layers3 size={18} className="text-yellow-300" />
 
             <span
               className="
                 text-sm
-                font-bold
+                font-extrabold
                 tracking-wide
-
-                text-white
+                text-yellow-100
               "
             >
-              AI Powered Smart Campus ERP
+              Unified Smart Campus ERP
             </span>
           </div>
 
@@ -166,53 +156,45 @@ export default function LandingHero() {
 
           <h1
             className="
+              mt-8
               text-5xl
-              md:text-7xl
-
-              leading-[1]
-
               font-black
-
+              leading-[1.03]
               text-white
+              md:text-7xl
             "
           >
-            The Future Of
+            One Campus.
+            <br />
             <span
               className="
-                block
-                mt-3
-
                 bg-gradient-to-r
                 from-[#F4C430]
                 via-[#FFE082]
-                to-[#ffffff]
-
+                to-white
                 bg-clip-text
                 text-transparent
               "
             >
-              Campus ERP
+              One Digital ERP.
             </span>
           </h1>
 
-          {/* SUB */}
+          {/* DESCRIPTION */}
 
           <p
             className="
               mt-8
-
-              text-xl
-
-              leading-9
-
-              text-slate-300
-
               max-w-2xl
+              text-lg
+              leading-9
+              text-slate-300
+              md:text-xl
             "
           >
-            Streamline hostel management, complaint resolution, inventory
-            tracking, maintenance workflows, and real-time campus operations
-            through one intelligent digital ecosystem.
+            CampusNexus connects student services, hostel operations, complaint
+            management, maintenance workflows, inventory and administration
+            through one structured digital platform.
           </p>
 
           {/* BUTTONS */}
@@ -220,436 +202,313 @@ export default function LandingHero() {
           <div
             className="
               mt-10
-
               flex
               flex-wrap
-
-              gap-5
+              gap-4
             "
           >
-            {/* BUTTON */}
-
             <button
+              type="button"
               onClick={() => navigate("/login")}
               className="
                 group
-
-                px-9
-                py-4
-
+                flex
+                items-center
+                justify-center
+                gap-3
                 rounded-2xl
-
                 bg-gradient-to-r
                 from-[#F4C430]
                 to-[#FFD54F]
-
-                text-[#071120]
-
+                px-8
+                py-4
                 font-black
-
-                shadow-[0_18px_45px_rgba(244,196,48,.35)]
-
-                hover:scale-105
-
+                text-[#071120]
+                shadow-[0_18px_45px_rgba(244,196,48,.28)]
                 transition-all
                 duration-300
+                hover:-translate-y-1
+                hover:shadow-[0_22px_55px_rgba(244,196,48,.35)]
               "
             >
-              <div className="flex items-center gap-3">
-                Launch ERP
-                <ArrowRight
-                  size={18}
-                  className="
-                    transition-all
-                    group-hover:translate-x-1
-                  "
-                />
-              </div>
+              Launch ERP
+              <ArrowRight
+                size={18}
+                className="
+                  transition-transform
+                  group-hover:translate-x-1
+                "
+              />
             </button>
 
-            {/* BUTTON */}
-
             <button
-              onClick={() => {
-                const el = document.getElementById("solutions");
-
-                if (el) {
-                  el.scrollIntoView({
-                    behavior: "smooth",
-                  });
-                }
-              }}
+              type="button"
+              onClick={handleExploreFeatures}
               className="
-                px-9
-                py-4
-
                 rounded-2xl
-
                 border
                 border-white/10
-
-                bg-white/5
-
-                backdrop-blur-xl
-
+                bg-white/[0.05]
+                px-8
+                py-4
+                font-bold
                 text-white
-
-                font-semibold
-
-                hover:bg-white/10
-
+                backdrop-blur-xl
                 transition-all
+                hover:border-white/20
+                hover:bg-white/[0.08]
               "
             >
-              Explore Features
+              Explore Platform
             </button>
           </div>
 
-          {/* STATS */}
+          {/* ======================================
+              TRUST / SYSTEM CARDS
+          ====================================== */}
 
           <div
             className="
-              mt-16
-
+              mt-14
               grid
-              grid-cols-3
-
-              gap-5
+              grid-cols-1
+              gap-4
+              sm:grid-cols-3
             "
           >
-            {/* CARD */}
+            <TrustCard
+              icon={<ShieldCheck size={22} className="text-emerald-400" />}
+              title="Role-Based"
+              text="Controlled Access"
+            />
 
-            <div
-              className="
-                rounded-3xl
+            <TrustCard
+              icon={<ClipboardCheck size={22} className="text-yellow-300" />}
+              title="Workflow Driven"
+              text="Structured Operations"
+            />
 
-                border
-                border-white/10
-
-                bg-white/5
-
-                backdrop-blur-xl
-
-                p-6
-              "
-            >
-              <Users className="text-[#F4C430] mb-3" />
-
-   <h2 className="text-4xl font-black text-white">
-  4.8K+
-</h2>
-
-              <p className="text-slate-300 mt-2 text-sm">Active Students</p>
-            </div>
-
-            {/* CARD */}
-
-            <div
-              className="
-                rounded-3xl
-
-                border
-                border-white/10
-
-                bg-white/5
-
-                backdrop-blur-xl
-
-                p-6
-              "
-            >
-              <CheckCircle2 className="text-emerald-400 mb-3" />
-
-              <h3
-                className="
-                  text-4xl
-                  font-black
-                  text-white
-                "
-              >
-                18K+
-              </h3>
-
-              <p className="text-slate-300 mt-2 text-sm">Tickets Solved</p>
-            </div>
-
-            {/* CARD */}
-
-            <div
-              className="
-                rounded-3xl
-
-                border
-                border-white/10
-
-                bg-white/5
-
-                backdrop-blur-xl
-
-                p-6
-              "
-            >
-              <Clock3 className="text-cyan-400 mb-3" />
-
-              <h3
-                className="
-                  text-4xl
-                  font-black
-                  text-white
-                "
-              >
-                3.2h
-              </h3>
-
-              <p className="text-slate-300 mt-2 text-sm">Avg Response</p>
-            </div>
+            <TrustCard
+              icon={<Database size={22} className="text-blue-400" />}
+              title="Centralized"
+              text="Connected Records"
+            />
           </div>
         </div>
 
-        {/* ========================================== */}
-        {/* RIGHT SIDE */}
-        {/* ========================================== */}
+        {/* ======================================
+            RIGHT ERP PREVIEW
+        ====================================== */}
 
         <div className="relative">
-          {/* MAIN PANEL */}
+          {/* OUTER GLOW */}
+
+          <div
+            className="
+              absolute
+              inset-8
+              rounded-[40px]
+              bg-blue-500/10
+              blur-3xl
+            "
+          />
 
           <div
             className="
               relative
-
+              overflow-hidden
               rounded-[38px]
-
               border
               border-white/10
-
-              bg-white/10
-
+              bg-[#111D2E]/90
+              p-6
+              shadow-[0_30px_90px_rgba(0,0,0,.45)]
               backdrop-blur-2xl
-
-              p-8
-
-              shadow-[0_30px_80px_rgba(0,0,0,.45)]
+              sm:p-8
             "
           >
-            {/* TOP */}
+            {/* TOP HEADER */}
 
             <div
               className="
                 flex
-                items-center
-                justify-between
-
-                mb-8
+                flex-col
+                gap-4
+                sm:flex-row
+                sm:items-center
+                sm:justify-between
               "
             >
               <div>
-                <h3
+                <p
                   className="
+                    text-xs
+                    font-bold
+                    uppercase
+                    tracking-[0.18em]
+                    text-blue-300
+                  "
+                >
+                  CampusNexus ERP
+                </p>
+
+                <h2
+                  className="
+                    mt-2
                     text-2xl
                     font-black
                     text-white
                   "
                 >
                   Campus Operations
-                </h3>
+                </h2>
 
-                <p className="text-slate-300 mt-1">Real-time ERP Monitoring</p>
-              </div>
-
-              <div
-                className="
-                  flex
-                  items-center
-                  gap-2
-
-                  px-4
-                  py-2
-
-                  rounded-full
-
-                  bg-emerald-500/20
-
-                  text-emerald-300
-
-                  font-semibold
-                  text-sm
-                "
-              >
-                <Activity size={16} />
-                Live
-              </div>
-            </div>
-
-            {/* LIVE FEED */}
-
-            <div className="space-y-5">
-              {/* ITEM */}
-
-              <div
-                className="
-                  p-5
-
-                  rounded-3xl
-
-                  bg-[#0A1324]/80
-
-                  border
-                  border-white/5
-
-                  flex
-                  justify-between
-                  items-start
-                "
-              >
-                <div>
-                  <h4 className="text-white font-bold">Complaint Submitted</h4>
-
-                  <p className="text-slate-400 text-sm mt-2">
-                    Room 302 • Electrical Issue
-                  </p>
-                </div>
-
-                <span
+                <p
                   className="
-                    px-3
-                    py-1
-
-                    rounded-full
-
-                    bg-yellow-500/20
-
-                    text-yellow-300
-
-                    text-xs
-                    font-bold
+                    mt-1
+                    text-sm
+                    text-slate-400
                   "
                 >
-                  HIGH
-                </span>
+                  Structured workflow overview
+                </p>
               </div>
-
-              {/* ITEM */}
 
               <div
                 className="
-                  p-5
-
-                  rounded-3xl
-
-                  bg-[#0A1324]/80
-
+                  inline-flex
+                  w-fit
+                  items-center
+                  gap-2
+                  rounded-full
                   border
-                  border-white/5
-
-                  flex
-                  justify-between
-                  items-start
+                  border-emerald-400/20
+                  bg-emerald-400/10
+                  px-4
+                  py-2
+                  text-xs
+                  font-bold
+                  text-emerald-300
                 "
               >
-                <div>
-                  <h4 className="text-white font-bold">Technician Assigned</h4>
-
-                  <p className="text-slate-400 text-sm mt-2">
-                    Maintenance team dispatched
-                  </p>
-                </div>
-
-                <ShieldCheck className="text-cyan-400" />
-              </div>
-
-              {/* ITEM */}
-
-              <div
-                className="
-                  p-5
-
-                  rounded-3xl
-
-                  bg-[#0A1324]/80
-
-                  border
-                  border-white/5
-
-                  flex
-                  justify-between
-                  items-start
-                "
-              >
-                <div>
-                  <h4 className="text-white font-bold">ERP Notification</h4>
-
-                  <p className="text-slate-400 text-sm mt-2">
-                    Water supply maintenance scheduled
-                  </p>
-                </div>
-
-                <Bell className="text-[#F4C430]" />
+                <ShieldCheck size={15} />
+                ERP Operational
               </div>
             </div>
 
-            {/* ANALYTICS */}
+            {/* ======================================
+                WORKFLOW
+            ====================================== */}
+
+            <div className="mt-8 space-y-4">
+              {/* COMPLAINT */}
+
+              <WorkflowItem
+                icon={<ClipboardCheck size={21} className="text-blue-400" />}
+                title="Complaint Registered"
+                description="Student complaint enters the structured ERP workflow."
+                badge="STEP 01"
+              />
+
+              {/* ASSIGNMENT */}
+
+              <WorkflowItem
+                icon={<UserCheck size={21} className="text-yellow-300" />}
+                title="Worker Assignment"
+                description="Maintenance Manager assigns the appropriate worker."
+                badge="STEP 02"
+              />
+
+              {/* JOB CARD */}
+
+              <WorkflowItem
+                icon={<Wrench size={21} className="text-violet-400" />}
+                title="Job Card & Execution"
+                description="Work is organized and tracked through a Job Card."
+                badge="STEP 03"
+              />
+
+              {/* VERIFICATION */}
+
+              <WorkflowItem
+                icon={<CheckCircle2 size={21} className="text-emerald-400" />}
+                title="Final Verification"
+                description="Completed work is verified before the complaint is closed."
+                badge="STEP 04"
+              />
+            </div>
+
+            {/* ======================================
+                MODULE OVERVIEW
+            ====================================== */}
 
             <div
               className="
-                mt-8
-
+                mt-7
                 grid
                 grid-cols-2
-
-                gap-5
+                gap-4
               "
             >
-              <div
+              <ModuleCard
+                icon={<Building2 size={21} />}
+                title="Hostel"
+                subtitle="Operations"
+              />
+
+              <ModuleCard
+                icon={<Wrench size={21} />}
+                title="Maintenance"
+                subtitle="Workflow"
+              />
+
+              <ModuleCard
+                icon={<Database size={21} />}
+                title="Inventory"
+                subtitle="Materials"
+              />
+
+              <ModuleCard
+                icon={<ShieldCheck size={21} />}
+                title="Administration"
+                subtitle="Role Access"
+              />
+            </div>
+
+            {/* FOOT */}
+
+            <div
+              className="
+                mt-6
+                flex
+                items-center
+                gap-3
+                rounded-2xl
+                border
+                border-white/5
+                bg-[#081321]
+                px-4
+                py-3
+              "
+            >
+              <ShieldCheck
+                size={17}
                 className="
-                  rounded-3xl
+                  shrink-0
+                  text-emerald-400
+                "
+              />
 
-                  bg-gradient-to-br
-                  from-[#0F4C81]
-                  to-[#2563EB]
-
-                  p-6
-
-                  text-white
+              <p
+                className="
+                  text-xs
+                  leading-5
+                  text-slate-400
                 "
               >
-                <p className="text-blue-100 text-sm">Open Complaints</p>
-
-                <h3
-                  className="
-                    text-5xl
-                    font-black
-                    mt-3
-                  "
-                >
-                  42
-                </h3>
-              </div>
-
-              <div
-                className="
-                  rounded-3xl
-
-                  bg-gradient-to-br
-                  from-[#7A0019]
-                  to-[#B91C1C]
-
-                  p-6
-
-                  text-white
-                "
-              >
-                <p className="text-red-100 text-sm">Resolved Today</p>
-
-                <h3
-                  className="
-                    text-5xl
-                    font-black
-                    mt-3
-                  "
-                >
-                  118
-                </h3>
-              </div>
+                Secure role-based campus workflows with centralized operational
+                records.
+              </p>
             </div>
           </div>
         </div>
@@ -657,3 +516,186 @@ export default function LandingHero() {
     </section>
   );
 }
+
+// ==========================================
+// TRUST CARD
+// ==========================================
+
+const TrustCard = ({ icon, title, text }) => {
+  return (
+    <div
+      className="
+        rounded-2xl
+        border
+        border-white/10
+        bg-white/[0.045]
+        p-5
+        backdrop-blur-xl
+      "
+    >
+      {icon}
+
+      <h3
+        className="
+          mt-4
+          text-base
+          font-black
+          text-white
+        "
+      >
+        {title}
+      </h3>
+
+      <p
+        className="
+          mt-1
+          text-xs
+          text-slate-400
+        "
+      >
+        {text}
+      </p>
+    </div>
+  );
+};
+
+// ==========================================
+// WORKFLOW ITEM
+// ==========================================
+
+const WorkflowItem = ({ icon, title, description, badge }) => {
+  return (
+    <div
+      className="
+        group
+        flex
+        items-start
+        gap-4
+        rounded-2xl
+        border
+        border-white/[0.06]
+        bg-[#081321]/80
+        p-4
+        transition-all
+        duration-300
+        hover:border-white/10
+        hover:bg-[#0B1828]
+      "
+    >
+      <div
+        className="
+          flex
+          h-11
+          w-11
+          shrink-0
+          items-center
+          justify-center
+          rounded-xl
+          bg-white/[0.05]
+        "
+      >
+        {icon}
+      </div>
+
+      <div className="min-w-0 flex-1">
+        <div
+          className="
+            flex
+            flex-wrap
+            items-center
+            justify-between
+            gap-2
+          "
+        >
+          <h3
+            className="
+              font-extrabold
+              text-white
+            "
+          >
+            {title}
+          </h3>
+
+          <span
+            className="
+              rounded-full
+              bg-white/[0.05]
+              px-2.5
+              py-1
+              text-[10px]
+              font-bold
+              tracking-wide
+              text-slate-400
+            "
+          >
+            {badge}
+          </span>
+        </div>
+
+        <p
+          className="
+            mt-1.5
+            text-xs
+            leading-5
+            text-slate-400
+          "
+        >
+          {description}
+        </p>
+      </div>
+    </div>
+  );
+};
+
+// ==========================================
+// MODULE CARD
+// ==========================================
+
+const ModuleCard = ({ icon, title, subtitle }) => {
+  return (
+    <div
+      className="
+        rounded-2xl
+        border
+        border-white/[0.06]
+        bg-white/[0.04]
+        p-4
+      "
+    >
+      <div
+        className="
+          flex
+          h-10
+          w-10
+          items-center
+          justify-center
+          rounded-xl
+          bg-blue-500/10
+          text-blue-300
+        "
+      >
+        {icon}
+      </div>
+
+      <h3
+        className="
+          mt-3
+          font-extrabold
+          text-white
+        "
+      >
+        {title}
+      </h3>
+
+      <p
+        className="
+          mt-1
+          text-xs
+          text-slate-400
+        "
+      >
+        {subtitle}
+      </p>
+    </div>
+  );
+};

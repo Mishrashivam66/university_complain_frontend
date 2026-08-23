@@ -1,30 +1,79 @@
 import { Link } from "react-router-dom";
 
-import { Sparkles, ShieldCheck, Building2, ChevronRight } from "lucide-react";
+import {
+  Sparkles,
+  ShieldCheck,
+  Building2,
+  ChevronRight,
+  ClipboardCheck,
+  Wrench,
+  Package,
+  BarChart3,
+  GraduationCap,
+} from "lucide-react";
 
 const AuthPreviewPanel = ({ mode }) => {
   const isLogin = mode === "login";
 
-  const title = isLogin
-    ? "Welcome Back to CampusNexus"
-    : "Join the Future of Smart Campus ERP";
+  // ==========================================
+  // CONTENT
+  // ==========================================
 
   const subtitle = isLogin
-    ? "Access hostel management, maintenance workflows, realtime notifications and campus operations from one unified ERP platform."
-    : "Create your ERP account and experience next-generation campus automation powered by realtime technologies.";
+    ? "Access your role-based CampusNexus dashboard and manage campus operations through one structured ERP platform."
+    : "Create your student account and access a secure digital platform designed for campus services and operational workflows.";
 
-  const buttonText = isLogin ? "Create Account" : "Login Now";
+  const buttonText = isLogin ? "Create Student Account" : "Login Now";
 
   const buttonLink = isLogin ? "/register" : "/login";
+
+  // ==========================================
+  // FEATURES
+  // ==========================================
+
+  const features = [
+    {
+      title: "Complaint Management",
+      icon: ClipboardCheck,
+      color: "text-blue-300",
+      bg: "bg-blue-500/10",
+    },
+
+    {
+      title: "Hostel Operations",
+      icon: Building2,
+      color: "text-yellow-300",
+      bg: "bg-yellow-400/10",
+    },
+
+    {
+      title: "Maintenance & Job Cards",
+      icon: Wrench,
+      color: "text-red-300",
+      bg: "bg-red-500/10",
+    },
+
+    {
+      title: "Inventory & Material Workflow",
+      icon: Package,
+      color: "text-emerald-300",
+      bg: "bg-emerald-500/10",
+    },
+
+    {
+      title: "Reports & Operational Monitoring",
+      icon: BarChart3,
+      color: "text-indigo-300",
+      bg: "bg-indigo-500/10",
+    },
+  ];
 
   return (
     <aside
       className="
         relative
-
-        overflow-hidden
-
         h-full
+        overflow-hidden
 
         rounded-[36px]
 
@@ -36,29 +85,32 @@ const AuthPreviewPanel = ({ mode }) => {
         via-[#071B34]
         to-[#0F4C81]
 
-        p-10
-
+        p-8
         text-white
 
         shadow-[0_25px_80px_rgba(0,0,0,.45)]
+
+        lg:p-10
       "
     >
-      {/* ========================================== */}
-      {/* PREMIUM GLOWS */}
-      {/* ========================================== */}
+      {/* ======================================
+          BACKGROUND DECORATION
+      ====================================== */}
 
       <div
         className="
-          absolute
-          top-[-100px]
-          right-[-80px]
+          pointer-events-none
 
-          h-[260px]
-          w-[260px]
+          absolute
+          -right-20
+          -top-24
+
+          h-[300px]
+          w-[300px]
 
           rounded-full
 
-          bg-[#F4C430]/20
+          bg-[#F4C430]/15
 
           blur-[120px]
         "
@@ -66,12 +118,14 @@ const AuthPreviewPanel = ({ mode }) => {
 
       <div
         className="
-          absolute
-          bottom-[-120px]
-          left-[-100px]
+          pointer-events-none
 
-          h-[260px]
-          w-[260px]
+          absolute
+          -bottom-28
+          -left-24
+
+          h-[300px]
+          w-[300px]
 
           rounded-full
 
@@ -81,14 +135,14 @@ const AuthPreviewPanel = ({ mode }) => {
         "
       />
 
-      {/* GRID */}
-
       <div
         className="
+          pointer-events-none
+
           absolute
           inset-0
 
-          opacity-[0.06]
+          opacity-[0.04]
 
           [background-image:linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)]
 
@@ -96,52 +150,61 @@ const AuthPreviewPanel = ({ mode }) => {
         "
       />
 
-      {/* ========================================== */}
-      {/* CONTENT */}
-      {/* ========================================== */}
+      {/* ======================================
+          CONTENT
+      ====================================== */}
 
-      <div className="relative z-10">
-        {/* LOGO */}
+      <div
+        className="
+          relative
+          z-10
+
+          flex
+          h-full
+          flex-col
+        "
+      >
+        {/* ==================================
+            BRAND
+        ================================== */}
 
         <div
           className="
             flex
             items-center
-
             gap-4
-
-            mb-12
           "
         >
           <div
             className="
-              h-16
-              w-16
-
-              rounded-3xl
-
-              bg-gradient-to-br
-              from-[#F4C430]
-              to-[#FFD54F]
-
               flex
+              h-14
+              w-14
+              shrink-0
               items-center
               justify-center
 
-              shadow-[0_15px_40px_rgba(244,196,48,.35)]
+              rounded-2xl
+
+              bg-gradient-to-br
+              from-[#2563EB]
+              via-[#3B82F6]
+              to-[#F4C430]
+
+              shadow-[0_15px_40px_rgba(37,99,235,.35)]
             "
           >
-            <Sparkles className="text-[#071120]" size={30} />
+            <Sparkles className="text-white" size={26} />
           </div>
 
           <div>
             <h2
               className="
-                text-3xl
-
+                text-2xl
                 font-black
-
                 tracking-tight
+
+                md:text-3xl
               "
             >
               CAMPUSNEXUS
@@ -149,15 +212,14 @@ const AuthPreviewPanel = ({ mode }) => {
 
             <p
               className="
-                text-sm
+                mt-1
 
-                text-blue-100/70
-
-                tracking-[3px]
-
+                text-[10px]
+                font-bold
                 uppercase
+                tracking-[0.28em]
 
-                font-semibold
+                text-blue-200/70
               "
             >
               Smart Campus ERP
@@ -165,54 +227,55 @@ const AuthPreviewPanel = ({ mode }) => {
           </div>
         </div>
 
-        {/* BADGE */}
+        {/* ==================================
+            BADGE
+        ================================== */}
 
         <div
           className="
-            inline-flex
-            items-center
+            mt-10
 
+            inline-flex
+            w-fit
+            items-center
             gap-2
 
             rounded-full
 
             border
-            border-[#F4C430]/20
+            border-yellow-400/20
 
-            bg-white/10
+            bg-yellow-400/[0.08]
 
-            px-5
+            px-4
             py-2
 
-            text-sm
-
-            font-semibold
-
-            text-[#F4C430]
+            text-xs
+            font-bold
+            text-yellow-300
 
             backdrop-blur-xl
-
-            mb-8
           "
         >
-          <ShieldCheck size={16} />
-          Enterprise Campus Platform
+          <ShieldCheck size={15} />
+          Secure Role-Based Campus ERP
         </div>
 
-        {/* TITLE */}
+        {/* ==================================
+            TITLE
+        ================================== */}
 
         <h1
           className="
-            text-5xl
-            md:text-6xl
+            mt-7
 
+            text-4xl
             font-black
-
-            leading-[1.05]
-
+            leading-[1.08]
             tracking-tight
 
-            mb-6
+            md:text-5xl
+            xl:text-6xl
           "
         >
           {isLogin ? (
@@ -220,6 +283,7 @@ const AuthPreviewPanel = ({ mode }) => {
               Welcome Back to
               <span
                 className="
+                  mt-2
                   block
 
                   bg-gradient-to-r
@@ -236,9 +300,10 @@ const AuthPreviewPanel = ({ mode }) => {
             </>
           ) : (
             <>
-              Smart ERP for
+              One Campus.
               <span
                 className="
+                  mt-2
                   block
 
                   bg-gradient-to-r
@@ -250,96 +315,111 @@ const AuthPreviewPanel = ({ mode }) => {
                   text-transparent
                 "
               >
-                Modern Universities
+                One Digital ERP.
               </span>
             </>
           )}
         </h1>
 
-        {/* DESCRIPTION */}
+        {/* ==================================
+            DESCRIPTION
+        ================================== */}
 
         <p
           className="
+            mt-6
+
             max-w-xl
 
-            text-lg
-
-            leading-9
-
-            text-slate-200
-
-            mb-10
+            text-base
+            leading-8
+            text-slate-300
           "
         >
           {subtitle}
         </p>
 
-        {/* FEATURES */}
+        {/* ==================================
+            FEATURES
+        ================================== */}
 
         <div
           className="
-            space-y-5
+            mt-8
 
-            mb-12
+            space-y-3
           "
         >
-          {[
-            "Realtime Complaint Management",
-            "Hostel & Room Allocation System",
-            "Inventory & Maintenance Tracking",
-            "AI Powered ERP Dashboards",
-          ].map((item, index) => (
-            <div
-              key={index}
-              className="
-                flex
-                items-center
+          {features.map((item) => {
+            const Icon = item.icon;
 
-                gap-4
-              "
-            >
+            return (
               <div
+                key={item.title}
                 className="
-                  h-11
-                  w-11
+                  flex
+                  items-center
+                  gap-3
 
                   rounded-2xl
 
-                  bg-white/10
-
                   border
-                  border-white/10
+                  border-white/[0.06]
 
-                  flex
-                  items-center
-                  justify-center
+                  bg-white/[0.035]
+
+                  px-4
+                  py-3
+
+                  backdrop-blur-xl
                 "
               >
-                <Building2 className="text-[#F4C430]" size={20} />
+                <div
+                  className={`
+                    flex
+                    h-10
+                    w-10
+                    shrink-0
+                    items-center
+                    justify-center
+
+                    rounded-xl
+
+                    ${item.bg}
+                    ${item.color}
+                  `}
+                >
+                  <Icon size={18} />
+                </div>
+
+                <span
+                  className="
+                    text-sm
+                    font-semibold
+                    text-slate-200
+                  "
+                >
+                  {item.title}
+                </span>
               </div>
-
-              <span
-                className="
-                  text-base
-
-                  font-medium
-
-                  text-slate-100
-                "
-              >
-                {item}
-              </span>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {/* BUTTON */}
+        {/* ==================================
+            AUTH BUTTON
+        ================================== */}
 
         <Link
+          to={buttonLink}
           className="
-            inline-flex
-            items-center
+            group
 
+            mt-9
+
+            inline-flex
+            w-fit
+            items-center
             gap-3
 
             rounded-2xl
@@ -348,49 +428,145 @@ const AuthPreviewPanel = ({ mode }) => {
             from-[#F4C430]
             to-[#FFD54F]
 
-            px-8
+            px-7
             py-4
 
+            font-black
             text-[#071120]
 
-            font-black
-
-            shadow-[0_15px_45px_rgba(244,196,48,.35)]
-
-            hover:scale-105
+            shadow-[0_15px_45px_rgba(244,196,48,.28)]
 
             transition-all
             duration-300
+
+            hover:-translate-y-1
+            hover:shadow-[0_20px_55px_rgba(244,196,48,.38)]
           "
-          to={buttonLink}
         >
           {buttonText}
 
-          <ChevronRight size={20} />
+          <ChevronRight
+            size={19}
+            className="
+              transition-transform
+              group-hover:translate-x-1
+            "
+          />
         </Link>
 
-        {/* FOOTER */}
+        {/* ==================================
+            PROJECT INFO
+        ================================== */}
 
         <div
           className="
-            mt-14
-
-            border-t
-            border-white/10
-
-            pt-6
-
-            text-sm
-
-            text-slate-400
+            mt-auto
+            pt-10
           "
         >
-          Developed by
-          <span className="text-[#F4C430] font-bold"> Shivam Kumar Mishra</span>
-          {" & "}
-          <span className="text-blue-300 font-bold">Dheeraj Kumar</span>
-          <div className="mt-1 text-xs text-slate-500">
-            Mentor: Dr. Dinesh Sharma
+          <div
+            className="
+              rounded-2xl
+
+              border
+              border-white/[0.07]
+
+              bg-[#06101F]/40
+
+              p-4
+            "
+          >
+            <div
+              className="
+                flex
+                items-start
+                gap-3
+              "
+            >
+              <GraduationCap
+                size={19}
+                className="
+                  mt-0.5
+                  shrink-0
+                  text-yellow-300
+                "
+              />
+
+              <div>
+                <p
+                  className="
+                    text-xs
+                    font-bold
+                    uppercase
+                    tracking-[0.12em]
+                    text-blue-300
+                  "
+                >
+                  Academic Project
+                </p>
+
+                <p
+                  className="
+                    mt-2
+                    text-xs
+                    leading-6
+                    text-slate-400
+                  "
+                >
+                  Developed at Amity University Gwalior with academic guidance
+                  from Dr. Dinesh Sharma.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* TEAM */}
+
+          <div
+            className="
+              mt-4
+
+              border-t
+              border-white/10
+
+              pt-4
+            "
+          >
+            <p
+              className="
+                text-[10px]
+                font-bold
+                uppercase
+                tracking-[0.15em]
+                text-slate-500
+              "
+            >
+              Development Team
+            </p>
+
+            <div
+              className="
+                mt-2
+
+                flex
+                flex-wrap
+                gap-x-2
+                gap-y-1
+
+                text-xs
+                font-semibold
+              "
+            >
+              <span className="text-yellow-300">Shivam Kumar Mishra</span>
+
+              <span className="text-slate-600">•</span>
+
+              <span className="text-blue-300">Dheeraj Kumar</span>
+
+              <span className="text-slate-600">•</span>
+
+              <span className="text-emerald-300">Ayush Tiwari</span>
+            </div>
           </div>
         </div>
       </div>

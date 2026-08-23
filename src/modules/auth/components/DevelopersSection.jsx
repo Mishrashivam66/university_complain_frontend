@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useState } from "react";
 
 import {
   GraduationCap,
@@ -6,11 +6,22 @@ import {
   Code2,
   Database,
   ShieldCheck,
-  BrainCircuit,
+  FileText,
+  CheckCircle2,
+  Users,
+  Monitor,
 } from "lucide-react";
+
+// ==========================================
+// DEVELOPERS SECTION
+// ==========================================
 
 export default function DevelopersSection() {
   const [flippedCard, setFlippedCard] = useState(null);
+
+  // ==========================================
+  // DEVELOPMENT TEAM
+  // ==========================================
 
   const team = [
     {
@@ -18,51 +29,57 @@ export default function DevelopersSection() {
 
       name: "Shivam Kumar Mishra",
 
-      role: "Founder & Lead Developer",
+      role: "Project Lead & Full Stack Developer",
 
       image: "/shivam.jpeg",
 
       description:
-        "Designed and developed the complete CampusNexus ERP ecosystem including frontend architecture, backend APIs, authentication systems, realtime workflows, analytics dashboards and smart campus automation systems.",
+        "Led the design and development of the CampusNexus ERP platform, including frontend architecture, backend APIs, authentication, complaint workflows, hostel operations, maintenance management, inventory integration and overall system architecture.",
 
-      tags: ["React.js", "Node.js", "MongoDB", "AI Systems"],
+      tags: [
+        "React.js",
+        "Node.js",
+        "Express.js",
+        "MongoDB",
+        "System Architecture",
+      ],
 
       contributions: [
-        "Developed complete frontend architecture using React.js",
-        "Built backend APIs using Node.js and Express.js",
-        "Integrated MongoDB database workflows",
-        "Designed realtime complaint management systems",
-        "Implemented hostel allocation workflows",
-        "Created AI powered analytics dashboards",
-        "Developed inventory and maintenance modules",
-        "Built responsive UI/UX with Tailwind CSS",
-        "Integrated authentication and security systems",
-        "Managed complete ERP project architecture",
+        "Designed the overall CampusNexus ERP architecture",
+        "Developed frontend modules using React.js and Tailwind CSS",
+        "Built backend REST APIs using Node.js and Express.js",
+        "Integrated MongoDB database models and workflows",
+        "Implemented authentication and role-based authorization",
+        "Developed complaint management and maintenance workflows",
+        "Implemented worker assignment and Job Card management",
+        "Developed material request and inventory workflows",
+        "Integrated hostel and Warden management modules",
+        "Managed integration, debugging and complete project development",
       ],
 
       stats: [
         {
           icon: Code2,
-          value: "50+",
-          label: "Frontend",
+          value: "Full Stack",
+          label: "Development",
         },
 
         {
           icon: Database,
-          value: "30+",
-          label: "Backend APIs",
-        },
-
-        {
-          icon: BrainCircuit,
-          value: "AI",
-          label: "Automation",
+          value: "MERN",
+          label: "Architecture",
         },
 
         {
           icon: ShieldCheck,
-          value: "100%",
-          label: "Project Lead",
+          value: "RBAC",
+          label: "Security",
+        },
+
+        {
+          icon: Monitor,
+          value: "Lead",
+          label: "Project Role",
         },
       ],
     },
@@ -77,35 +94,114 @@ export default function DevelopersSection() {
       image: "/dheeraj.jpeg",
 
       description:
-        "Contributed in frontend support, UI testing, deployment coordination and validation processes during the CampusNexus ERP development lifecycle.",
+        "Contributed to frontend support, interface validation, testing and deployment coordination during the CampusNexus ERP development lifecycle.",
 
-      tags: ["Frontend Support", "Testing", "Deployment", "Validation"],
+      tags: [
+        "Frontend Support",
+        "UI Testing",
+        "Validation",
+        "Deployment Support",
+      ],
 
       contributions: [
         "Assisted in frontend component testing",
         "Performed UI validation and responsiveness checks",
+        "Supported testing of CampusNexus modules",
+        "Contributed to debugging and issue validation",
         "Supported deployment workflow processes",
-        "Contributed in testing and debugging support",
-        "Helped in system validation and optimization",
+        "Assisted in overall system testing",
+      ],
+
+      stats: [
+        {
+          icon: Monitor,
+          value: "UI",
+          label: "Support",
+        },
+
+        {
+          icon: CheckCircle2,
+          value: "QA",
+          label: "Testing",
+        },
+
+        {
+          icon: ShieldCheck,
+          value: "Check",
+          label: "Validation",
+        },
+
+        {
+          icon: Code2,
+          value: "Web",
+          label: "Support",
+        },
+      ],
+    },
+
+    {
+      id: 3,
+
+      name: "Ayush Tiwari",
+
+      role: "Frontend Development & Documentation",
+
+      image: "/ayush.jpeg",
+
+      description:
+        "Contributed to CampusNexus frontend development and project documentation, supporting user interface implementation, documentation preparation and presentation of ERP modules and workflows.",
+
+      tags: [
+        "Frontend Development",
+        "React.js",
+        "Documentation",
+        "Project Support",
+      ],
+
+      contributions: [
+        "Contributed to frontend development and UI implementation",
+        "Supported React.js based interface development",
+        "Prepared and maintained project documentation",
+        "Documented CampusNexus modules and system workflows",
+        "Supported technical documentation preparation",
+        "Assisted in project presentation and reporting",
+      ],
+
+      stats: [
+        {
+          icon: Code2,
+          value: "React",
+          label: "Frontend",
+        },
+
+        {
+          icon: FileText,
+          value: "Docs",
+          label: "Documentation",
+        },
+
+        {
+          icon: Monitor,
+          value: "UI",
+          label: "Development",
+        },
+
+        {
+          icon: Users,
+          value: "Team",
+          label: "Support",
+        },
       ],
     },
   ];
 
-  // AUTO FLIP
+  // ==========================================
+  // FLIP CARD
+  // ==========================================
 
-  //   useEffect(() => {
-  //     const interval = setInterval(() => {
-  //       setFlippedCard((prev) => {
-  //         if (prev === null) return 1;
-
-  //         if (prev === 1) return 2;
-
-  //         return 1;
-  //       });
-  //     }, 3500);
-
-  //     return () => clearInterval(interval);
-  //   }, []);
+  const toggleCard = (id) => {
+    setFlippedCard((current) => (current === id ? null : id));
+  };
 
   return (
     <section
@@ -113,22 +209,28 @@ export default function DevelopersSection() {
       className="
         relative
         overflow-hidden
-        py-32
 
         bg-gradient-to-b
-        from-black
-        via-[#050B18]
-        to-black
+        from-[#06101F]
+        via-[#081526]
+        to-[#040A14]
+
+        py-28
+        md:py-32
       "
     >
-      {/* GRID */}
+      {/* ======================================
+          BACKGROUND GRID
+      ====================================== */}
 
       <div
         className="
+          pointer-events-none
+
           absolute
           inset-0
 
-          opacity-[0.04]
+          opacity-[0.035]
 
           bg-[linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)]
 
@@ -136,501 +238,509 @@ export default function DevelopersSection() {
         "
       />
 
-      {/* GLOW */}
+      {/* BLUE GLOW */}
 
       <div
         className="
+          pointer-events-none
+
           absolute
+          -left-40
           top-0
-          left-0
 
-          h-[500px]
-          w-[500px]
+          h-[520px]
+          w-[520px]
 
-          bg-blue-500/20
+          rounded-full
 
-          blur-[180px]
+          bg-blue-600/15
+
+          blur-[170px]
         "
       />
+
+      {/* GOLD GLOW */}
 
       <div
         className="
+          pointer-events-none
+
           absolute
-          bottom-0
-          right-0
+          -bottom-40
+          -right-40
 
-          h-[500px]
-          w-[500px]
+          h-[520px]
+          w-[520px]
 
-          bg-yellow-400/15
+          rounded-full
 
-          blur-[180px]
+          bg-yellow-400/10
+
+          blur-[170px]
         "
       />
 
-      <div className="relative max-w-7xl mx-auto px-6 md:px-10">
-        {/* TOP */}
+      {/* MAROON GLOW */}
 
-        <div className="text-center mb-24">
+      <div
+        className="
+          pointer-events-none
+
+          absolute
+          left-1/2
+          top-[45%]
+
+          h-[400px]
+          w-[400px]
+
+          -translate-x-1/2
+
+          rounded-full
+
+          bg-[#7A0019]/10
+
+          blur-[170px]
+        "
+      />
+
+      {/* ======================================
+          MAIN CONTAINER
+      ====================================== */}
+
+      <div
+        className="
+          relative
+          z-10
+
+          mx-auto
+          max-w-7xl
+
+          px-6
+          md:px-10
+        "
+      >
+        {/* ======================================
+            SECTION HEADING
+        ====================================== */}
+
+        <div
+          className="
+            mx-auto
+            max-w-4xl
+
+            text-center
+          "
+        >
           <div
             className="
               inline-flex
               items-center
               gap-2
 
-              px-6
-              py-3
-
               rounded-full
 
               border
               border-yellow-400/20
 
-              bg-yellow-400/10
+              bg-yellow-400/[0.08]
 
+              px-5
+              py-2.5
+
+              text-sm
+              font-bold
               text-yellow-300
 
-              font-semibold
-
-              mb-8
+              backdrop-blur-xl
             "
           >
-            <Sparkles size={18} />
-            CampusNexus Leadership
+            <Sparkles size={17} />
+            CampusNexus Project Team
           </div>
 
           <h2
             className="
-              text-5xl
-              md:text-7xl
+              mt-7
 
+              text-4xl
               font-black
-
               leading-tight
-
               text-white
+
+              md:text-6xl
+              xl:text-7xl
             "
           >
-            Meet Our
+            Guided By Experience.
             <br />
             <span
               className="
                 bg-gradient-to-r
-                from-[#2563EB]
-                via-[#60A5FA]
+                from-[#60A5FA]
+                via-white
                 to-[#F4C430]
 
                 bg-clip-text
                 text-transparent
               "
             >
-              Development Team
+              Built By Students.
             </span>
           </h2>
+
+          <p
+            className="
+              mx-auto
+              mt-7
+              max-w-3xl
+
+              text-base
+              leading-8
+              text-slate-300
+
+              md:text-lg
+            "
+          >
+            CampusNexus has been developed as a collaborative academic project
+            with technical guidance, full-stack development, frontend support,
+            testing and structured project documentation.
+          </p>
         </div>
 
-        {/* MENTOR */}
+        {/* ======================================
+            PROJECT MENTOR
+        ====================================== */}
 
-        {/* MENTOR */}
+        <div className="mt-20">
+          {/* MENTOR HEADING */}
 
-        <div className="mb-24">
-          <div className="text-center mb-14">
+          <div className="text-center">
+            <p
+              className="
+                text-sm
+                font-bold
+                uppercase
+                tracking-[0.2em]
+                text-blue-300
+              "
+            >
+              Academic Guidance
+            </p>
+
             <h3
               className="
-        text-3xl
-        md:text-4xl
+                mt-3
 
-        font-black
+                text-3xl
+                font-black
+                text-white
 
-        text-white
-
-        mb-3
-      "
+                md:text-4xl
+              "
             >
               Project Mentor
             </h3>
 
-            <p className="text-slate-400 text-lg">
+            <p
+              className="
+                mt-2
+                text-sm
+                text-slate-400
+              "
+            >
               Academic Guidance & Technical Supervision
             </p>
           </div>
 
-          <div className="flex justify-center">
+          {/* MENTOR CARD */}
+
+          <div
+            className="
+              mt-10
+              flex
+              justify-center
+            "
+          >
             <div
               className="
-        group
+                group
 
-        relative
+                relative
 
-        h-[720px]
-        w-full
-        max-w-2xl
+                w-full
+                max-w-3xl
 
-        [perspective:2000px]
-      "
+                overflow-hidden
+
+                rounded-[36px]
+
+                border
+                border-yellow-400/15
+
+                bg-[#0B1727]/90
+
+                p-7
+
+                shadow-[0_30px_90px_rgba(0,0,0,.40)]
+
+                backdrop-blur-2xl
+
+                md:p-10
+              "
             >
+              {/* GLOW */}
+
               <div
                 className="
-          relative
+                  pointer-events-none
 
-          h-full
-          w-full
+                  absolute
+                  -right-20
+                  -top-20
 
-          transition-transform
-          duration-1000
-
-          [transform-style:preserve-3d]
-
-          group-hover:[transform:rotateY(180deg)]
-        "
-              >
-                {/* FRONT SIDE */}
-
-                <div
-                  className="
-            absolute
-            inset-0
-
-            rounded-[40px]
-
-            border
-            border-yellow-400/20
-
-            bg-black/90
-
-            backdrop-blur-2xl
-
-            p-10
-
-            flex
-            flex-col
-            items-center
-            justify-center
-
-            shadow-[0_20px_80px_rgba(0,0,0,.45)]
-
-            hover:border-yellow-400/40
-
-            hover:shadow-[0_35px_120px_rgba(244,196,48,.18)]
-
-            transition-all
-            duration-500
-
-            [backface-visibility:hidden]
-
-            overflow-hidden
-          "
-                >
-                  {/* FREE BADGE */}
-
-                  <div
-                    className="
-              absolute
-              top-6
-              right-6
-
-              px-4
-              py-2
-
-              rounded-full
-
-              bg-emerald-500/20
-
-              border
-              border-emerald-400/30
-
-              text-emerald-300
-
-              text-sm
-              font-bold
-
-              shadow-[0_0_20px_rgba(16,185,129,.25)]
-            "
-                  >
-                    FREE
-                  </div>
-
-                  {/* GLOW */}
-
-                  <div
-                    className="
-              absolute
-              -top-10
-              -right-10
-
-              h-60
-              w-60
-
-              rounded-full
-
-              bg-yellow-400/20
-
-              blur-[100px]
-
-              opacity-40
-
-              group-hover:opacity-80
-
-              transition-all
-              duration-500
-            "
-                  />
-
-                  {/* IMAGE */}
-
-                  <div
-                    className="
-              relative
-
-              h-64
-              w-64
-
-              rounded-full
-
-              p-[5px]
-
-              bg-gradient-to-br
-              from-[#2563EB]
-              via-[#60A5FA]
-              to-[#F4C430]
-
-              shadow-[0_25px_80px_rgba(37,99,235,.35)]
-
-              mb-10
-            "
-                  >
-                    <img
-                      src="/dineshsir.jpeg"
-                      alt="Dr. Dinesh Sharma"
-                      className="
-                h-full
-                w-full
-
-                rounded-full
-
-                object-cover
-
-                border-[5px]
-                border-black
-              "
-                    />
-                  </div>
-
-                  {/* BADGE */}
-
-                  <div
-                    className="
-              inline-flex
-              items-center
-              gap-2
-
-              px-5
-              py-2
-
-              rounded-full
-
-              border
-              border-yellow-400/20
-
-              bg-yellow-400/10
-
-              text-yellow-300
-
-              font-semibold
-
-              mb-6
-            "
-                  >
-                    <GraduationCap size={18} />
-                    Mentor
-                  </div>
-
-                  {/* NAME */}
-
-                  <h2
-                    className="
-              text-4xl
-
-              font-black
-
-              text-white
-
-              mb-4
-
-              text-center
-            "
-                  >
-                    Dr. Dinesh Sharma
-                  </h2>
-
-                  {/* ROLE */}
-
-                  <p
-                    className="
-              text-yellow-300
-
-              text-xl
-
-              font-semibold
-
-              text-center
-            "
-                  >
-                    Associate Professor • Amity University
-                  </p>
-                </div>
-
-                {/* BACK SIDE */}
-
-                <div
-                  className="
-            absolute
-            inset-0
-
-            rounded-[40px]
-
-            border
-            border-yellow-400/20
-
-            bg-black/95
-
-            backdrop-blur-2xl
-
-            p-10
-
-            shadow-[0_20px_80px_rgba(0,0,0,.45)]
-
-            hover:border-yellow-400/40
-
-            hover:shadow-[0_35px_120px_rgba(244,196,48,.18)]
-
-            transition-all
-            duration-500
-
-            [transform:rotateY(180deg)]
-
-            [backface-visibility:hidden]
-
-            overflow-y-auto
-          "
-                >
-                  <h2
-                    className="
-              text-4xl
-
-              font-black
-
-              text-white
-
-              mb-4
-            "
-                  >
-                    Dr. Dinesh Sharma
-                  </h2>
-
-                  <p
-                    className="
-              text-yellow-300
-
-              text-xl
-
-              mb-8
-
-              font-semibold
-            "
-                  >
-                    Academic Mentor & Technical Supervisor
-                  </p>
-
-                  <p
-                    className="
-              text-slate-300
-
-              leading-9
-
-              text-base
-
-              mb-10
-            "
-                  >
-                    Guided and supervised the complete CampusNexus ERP
-                    development lifecycle with expertise in intelligent systems,
-                    smart campus technologies, software engineering practices
-                    and academic innovation.
-                  </p>
-
-                  {/* CONTRIBUTIONS */}
-
-                  <div className="space-y-5 mb-10">
-                    {[
-                      "Provided academic guidance and technical supervision",
-                      "Supported smart ERP architecture planning",
-                      "Mentored intelligent automation workflows",
-                      "Reviewed system design and implementation",
-                      "Guided realtime campus management modules",
-                      "Supported AI and analytics integration",
-                    ].map((item, i) => (
-                      <div
-                        key={i}
-                        className="
-                  flex
-                  items-start
-                  gap-3
-                "
-                      >
-                        <div
-                          className="
-                    h-2.5
-                    w-2.5
-
-                    rounded-full
-
-                    bg-yellow-400
-
-                    mt-2
-                  "
-                        />
-
-                        <p className="text-slate-300 leading-7">{item}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* TAGS */}
-
-                  <div
-                    className="
-              flex
-              flex-wrap
-
-              gap-3
-            "
-                  >
-                    {[
-                      "AI Systems",
-                      "Software Engineering",
-                      "ERP Guidance",
-                      "Technical Supervision",
-                    ].map((tag, i) => (
-                      <div
-                        key={i}
-                        className="
-                  px-5
-                  py-2
+                  h-72
+                  w-72
 
                   rounded-full
 
-                  bg-white/10
+                  bg-yellow-400/15
+
+                  blur-[100px]
+                "
+              />
+
+              <div
+                className="
+                  pointer-events-none
+
+                  absolute
+                  -bottom-20
+                  -left-20
+
+                  h-72
+                  w-72
+
+                  rounded-full
+
+                  bg-blue-600/15
+
+                  blur-[100px]
+                "
+              />
+
+              {/* MENTOR BADGE */}
+
+              <div
+                className="
+                  absolute
+                  right-5
+                  top-5
+
+                  z-10
+
+                  inline-flex
+                  items-center
+                  gap-2
+
+                  rounded-full
 
                   border
-                  border-white/10
+                  border-yellow-400/20
 
-                  text-slate-300
+                  bg-yellow-400/10
 
-                  text-sm
+                  px-4
+                  py-2
+
+                  text-xs
+                  font-bold
+                  text-yellow-300
                 "
+              >
+                <GraduationCap size={15} />
+                Project Mentor
+              </div>
+
+              <div
+                className="
+                  relative
+
+                  grid
+                  grid-cols-1
+                  gap-8
+
+                  md:grid-cols-[250px_1fr]
+                  md:items-center
+                "
+              >
+                {/* IMAGE */}
+
+                <div
+                  className="
+                    mx-auto
+
+                    h-56
+                    w-56
+
+                    rounded-full
+
+                    bg-gradient-to-br
+                    from-[#2563EB]
+                    via-[#60A5FA]
+                    to-[#F4C430]
+
+                    p-[5px]
+
+                    shadow-[0_20px_60px_rgba(37,99,235,.30)]
+
+                    md:mx-0
+                  "
+                >
+                  <img
+                    src="/dineshsir.jpeg"
+                    alt="Dr. Dinesh Sharma"
+                    className="
+                      h-full
+                      w-full
+
+                      rounded-full
+
+                      border-[5px]
+                      border-[#071120]
+
+                      object-cover
+                    "
+                  />
+                </div>
+
+                {/* DETAILS */}
+
+                <div
+                  className="
+                    text-center
+                    md:text-left
+                  "
+                >
+                  <div
+                    className="
+                      inline-flex
+                      items-center
+                      gap-2
+
+                      rounded-full
+
+                      bg-blue-500/10
+
+                      px-4
+                      py-2
+
+                      text-xs
+                      font-bold
+                      text-blue-300
+                    "
+                  >
+                    <GraduationCap size={15} />
+                    Academic Mentor
+                  </div>
+
+                  <h2
+                    className="
+                      mt-5
+
+                      text-3xl
+                      font-black
+                      text-white
+
+                      md:text-4xl
+                    "
+                  >
+                    Dr. Dinesh Sharma
+                  </h2>
+
+                  <p
+                    className="
+                      mt-2
+
+                      text-base
+                      font-semibold
+                      text-yellow-300
+
+                      md:text-lg
+                    "
+                  >
+                    Associate Professor • Amity University
+                  </p>
+
+                  <p
+                    className="
+                      mt-5
+
+                      text-sm
+                      leading-7
+                      text-slate-400
+                    "
+                  >
+                    Provided academic guidance, technical supervision and system
+                    design feedback throughout the CampusNexus ERP development
+                    lifecycle.
+                  </p>
+
+                  {/* MENTOR CONTRIBUTIONS */}
+
+                  <div
+                    className="
+                      mt-6
+
+                      grid
+                      grid-cols-1
+                      gap-3
+
+                      sm:grid-cols-2
+                    "
+                  >
+                    {[
+                      "Technical supervision",
+                      "System design guidance",
+                      "Project review",
+                      "Academic mentoring",
+                    ].map((item) => (
+                      <div
+                        key={item}
+                        className="
+                          flex
+                          items-center
+                          gap-2
+
+                          rounded-xl
+
+                          border
+                          border-white/[0.06]
+
+                          bg-white/[0.035]
+
+                          px-3
+                          py-2.5
+
+                          text-left
+                        "
                       >
-                        {tag}
+                        <CheckCircle2
+                          size={15}
+                          className="
+                            shrink-0
+                            text-emerald-400
+                          "
+                        />
+
+                        <span
+                          className="
+                            text-xs
+                            font-medium
+                            text-slate-300
+                          "
+                        >
+                          {item}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -640,425 +750,685 @@ export default function DevelopersSection() {
           </div>
         </div>
 
-        {/* TEAM */}
+        {/* ======================================
+            CORE TEAM
+        ====================================== */}
 
-        <div className="text-center mb-14">
-          <h3
+        <div className="mt-24">
+          <div className="text-center">
+            <p
+              className="
+                text-sm
+                font-bold
+                uppercase
+                tracking-[0.2em]
+                text-blue-300
+              "
+            >
+              Development
+            </p>
+
+            <h3
+              className="
+                mt-3
+
+                text-3xl
+                font-black
+                text-white
+
+                md:text-4xl
+              "
+            >
+              Core Development Team
+            </h3>
+
+            <p
+              className="
+                mt-2
+                text-sm
+                text-slate-400
+              "
+            >
+              CampusNexus ERP Development, Testing & Documentation
+            </p>
+          </div>
+
+          {/* ==================================
+              TEAM CARDS
+          ================================== */}
+
+          <div
             className="
-              text-3xl
-              md:text-4xl
+              mt-12
 
-              font-black
+              grid
+              grid-cols-1
+              gap-7
 
-              text-white
-
-              mb-3
+              md:grid-cols-2
+              xl:grid-cols-3
             "
           >
-            Core Development Team
-          </h3>
+            {team.map((member) => {
+              const flipped = flippedCard === member.id;
 
-          <p className="text-slate-400 text-lg">Smart Campus ERP Engineers</p>
-        </div>
-
-        {/* CARDS */}
-
-        <div
-          className="
-            grid
-            grid-cols-1
-            md:grid-cols-2
-
-            gap-10
-          "
-        >
-          {team.map((member) => {
-            const flipped = flippedCard === member.id;
-
-            return (
-              <div
-                key={member.id}
-                className="
-    group
-
-    relative
-
-    h-[700px]
-
-    [perspective:2000px]
-  "
-              >
+              return (
                 <div
+                  key={member.id}
                   className="
-    relative
+                    relative
+                    h-[680px]
+                    cursor-pointer
 
-    h-full
-    w-full
-
-    transition-transform
-    duration-1000
-
-    [transform-style:preserve-3d]
-
-    group-hover:[transform:rotateY(180deg)]
-  "
+                    [perspective:1800px]
+                  "
+                  onClick={() => toggleCard(member.id)}
                 >
-                  {/* FRONT */}
-                  ```jsx
-                  {/* FRONT */}
+                  {/* FLIP CONTAINER */}
+
                   <div
-                    className="
-    absolute
-    inset-0
+                    className={`
+                      relative
 
-    rounded-[36px]
+                      h-full
+                      w-full
 
-    border
-    border-white/10
+                      transition-transform
+                      duration-700
 
-    bg-black/95
+                      [transform-style:preserve-3d]
 
-    backdrop-blur-2xl
-
-    p-10
-
-    shadow-[0_20px_80px_rgba(0,0,0,.45)]
-
-    hover:border-yellow-400/20
-
-    hover:shadow-[0_30px_100px_rgba(244,196,48,.18)]
-
-    transition-all
-    duration-500
-
-    [backface-visibility:hidden]
-
-    overflow-hidden
-
-    flex
-    flex-col
-    items-center
-    justify-center
-  "
+                      ${flipped ? "[transform:rotateY(180deg)]" : ""}
+                    `}
                   >
-                    {/* IMAGE */}
+                    {/* ==================================
+                        FRONT SIDE
+                    ================================== */}
 
                     <div
                       className="
-      h-64
-      w-64
+                        absolute
+                        inset-0
 
-      rounded-full
+                        overflow-hidden
 
-      p-[5px]
+                        rounded-[32px]
 
-      bg-gradient-to-br
-      from-[#2563EB]
-      via-[#60A5FA]
-      to-[#F4C430]
+                        border
+                        border-white/10
 
-      shadow-[0_25px_80px_rgba(37,99,235,.35)]
+                        bg-[#0B1727]/95
 
-      mb-10
-    "
+                        p-7
+
+                        shadow-[0_25px_70px_rgba(0,0,0,.35)]
+
+                        backdrop-blur-2xl
+
+                        [backface-visibility:hidden]
+                      "
                     >
-                      <img
-                        src={member.image}
-                        alt={member.name}
+                      {/* GLOW */}
+
+                      <div
                         className="
-        h-full
-        w-full
+                          pointer-events-none
 
-        rounded-full
+                          absolute
+                          -right-20
+                          -top-20
 
-        object-cover
+                          h-64
+                          w-64
 
-        border-[5px]
-        border-black
-      "
+                          rounded-full
+
+                          bg-blue-600/15
+
+                          blur-[110px]
+                        "
                       />
-                    </div>
 
-                    {/* NAME */}
-
-                    <h2
-                      className="
-      text-4xl
-
-      font-black
-
-      text-white
-
-      mb-4
-
-      text-center
-    "
-                    >
-                      {member.name}
-                    </h2>
-
-                    {/* ROLE */}
-
-                    <p
-                      className="
-      text-slate-300
-
-      text-xl
-
-      text-center
-    "
-                    >
-                      {member.role}
-                    </p>
-                  </div>
-                  ```
-                  {/* BACK */}
-                  <div
-                    tabIndex={0}
-                    role="region"
-                    aria-label="Team Member Details"
-                    className="
-
-                      absolute
-                      inset-0
-
-                      rounded-[36px]
-
-                      border
-                      border-white/10
-
-                      bg-black/95
-
-                      backdrop-blur-2xl
-
-                      p-10
-
-                      shadow-[0_20px_80px_rgba(0,0,0,.45)]
-
-                      hover:border-yellow-400/20
-
-                      hover:shadow-[0_30px_100px_rgba(244,196,48,.18)]
-
-                      transition-all
-                      duration-500
-
-                      [transform:rotateY(180deg)]
-
-                      [backface-visibility:hidden]
-
-                      overflow-y-auto
-                    "
-                  >
-                    {/* NAME */}
-
-                    <h2
-                      className="
-                        text-4xl
-
-                        font-black
-
-                        text-white
-
-                        mb-4
-                      "
-                    >
-                      {member.name}
-                    </h2>
-
-                    {/* ROLE */}
-
-                    <p
-                      className="
-                        text-yellow-300
-
-                        text-xl
-
-                        mb-8
-
-                        font-semibold
-                      "
-                    >
-                      {member.role}
-                    </p>
-
-                    {/* DESCRIPTION */}
-
-                    <p
-                      className="
-                        text-slate-300
-
-                        leading-9
-
-                        text-base
-
-                        mb-10
-                      "
-                    >
-                      {member.description}
-                    </p>
-
-                    {/* CONTRIBUTIONS */}
-
-                    <div className="mb-10">
-                      <h3
+                      <div
                         className="
-                          text-white
+                          pointer-events-none
 
-                          text-2xl
+                          absolute
+                          -bottom-20
+                          -left-20
 
-                          font-bold
+                          h-64
+                          w-64
 
-                          mb-6
+                          rounded-full
+
+                          bg-yellow-400/10
+
+                          blur-[110px]
+                        "
+                      />
+
+                      {/* FRONT CONTENT */}
+
+                      <div
+                        className="
+                          relative
+
+                          flex
+                          h-full
+                          flex-col
                         "
                       >
-                        Key Contributions
-                      </h3>
+                        {/* ROLE NUMBER */}
 
-                      <div className="space-y-4">
-                        {member.contributions.map((item, i) => (
-                          <div
-                            key={i}
+                        <div
+                          className="
+                            flex
+                            items-center
+                            justify-between
+                          "
+                        >
+                          <span
                             className="
-                              flex
-                              items-start
-                              gap-3
+                              text-xs
+                              font-black
+                              tracking-[0.2em]
+                              text-white/20
                             "
                           >
-                            <div
-                              className="
-                                h-2.5
-                                w-2.5
+                            TEAM 0{member.id}
+                          </span>
 
-                                rounded-full
+                          <span
+                            className="
+                              rounded-full
 
-                                bg-yellow-400
+                              border
+                              border-white/10
 
-                                mt-2
-                              "
-                            />
+                              bg-white/[0.04]
 
-                            <p className="text-slate-300 leading-7">{item}</p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                              px-3
+                              py-1.5
 
-                    {/* TAGS */}
+                              text-[10px]
+                              font-bold
+                              text-slate-400
+                            "
+                          >
+                            Click for details
+                          </span>
+                        </div>
 
-                    <div
-                      className="
-                        flex
-                        flex-wrap
+                        {/* IMAGE */}
 
-                        gap-3
-
-                        mb-12
-                      "
-                    >
-                      {member.tags.map((tag, i) => (
                         <div
-                          key={i}
                           className="
-                            px-5
-                            py-2
+                            mx-auto
+                            mt-10
+
+                            h-52
+                            w-52
 
                             rounded-full
 
-                            bg-white/10
+                            bg-gradient-to-br
+                            from-[#2563EB]
+                            via-[#60A5FA]
+                            to-[#F4C430]
 
-                            border
-                            border-white/10
+                            p-[5px]
 
-                            text-slate-300
-
-                            text-sm
+                            shadow-[0_20px_60px_rgba(37,99,235,.30)]
                           "
                         >
-                          {tag}
+                          <img
+                            src={member.image}
+                            alt={member.name}
+                            className="
+                              h-full
+                              w-full
+
+                              rounded-full
+
+                              border-[5px]
+                              border-[#071120]
+
+                              object-cover
+                            "
+                          />
                         </div>
-                      ))}
+
+                        {/* NAME */}
+
+                        <h2
+                          className="
+                            mt-8
+
+                            text-center
+
+                            text-2xl
+                            font-black
+                            text-white
+
+                            md:text-3xl
+                          "
+                        >
+                          {member.name}
+                        </h2>
+
+                        {/* ROLE */}
+
+                        <p
+                          className="
+                            mt-3
+
+                            min-h-[48px]
+
+                            text-center
+
+                            text-sm
+                            font-bold
+                            leading-6
+                            text-yellow-300
+                          "
+                        >
+                          {member.role}
+                        </p>
+
+                        {/* DESCRIPTION */}
+
+                        <p
+                          className="
+                            mt-5
+
+                            line-clamp-4
+
+                            text-center
+
+                            text-sm
+                            leading-6
+                            text-slate-400
+                          "
+                        >
+                          {member.description}
+                        </p>
+
+                        {/* TAGS */}
+
+                        <div
+                          className="
+                            mt-auto
+
+                            flex
+                            flex-wrap
+                            justify-center
+                            gap-2
+
+                            pt-6
+                          "
+                        >
+                          {member.tags.slice(0, 3).map((tag) => (
+                            <span
+                              key={tag}
+                              className="
+                                  rounded-full
+
+                                  border
+                                  border-white/[0.07]
+
+                                  bg-white/[0.04]
+
+                                  px-3
+                                  py-1.5
+
+                                  text-[10px]
+                                  font-bold
+                                  text-slate-400
+                                "
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
-                    {/* STATS */}
+                    {/* ==================================
+                        BACK SIDE
+                    ================================== */}
 
-                    {member.stats && (
-                      <div
+                    <div
+                      className="
+                        absolute
+                        inset-0
+
+                        overflow-y-auto
+
+                        rounded-[32px]
+
+                        border
+                        border-yellow-400/15
+
+                        bg-[#081321]
+
+                        p-7
+
+                        shadow-[0_25px_70px_rgba(0,0,0,.40)]
+
+                        [transform:rotateY(180deg)]
+
+                        [backface-visibility:hidden]
+                      "
+                    >
+                      {/* NAME */}
+
+                      <h2
                         className="
-                          grid
-                          grid-cols-2
-
-                          gap-5
+                          text-2xl
+                          font-black
+                          text-white
                         "
                       >
-                        {member.stats.map((item, index) => {
-                          const Icon = item.icon;
+                        {member.name}
+                      </h2>
 
-                          return (
+                      <p
+                        className="
+                          mt-2
+
+                          text-sm
+                          font-bold
+                          text-yellow-300
+                        "
+                      >
+                        {member.role}
+                      </p>
+
+                      {/* DESCRIPTION */}
+
+                      <p
+                        className="
+                          mt-5
+
+                          text-sm
+                          leading-7
+                          text-slate-400
+                        "
+                      >
+                        {member.description}
+                      </p>
+
+                      {/* CONTRIBUTIONS */}
+
+                      <div className="mt-7">
+                        <h3
+                          className="
+                            text-base
+                            font-black
+                            text-white
+                          "
+                        >
+                          Key Contributions
+                        </h3>
+
+                        <div
+                          className="
+                            mt-4
+                            space-y-3
+                          "
+                        >
+                          {member.contributions.map((item, index) => (
                             <div
                               key={index}
                               className="
-                                rounded-3xl
-
-                                border
-                                border-white/10
-
-                                bg-white/[0.05]
-
-                                p-6
-
-                                text-center
-                              "
-                            >
-                              <div
-                                className="
-                                  h-14
-                                  w-14
-
-                                  rounded-2xl
-
-                                  bg-gradient-to-br
-                                  from-[#2563EB]
-                                  to-[#60A5FA]
-
                                   flex
-                                  items-center
-                                  justify-center
-
-                                  mx-auto
-
-                                  mb-4
+                                  items-start
+                                  gap-3
                                 "
-                              >
-                                <Icon size={24} className="text-white" />
-                              </div>
-
-                              <h3
+                            >
+                              <CheckCircle2
+                                size={15}
                                 className="
-                                  text-3xl
+                                    mt-1
+                                    shrink-0
+                                    text-emerald-400
+                                  "
+                              />
 
-                                  font-black
-
-                                  text-yellow-300
-
-                                  mb-2
-                                "
+                              <p
+                                className="
+                                    text-xs
+                                    leading-6
+                                    text-slate-300
+                                  "
                               >
-                                {item.value}
-                              </h3>
-
-                              <p className="text-slate-300 text-sm">
-                                {item.label}
+                                {item}
                               </p>
                             </div>
-                          );
-                        })}
+                          ))}
+                        </div>
                       </div>
-                    )}
+
+                      {/* TAGS */}
+
+                      <div
+                        className="
+                          mt-7
+
+                          flex
+                          flex-wrap
+                          gap-2
+                        "
+                      >
+                        {member.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="
+                                rounded-full
+
+                                border
+                                border-blue-400/10
+
+                                bg-blue-400/[0.06]
+
+                                px-3
+                                py-1.5
+
+                                text-[10px]
+                                font-bold
+                                text-blue-300
+                              "
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+
+                      {/* STATS */}
+
+                      {member.stats && (
+                        <div
+                          className="
+                            mt-7
+
+                            grid
+                            grid-cols-2
+                            gap-3
+                          "
+                        >
+                          {member.stats.map((item, index) => {
+                            const Icon = item.icon;
+
+                            return (
+                              <div
+                                key={index}
+                                className="
+                                    rounded-2xl
+
+                                    border
+                                    border-white/[0.07]
+
+                                    bg-white/[0.035]
+
+                                    p-4
+
+                                    text-center
+                                  "
+                              >
+                                <div
+                                  className="
+                                      mx-auto
+
+                                      flex
+                                      h-10
+                                      w-10
+                                      items-center
+                                      justify-center
+
+                                      rounded-xl
+
+                                      bg-blue-500/10
+
+                                      text-blue-300
+                                    "
+                                >
+                                  <Icon size={18} />
+                                </div>
+
+                                <h4
+                                  className="
+                                      mt-3
+
+                                      text-sm
+                                      font-black
+                                      text-yellow-300
+                                    "
+                                >
+                                  {item.value}
+                                </h4>
+
+                                <p
+                                  className="
+                                      mt-1
+
+                                      text-[10px]
+                                      text-slate-500
+                                    "
+                                >
+                                  {item.label}
+                                </p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* BACK HINT */}
+
+                      <div
+                        className="
+                          mt-7
+
+                          border-t
+                          border-white/[0.07]
+
+                          pt-4
+
+                          text-center
+                        "
+                      >
+                        <p
+                          className="
+                            text-[10px]
+                            font-bold
+                            text-slate-500
+                          "
+                        >
+                          Click again to return
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+        </div>
+
+        {/* ======================================
+            TEAM MESSAGE
+        ====================================== */}
+
+        <div
+          className="
+            mx-auto
+            mt-16
+
+            max-w-4xl
+
+            rounded-[28px]
+
+            border
+            border-white/10
+
+            bg-gradient-to-r
+            from-blue-500/[0.05]
+            via-white/[0.025]
+            to-yellow-400/[0.05]
+
+            p-6
+
+            text-center
+          "
+        >
+          <div
+            className="
+              mx-auto
+
+              flex
+              h-12
+              w-12
+              items-center
+              justify-center
+
+              rounded-xl
+
+              bg-yellow-400/10
+
+              text-yellow-300
+            "
+          >
+            <Users size={22} />
+          </div>
+
+          <h3
+            className="
+              mt-4
+
+              text-lg
+              font-black
+              text-white
+            "
+          >
+            Collaborative Campus Innovation
+          </h3>
+
+          <p
+            className="
+              mx-auto
+              mt-2
+              max-w-2xl
+
+              text-sm
+              leading-6
+              text-slate-400
+            "
+          >
+            CampusNexus represents a collaborative effort combining software
+            development, testing, documentation and academic guidance to solve
+            practical campus management challenges.
+          </p>
         </div>
       </div>
     </section>

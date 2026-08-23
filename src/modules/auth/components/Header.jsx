@@ -1,99 +1,135 @@
 import React from "react";
 
-import { Menu, X, ChevronRight, Sparkles, Sun, Moon } from "lucide-react";
+import { Menu, X, ChevronRight, Sparkles, LogIn, UserPlus } from "lucide-react";
 
 import { useNavigate } from "react-router-dom";
 
+// ==========================================
+// NAVIGATION ITEMS
+// ==========================================
+
+const navigationItems = [
+  {
+    label: "Solutions",
+    id: "solutions",
+  },
+
+  {
+    label: "ERP Demo",
+    id: "portal-demo",
+  },
+
+  {
+    label: "Features",
+    id: "features",
+  },
+
+  {
+    label: "Contact",
+    id: "contact",
+  },
+];
+
+// ==========================================
+// HEADER
+// ==========================================
+
 export default function Header() {
+  const navigate = useNavigate();
+
   const [mobileMenuOpen, setMobileMenuOpen] = React.useState(false);
 
   const [showAuthModal, setShowAuthModal] = React.useState(false);
 
-  const [darkMode, setDarkMode] = React.useState(
-    localStorage.getItem("theme") !== "light",
-  );
-
-  const navigate = useNavigate();
-
-  React.useEffect(() => {
-    if (darkMode) {
-      document.documentElement.classList.add("dark");
-
-      document.body.style.background = "#071120";
-
-      document.body.style.color = "#071120";
-
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-
-      document.body.style.background = "#F7F9FC";
-
-      document.body.style.color = "#071120";
-
-      localStorage.setItem("theme", "light");
-    }
-  }, [darkMode]);
+  // ==========================================
+  // SCROLL TO SECTION
+  // ==========================================
 
   const scrollToSection = (id) => {
     const element = document.getElementById(id);
 
-    if (element) {
-      const offset = 100;
-
-      const bodyRect = document.body.getBoundingClientRect().top;
-
-      const elementRect = element.getBoundingClientRect().top;
-
-      const elementPosition = elementRect - bodyRect;
-
-      const offsetPosition = elementPosition - offset;
-
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: "smooth",
-      });
-
-      setMobileMenuOpen(false);
+    if (!element) {
+      return;
     }
+
+    const headerOffset = 95;
+
+    const elementPosition =
+      element.getBoundingClientRect().top + window.pageYOffset;
+
+    const offsetPosition = elementPosition - headerOffset;
+
+    window.scrollTo({
+      top: offsetPosition,
+
+      behavior: "smooth",
+    });
+
+    setMobileMenuOpen(false);
+  };
+
+  // ==========================================
+  // SCROLL TO TOP
+  // ==========================================
+
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+
+      behavior: "smooth",
+    });
+
+    setMobileMenuOpen(false);
+  };
+
+  // ==========================================
+  // OPEN ERP ACCESS
+  // ==========================================
+
+  const openERPAccess = () => {
+    setMobileMenuOpen(false);
+
+    setShowAuthModal(true);
   };
 
   return (
     <>
-      {/* HEADER */}
+      {/* ======================================
+          HEADER
+      ====================================== */}
 
       <header
         className="
           fixed
-          top-0
           left-0
-          w-full
+          top-0
           z-50
 
-          border-b
-          border-[#F4C430]/10
+          w-full
 
-          bg-[#06101F]/75
-          dark:bg-[#06101F]/75
+          border-b
+          border-white/10
+
+          bg-[#06101F]/95
+
+          shadow-[0_12px_45px_rgba(0,0,0,.30)]
 
           backdrop-blur-2xl
-
-          shadow-[0_10px_40px_rgba(0,0,0,.35)]
         "
       >
-        {/* TOP GLOW */}
+        {/* SUBTLE HEADER GLOW */}
 
         <div
           className="
+            pointer-events-none
+
             absolute
             inset-0
 
             bg-gradient-to-r
-            from-blue-500/5
-            via-yellow-400/5
-            to-blue-500/5
-
-            blur-3xl
+            from-blue-500/[0.04]
+            via-yellow-400/[0.04]
+            to-blue-500/[0.04]
           "
         />
 
@@ -101,46 +137,50 @@ export default function Header() {
           className="
             relative
 
-            max-w-7xl
             mx-auto
 
-            px-6
-            md:px-10
-
-            h-[88px]
-
             flex
+            h-[88px]
+            max-w-7xl
             items-center
             justify-between
+
+            px-5
+            sm:px-6
+            md:px-10
           "
         >
-          {/* LOGO */}
+          {/* ==================================
+              BRAND
+          ================================== */}
 
-          <div
-            onClick={() =>
-              window.scrollTo({
-                top: 0,
-                behavior: "smooth",
-              })
-            }
+          <button
+            type="button"
+            onClick={scrollToTop}
             className="
+              group
+
               flex
               items-center
-              gap-4
+              gap-3
 
-              cursor-pointer
+              text-left
 
-              group
+              sm:gap-4
             "
           >
-            {/* ICON */}
+            {/* LOGO */}
 
             <div
               className="
                 relative
 
-                h-14
-                w-14
+                flex
+                h-12
+                w-12
+                shrink-0
+                items-center
+                justify-center
 
                 rounded-2xl
 
@@ -149,16 +189,16 @@ export default function Header() {
                 via-[#2563EB]
                 to-[#F4C430]
 
-                flex
-                items-center
-                justify-center
-
-                shadow-[0_15px_45px_rgba(37,99,235,.45)]
-
-                group-hover:scale-105
+                shadow-[0_12px_35px_rgba(37,99,235,.35)]
 
                 transition-all
                 duration-300
+
+                group-hover:-translate-y-0.5
+                group-hover:scale-105
+
+                sm:h-14
+                sm:w-14
               "
             >
               <Sparkles size={24} className="text-white" />
@@ -167,14 +207,13 @@ export default function Header() {
                 className="
                   absolute
                   inset-0
+                  -z-10
 
                   rounded-2xl
 
-                  bg-[#F4C430]/30
+                  bg-[#F4C430]/20
 
                   blur-2xl
-
-                  -z-10
                 "
               />
             </div>
@@ -184,21 +223,21 @@ export default function Header() {
             <div>
               <h1
                 className="
-                  text-[32px]
-
-                  leading-none
-
-                  font-black
-
-                  tracking-tight
-
                   bg-gradient-to-r
                   from-white
-                  via-[#F4F7FF]
+                  via-[#F8FAFF]
                   to-[#F4C430]
 
                   bg-clip-text
+
+                  text-[22px]
+                  font-black
+                  leading-none
+                  tracking-tight
                   text-transparent
+
+                  sm:text-[27px]
+                  lg:text-[30px]
                 "
               >
                 CAMPUSNEXUS
@@ -208,156 +247,102 @@ export default function Header() {
                 className="
                   mt-1
 
-                  text-[11px]
+                  hidden
 
+                  text-[9px]
                   font-bold
-
                   uppercase
-
-                  tracking-[4px]
-
+                  tracking-[3.5px]
                   text-[#9DBAF3]
+
+                  sm:block
                 "
               >
                 Smart Campus ERP
               </p>
             </div>
-          </div>
+          </button>
 
-          {/* DESKTOP NAV */}
+          {/* ==================================
+              DESKTOP NAVIGATION
+          ================================== */}
 
           <nav
             className="
               hidden
-              lg:flex
-
               items-center
+              gap-8
 
-              gap-10
+              lg:flex
+              xl:gap-10
             "
           >
-            {[
-              {
-                label: "Solutions",
-                id: "features",
-              },
-
-              {
-                label: "ERP Demo",
-                id: "portal-demo",
-              },
-
-              {
-                label: "Features",
-                id: "features",
-              },
-
+            {navigationItems.map((item) => (
               <button
-                onClick={() => scrollToSection("contact")}
-                className="text-left text-white font-semibold"
-              >
-                Contact
-              </button>,
-            ].map((item, index) => (
-              <button
-                key={index}
+                key={item.id}
+                type="button"
                 onClick={() => scrollToSection(item.id)}
-                aria-label={item.label || "Navigation Button"}
                 className="
-    relative
+                    relative
 
-    text-sm
-    font-semibold
+                    py-2
 
-    text-slate-300
+                    text-sm
+                    font-bold
+                    text-slate-300
 
-    hover:text-[#F4C430]
+                    transition-all
+                    duration-300
 
-    after:absolute
-    after:left-0
-    after:-bottom-1
+                    after:absolute
+                    after:-bottom-1
+                    after:left-0
 
-    after:h-[2px]
-    after:w-0
+                    after:h-[2px]
+                    after:w-0
 
-    after:bg-[#F4C430]
+                    after:rounded-full
 
-    after:transition-all
+                    after:bg-[#F4C430]
 
-    hover:after:w-full
+                    after:transition-all
+                    after:duration-300
 
-    transition-all
-  "
+                    hover:text-[#F4C430]
+                    hover:after:w-full
+                  "
               >
-                {item.label || "Menu"}
+                {item.label}
               </button>
             ))}
           </nav>
 
-          {/* RIGHT */}
+          {/* ==================================
+              RIGHT SIDE
+          ================================== */}
 
           <div
             className="
               flex
               items-center
-
-              gap-4
+              gap-3
             "
           >
-            {/* THEME TOGGLE */}
-
-            <button
-              onClick={() => setDarkMode(!darkMode)}
-              aria-label="Toggle Dark Mode"
-              className="
-    hidden
-    md:flex
-
-    h-12
-    w-12
-
-    rounded-2xl
-
-    border
-    border-white/10
-
-    bg-white/5
-
-    text-white
-
-    items-center
-    justify-center
-
-    hover:border-[#F4C430]/40
-    hover:bg-white/10
-
-    transition-all
-  "
-            >
-              {darkMode ? (
-                <Sun size={20} className="text-[#F4C430]" />
-              ) : (
-                <Moon size={20} className="text-[#2563EB]" />
-              )}
-            </button>
-
             {/* LAUNCH ERP */}
 
             <button
-              onClick={() => setShowAuthModal(true)}
+              type="button"
+              onClick={openERPAccess}
               className="
+                group
+
                 relative
 
                 hidden
-                md:flex
-
                 items-center
                 gap-2
 
                 overflow-hidden
-
-                px-8
-                py-3.5
 
                 rounded-2xl
 
@@ -366,33 +351,37 @@ export default function Header() {
                 via-[#FFD95A]
                 to-[#F7C600]
 
-                text-[#071120]
+                px-7
+                py-3.5
 
                 font-black
+                text-[#071120]
 
-                shadow-[0_15px_45px_rgba(244,196,48,.40)]
-
-                hover:scale-105
-                hover:shadow-[0_20px_55px_rgba(244,196,48,.55)]
+                shadow-[0_14px_40px_rgba(244,196,48,.30)]
 
                 transition-all
                 duration-300
+
+                hover:-translate-y-0.5
+                hover:shadow-[0_18px_50px_rgba(244,196,48,.42)]
+
+                md:flex
               "
             >
               {/* SHINE */}
 
-              <div
+              <span
                 className="
                   absolute
+                  -left-[120%]
                   top-0
-                  left-[-120%]
 
                   h-full
-                  w-[120px]
+                  w-[100px]
 
                   rotate-12
 
-                  bg-white/40
+                  bg-white/35
 
                   blur-xl
 
@@ -405,103 +394,121 @@ export default function Header() {
 
               <span className="relative z-10">Launch ERP</span>
 
-              <ChevronRight size={20} className="relative z-10" />
+              <ChevronRight
+                size={19}
+                className="
+                  relative
+                  z-10
+
+                  transition-transform
+                  duration-300
+
+                  group-hover:translate-x-1
+                "
+              />
             </button>
 
             {/* MOBILE MENU */}
 
             <button
+              type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              aria-label="Open navigation menu"
               className="
-                lg:hidden
+                flex
+                h-11
+                w-11
+                items-center
+                justify-center
 
-                h-12
-                w-12
-
-                rounded-2xl
+                rounded-xl
 
                 border
                 border-white/10
 
-                bg-white/5
+                bg-white/[0.05]
 
                 text-white
 
-                flex
-                items-center
-                justify-center
+                transition-all
+
+                hover:bg-white/[0.10]
+
+                lg:hidden
               "
             >
-              {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              {mobileMenuOpen ? <X size={23} /> : <Menu size={23} />}
             </button>
           </div>
         </div>
 
-        {/* MOBILE MENU */}
+        {/* ==================================
+            MOBILE MENU
+        ================================== */}
 
         {mobileMenuOpen && (
           <div
             className="
-              lg:hidden
-
               border-t
               border-white/10
 
-              bg-[#071120]/95
+              bg-[#071120]/98
+
+              px-5
+              py-5
+
+              shadow-2xl
 
               backdrop-blur-2xl
 
-              px-6
-              py-6
-
-              animate-fadeIn
+              lg:hidden
             "
           >
-            <div className="flex flex-col gap-5">
-              <button
-                onClick={() => {
-                  const section = document.getElementById("features");
+            <div
+              className="
+                mx-auto
+                flex
+                max-w-7xl
+                flex-col
+                gap-2
+              "
+            >
+              {navigationItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => scrollToSection(item.id)}
+                  className="
+                      rounded-xl
 
-                  if (section) {
-                    section.scrollIntoView({
-                      behavior: "smooth",
-                    });
-                  }
-                }}
-                className="text-left text-white font-semibold"
-              >
-                Solutions
-              </button>
+                      px-4
+                      py-3
 
-              <button
-                onClick={() => scrollToSection("portal-demo")}
-                className="text-left text-white font-semibold"
-              >
-                ERP Demo
-              </button>
+                      text-left
+                      font-bold
+                      text-slate-200
 
-              <button
-                onClick={() => scrollToSection("features")}
-                className="text-left text-white font-semibold"
-              >
-                Features
-              </button>
+                      transition-all
 
-              <button
-                onClick={() => scrollToSection("contact")}
-                className="text-left text-white font-semibold"
-              >
-                Contact
-              </button>
+                      hover:bg-white/[0.06]
+                      hover:text-yellow-300
+                    "
+                >
+                  {item.label}
+                </button>
+              ))}
 
               <button
-                onClick={() => setShowAuthModal(true)}
+                type="button"
+                onClick={openERPAccess}
                 className="
-                  mt-2
+                  mt-3
 
+                  flex
                   w-full
-
-                  py-3
+                  items-center
+                  justify-center
+                  gap-2
 
                   rounded-2xl
 
@@ -509,19 +516,23 @@ export default function Header() {
                   from-[#F4C430]
                   to-[#FFD54F]
 
-                  text-[#071120]
+                  py-3.5
 
                   font-black
+                  text-[#071120]
                 "
               >
                 Launch ERP
+                <ChevronRight size={18} />
               </button>
             </div>
           </div>
         )}
       </header>
 
-      {/* AUTH MODAL */}
+      {/* ======================================
+          AUTH MODAL
+      ====================================== */}
 
       {showAuthModal && (
         <div
@@ -534,12 +545,13 @@ export default function Header() {
             items-center
             justify-center
 
-            bg-black/75
+            bg-black/80
+
+            px-4
 
             backdrop-blur-md
-
-            px-5
           "
+          onClick={() => setShowAuthModal(false)}
         >
           <div
             className="
@@ -548,63 +560,90 @@ export default function Header() {
               w-full
               max-w-2xl
 
-              rounded-[36px]
+              overflow-hidden
+
+              rounded-[34px]
 
               border
               border-white/10
 
               bg-[#071120]
 
-              overflow-hidden
-
-              shadow-[0_30px_80px_rgba(0,0,0,.65)]
-
-              animate-fadeIn
+              shadow-[0_35px_100px_rgba(0,0,0,.70)]
             "
+            onClick={(e) => e.stopPropagation()}
           >
-            {/* TOP LINE */}
+            {/* TOP COLOR LINE */}
 
             <div
               className="
                 absolute
-                top-0
                 left-0
+                top-0
 
-                w-full
                 h-1
+                w-full
 
                 bg-gradient-to-r
-                from-[#0F4C81]
+                from-[#2563EB]
                 via-[#F4C430]
-                to-[#2563EB]
+                to-[#7A0019]
+              "
+            />
+
+            {/* GLOW */}
+
+            <div
+              className="
+                pointer-events-none
+
+                absolute
+                left-1/2
+                top-0
+
+                h-44
+                w-[500px]
+
+                -translate-x-1/2
+
+                bg-blue-500/10
+
+                blur-[100px]
               "
             />
 
             {/* CLOSE */}
 
             <button
+              type="button"
               onClick={() => setShowAuthModal(false)}
+              aria-label="Close ERP access window"
               className="
                 absolute
-                top-5
                 right-5
-
-                h-10
-                w-10
-
-                rounded-full
-
-                bg-white/5
-
-                text-white
+                top-5
+                z-10
 
                 flex
+                h-10
+                w-10
                 items-center
                 justify-center
 
-                hover:bg-red-500/20
+                rounded-full
+
+                border
+                border-white/10
+
+                bg-white/[0.05]
+
+                text-white
 
                 transition-all
+
+                hover:border-red-400/30
+                hover:bg-red-500/10
+                hover:text-red-300
               "
             >
               <X size={20} />
@@ -612,15 +651,24 @@ export default function Header() {
 
             {/* CONTENT */}
 
-            <div className="p-12 text-center">
+            <div
+              className="
+                relative
+
+                p-7
+                text-center
+
+                sm:p-10
+                md:p-12
+              "
+            >
+              {/* BADGE */}
+
               <div
                 className="
                   inline-flex
                   items-center
                   gap-2
-
-                  px-5
-                  py-2
 
                   rounded-full
 
@@ -629,123 +677,114 @@ export default function Header() {
 
                   bg-yellow-400/10
 
+                  px-5
+                  py-2.5
+
+                  text-sm
+                  font-bold
                   text-yellow-300
-
-                  font-semibold
-
-                  mb-8
                 "
               >
                 <Sparkles size={16} />
-                Smart Campus ERP Access
+                Campus ERP Access
               </div>
+
+              {/* TITLE */}
 
               <h2
                 className="
-                  text-5xl
+                  mt-7
 
+                  text-3xl
                   font-black
-
                   text-white
+
+                  sm:text-4xl
                 "
               >
-                Welcome to
+                Welcome to CampusNexus
               </h2>
-
-              <h1
-                className="
-                  mt-2
-
-                  text-6xl
-
-                  font-black
-
-                  bg-gradient-to-r
-                  from-[#F4C430]
-                  via-white
-                  to-[#2563EB]
-
-                  bg-clip-text
-                  text-transparent
-                "
-              >
-                CAMPUSNEXUS
-              </h1>
 
               <p
                 className="
-                  mt-5
+                  mx-auto
+                  mt-4
+                  max-w-md
 
-                  text-slate-300
+                  text-sm
+                  leading-6
+                  text-slate-400
 
-                  text-lg
+                  sm:text-base
                 "
               >
-                Access your Smart Campus ERP services
+                Login to access your role-based ERP dashboard or create a
+                student account.
               </p>
 
-              {/* BUTTONS */}
+              {/* ACCESS CARDS */}
 
               <div
                 className="
-                  mt-12
+                  mt-9
 
                   grid
-                  md:grid-cols-2
+                  grid-cols-1
+                  gap-5
 
-                  gap-6
+                  md:grid-cols-2
                 "
               >
                 {/* LOGIN */}
 
                 <button
+                  type="button"
                   onClick={() => navigate("/login")}
                   className="
                     group
 
-                    relative
-
-                    overflow-hidden
-
-                    p-8
-
                     rounded-3xl
 
                     border
-                    border-white/10
+                    border-blue-400/15
 
-                    bg-white/5
+                    bg-blue-500/[0.07]
 
-                    hover:border-[#2563EB]
+                    p-7
 
-                    hover:-translate-y-2
+                    text-left
 
                     transition-all
                     duration-300
+
+                    hover:-translate-y-1
+                    hover:border-blue-400/35
+                    hover:bg-blue-500/[0.10]
                   "
                 >
                   <div
                     className="
-                      absolute
-                      inset-0
+                      flex
+                      h-12
+                      w-12
+                      items-center
+                      justify-center
 
-                      bg-gradient-to-br
-                      from-blue-500/10
-                      to-transparent
+                      rounded-xl
 
-                      opacity-0
+                      bg-blue-500/15
 
-                      group-hover:opacity-100
-
-                      transition-all
+                      text-blue-300
                     "
-                  />
+                  >
+                    <LogIn size={23} />
+                  </div>
 
                   <h3
                     className="
-                      relative
+                      mt-5
 
-                      text-3xl
+                      text-2xl
                       font-black
                       text-white
                     "
@@ -755,88 +794,136 @@ export default function Header() {
 
                   <p
                     className="
-                      relative
+                      mt-2
 
-                      mt-3
-
+                      text-sm
+                      leading-6
                       text-slate-400
                     "
                   >
-                    Continue to your ERP dashboard
+                    Continue to your assigned CampusNexus dashboard.
                   </p>
+
+                  <div
+                    className="
+                      mt-5
+
+                      flex
+                      items-center
+                      gap-2
+
+                      text-sm
+                      font-bold
+                      text-blue-300
+                    "
+                  >
+                    Continue
+                    <ArrowIcon />
+                  </div>
                 </button>
 
-                {/* SIGNUP */}
+                {/* REGISTER */}
 
                 <button
+                  type="button"
                   onClick={() => navigate("/register")}
                   className="
                     group
 
-                    relative
-
-                    overflow-hidden
-
-                    p-8
-
                     rounded-3xl
 
                     border
-                    border-[#F4C430]/30
+                    border-yellow-400/20
 
-                    bg-[#F4C430]/10
+                    bg-yellow-400/[0.07]
 
-                    hover:bg-[#F4C430]/20
+                    p-7
 
-                    hover:-translate-y-2
+                    text-left
 
                     transition-all
                     duration-300
+
+                    hover:-translate-y-1
+                    hover:border-yellow-400/35
+                    hover:bg-yellow-400/[0.10]
                   "
                 >
                   <div
                     className="
-                      absolute
-                      inset-0
+                      flex
+                      h-12
+                      w-12
+                      items-center
+                      justify-center
 
-                      bg-gradient-to-br
-                      from-yellow-400/20
-                      to-transparent
+                      rounded-xl
 
-                      opacity-0
+                      bg-yellow-400/15
 
-                      group-hover:opacity-100
-
-                      transition-all
+                      text-yellow-300
                     "
-                  />
+                  >
+                    <UserPlus size={23} />
+                  </div>
 
                   <h3
                     className="
-                      relative
+                      mt-5
 
-                      text-3xl
+                      text-2xl
                       font-black
-
-                      text-[#F4C430]
+                      text-yellow-300
                     "
                   >
-                    Signup
+                    Student Signup
                   </h3>
 
                   <p
                     className="
-                      relative
+                      mt-2
 
-                      mt-3
-
-                      text-[#F4C430]/80
+                      text-sm
+                      leading-6
+                      text-slate-400
                     "
                   >
-                    Create your Smart Campus account
+                    Register a new student account using your university email.
                   </p>
+
+                  <div
+                    className="
+                      mt-5
+
+                      flex
+                      items-center
+                      gap-2
+
+                      text-sm
+                      font-bold
+                      text-yellow-300
+                    "
+                  >
+                    Create Account
+                    <ArrowIcon />
+                  </div>
                 </button>
               </div>
+
+              {/* NOTE */}
+
+              <p
+                className="
+                  mt-7
+
+                  text-xs
+                  leading-5
+                  text-slate-500
+                "
+              >
+                Staff and management accounts are provided according to
+                authorized campus roles.
+              </p>
             </div>
           </div>
         </div>
@@ -844,3 +931,21 @@ export default function Header() {
     </>
   );
 }
+
+// ==========================================
+// SMALL ARROW
+// ==========================================
+
+const ArrowIcon = () => {
+  return (
+    <ChevronRight
+      size={17}
+      className="
+        transition-transform
+        duration-300
+
+        group-hover:translate-x-1
+      "
+    />
+  );
+};

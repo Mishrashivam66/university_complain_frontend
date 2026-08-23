@@ -1,253 +1,435 @@
-import React from "react";
-
 import {
-  Info,
   Building2,
-  Sparkles,
-  ShieldCheck,
+  CheckCircle2,
   ChevronRight,
+  ClipboardCheck,
+  Database,
+  GraduationCap,
+  Landmark,
+  Layers3,
+  ShieldCheck,
+  Sparkles,
+  Users,
 } from "lucide-react";
 
+// ==========================================
+// PREMIUM INFORMATION SECTION
+// ==========================================
+
 export default function PremiumInfoSection() {
+  // ==========================================
+  // INFORMATION CARDS
+  // ==========================================
+
   const cards = [
     {
-      title: "Navigation Assistance Guide",
-      icon: Info,
-      color: "from-blue-600 to-cyan-400",
+      title: "Structured Campus Operations",
+
+      icon: Layers3,
+
+      color: "from-[#1D4ED8] via-[#2563EB] to-[#60A5FA]",
+
+      glow: "bg-blue-500/15",
+
       description:
-        "CampusNexus ERP is optimized for touchscreens, accessibility workflows and keyboard navigation for modern smart campus operations.",
+        "CampusNexus organizes campus services into structured digital workflows so every department can work through clearly defined responsibilities.",
+
+      points: [
+        "Role-based workflows",
+        "Centralized operations",
+        "Structured service tracking",
+      ],
     },
 
     {
-      title: "Departmental Sitemaps",
+      title: "Department Coordination",
+
       icon: Building2,
-      color: "from-pink-500 to-rose-400",
+
+      color: "from-[#B7791F] via-[#D4A72C] to-[#F4C430]",
+
+      glow: "bg-yellow-400/15",
+
       description:
-        "AI powered routing automatically forwards complaints to wardens, electricians, maintenance teams and inventory departments instantly.",
+        "Students, Wardens, Hostel Director, Maintenance, Store and Administration work through dedicated ERP modules while remaining connected within one platform.",
+
+      points: [
+        "Connected departments",
+        "Dedicated dashboards",
+        "Clear responsibility flow",
+      ],
     },
 
     {
-      title: "Security & Monitoring",
+      title: "Security & Governance",
+
       icon: ShieldCheck,
-      color: "from-emerald-500 to-green-400",
+
+      color: "from-[#5B1025] via-[#7A0019] to-[#A61B3C]",
+
+      glow: "bg-red-700/15",
+
       description:
-        "Enterprise grade monitoring with realtime issue tracking, secure access control and operational analytics dashboards.",
+        "Secure authentication and role-based permissions ensure that users access only the information and operations assigned to their responsibilities.",
+
+      points: [
+        "Secure authentication",
+        "Role-based access",
+        "Controlled operations",
+      ],
+    },
+  ];
+
+  // ==========================================
+  // GOVERNANCE ITEMS
+  // ==========================================
+
+  const governanceItems = [
+    {
+      icon: Users,
+      title: "Role Based",
+      subtitle: "Dedicated access",
+    },
+
+    {
+      icon: Database,
+      title: "Centralized",
+      subtitle: "Connected records",
+    },
+
+    {
+      icon: ClipboardCheck,
+      title: "Trackable",
+      subtitle: "Workflow status",
+    },
+
+    {
+      icon: ShieldCheck,
+      title: "Secure",
+      subtitle: "Controlled access",
     },
   ];
 
   return (
     <section
+      id="solutions"
       className="
         relative
-
         overflow-hidden
 
-        py-28
-
         bg-gradient-to-b
-        from-[#071120]
-        via-[#0B1730]
+        from-[#06101F]
+        via-[#0A1729]
         to-[#071120]
+
+        py-28
+        md:py-32
       "
     >
-      {/* GRID BACKGROUND */}
+      {/* ======================================
+          GRID BACKGROUND
+      ====================================== */}
 
       <div
         className="
+          pointer-events-none
           absolute
           inset-0
 
-          opacity-[0.04]
+          opacity-[0.035]
 
           bg-[linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)]
 
-          bg-[size:70px_70px]
+          bg-[size:72px_72px]
         "
       />
 
-      {/* BLUE GLOW */}
+      {/* ======================================
+          BLUE GLOW
+      ====================================== */}
 
       <div
         className="
+          pointer-events-none
+
           absolute
+          -left-32
           top-0
-          left-0
 
-          h-[400px]
-          w-[400px]
+          h-[450px]
+          w-[450px]
 
-          bg-blue-500/20
+          rounded-full
 
-          blur-[140px]
+          bg-blue-600/15
+
+          blur-[160px]
         "
       />
 
-      {/* YELLOW GLOW */}
+      {/* ======================================
+          GOLD GLOW
+      ====================================== */}
 
       <div
         className="
-          absolute
-          bottom-0
-          right-0
+          pointer-events-none
 
-          h-[400px]
-          w-[400px]
+          absolute
+          -right-32
+          bottom-0
+
+          h-[450px]
+          w-[450px]
+
+          rounded-full
 
           bg-yellow-400/10
 
-          blur-[140px]
+          blur-[160px]
         "
       />
 
-      <div className="relative max-w-7xl mx-auto px-6 md:px-10">
-        {/* TOP */}
+      {/* ======================================
+          MAROON GLOW
+      ====================================== */}
 
-        <div className="text-center mb-20">
+      <div
+        className="
+          pointer-events-none
+
+          absolute
+          left-1/2
+          top-1/2
+
+          h-[350px]
+          w-[350px]
+
+          -translate-x-1/2
+          -translate-y-1/2
+
+          rounded-full
+
+          bg-[#7A0019]/10
+
+          blur-[150px]
+        "
+      />
+
+      {/* ======================================
+          CONTAINER
+      ====================================== */}
+
+      <div
+        className="
+          relative
+
+          mx-auto
+          max-w-7xl
+
+          px-6
+          md:px-10
+        "
+      >
+        {/* ======================================
+            SECTION HEADER
+        ====================================== */}
+
+        <div
+          className="
+            mx-auto
+            max-w-4xl
+            text-center
+          "
+        >
+          {/* BADGE */}
+
           <div
             className="
               inline-flex
               items-center
               gap-2
 
-              px-5
-              py-2
-
               rounded-full
 
               border
               border-yellow-400/20
 
-              bg-yellow-400/10
+              bg-yellow-400/[0.08]
 
+              px-5
+              py-2.5
+
+              font-bold
               text-yellow-300
 
-              font-semibold
-
-              mb-6
+              backdrop-blur-xl
             "
           >
-            <Sparkles size={16} />
-            Campus Intelligence
+            <Sparkles size={17} />
+            Institutional ERP Framework
           </div>
+
+          {/* TITLE */}
 
           <h2
             className="
-              text-5xl
-              md:text-7xl
+              mt-7
 
+              text-4xl
               font-black
-
               leading-tight
-
               text-white
+
+              md:text-6xl
+              xl:text-7xl
             "
           >
-            Premium ERP
+            Digital Campus
             <br />
             <span
               className="
                 bg-gradient-to-r
-                from-[#2563EB]
-                via-[#60A5FA]
+                from-[#60A5FA]
+                via-white
                 to-[#F4C430]
 
                 bg-clip-text
                 text-transparent
               "
             >
-              Information Center
+              Governance & Coordination
             </span>
           </h2>
 
+          {/* DESCRIPTION */}
+
           <p
             className="
-              max-w-3xl
               mx-auto
+              mt-7
+              max-w-3xl
 
-              mt-8
-
-              text-lg
-              md:text-xl
-
-              leading-9
-
+              text-base
+              leading-8
               text-slate-300
+
+              md:text-lg
             "
           >
-            CampusNexus combines smart campus workflows, AI powered automation,
-            maintenance systems and realtime operational intelligence into one
-            premium ERP experience.
+            CampusNexus provides a structured digital environment where campus
+            departments can coordinate their operations while maintaining
+            individual responsibilities, controlled access and transparent
+            workflow tracking.
           </p>
         </div>
 
-        {/* CARDS */}
+        {/* ======================================
+            CARDS
+        ====================================== */}
 
         <div
           className="
+            mt-16
+
             grid
             grid-cols-1
-            lg:grid-cols-3
+            gap-6
 
-            gap-8
+            lg:grid-cols-3
           "
         >
           {cards.map((item, index) => {
             const Icon = item.icon;
 
             return (
-              <div
+              <article
                 key={index}
                 className="
                   group
 
                   relative
-
                   overflow-hidden
 
-                  rounded-[34px]
+                  rounded-[32px]
 
                   border
-                  border-yellow-400/10
+                  border-white/10
 
-                  bg-[#0F172A]/80
+                  bg-[#0D192A]/85
 
-                  backdrop-blur-2xl
+                  p-7
 
-                  p-9
+                  shadow-[0_20px_60px_rgba(0,0,0,.30)]
 
-                  shadow-[0_20px_60px_rgba(0,0,0,.35)]
-
-                  hover:-translate-y-3
-
-                  hover:border-yellow-400/30
-
-                  hover:shadow-[0_20px_60px_rgba(244,196,48,.15)]
+                  backdrop-blur-xl
 
                   transition-all
                   duration-500
+
+                  hover:-translate-y-2
+
+                  hover:border-yellow-400/20
                 "
               >
-                {/* CARD GLOW */}
+                {/* TOP ACCENT */}
 
                 <div
                   className={`
                     absolute
-                    -top-10
-                    -right-10
+                    left-0
+                    top-0
 
-                    h-40
-                    w-40
+                    h-[3px]
+                    w-full
+
+                    bg-gradient-to-r
+                    ${item.color}
+
+                    opacity-80
+                  `}
+                />
+
+                {/* GLOW */}
+
+                <div
+                  className={`
+                    pointer-events-none
+
+                    absolute
+                    -right-16
+                    -top-16
+
+                    h-44
+                    w-44
 
                     rounded-full
 
-                    bg-gradient-to-br
-                    ${item.color}
-
-                    opacity-20
+                    ${item.glow}
 
                     blur-3xl
+
+                    transition-all
+                    duration-500
                   `}
                 />
+
+                {/* NUMBER */}
+
+                <span
+                  className="
+                    absolute
+                    right-6
+                    top-6
+
+                    text-xs
+                    font-black
+                    tracking-[0.18em]
+                    text-white/20
+                  "
+                >
+                  0{index + 1}
+                </span>
 
                 {/* ICON */}
 
@@ -255,37 +437,40 @@ export default function PremiumInfoSection() {
                   className={`
                     relative
 
-                    h-20
-                    w-20
+                    flex
+                    h-16
+                    w-16
+                    items-center
+                    justify-center
 
-                    rounded-3xl
+                    rounded-2xl
 
                     bg-gradient-to-br
                     ${item.color}
 
-                    flex
-                    items-center
-                    justify-center
+                    shadow-[0_15px_35px_rgba(0,0,0,.30)]
 
-                    mb-8
+                    transition-transform
+                    duration-500
 
-                    shadow-[0_15px_45px_rgba(0,0,0,.25)]
+                    group-hover:-translate-y-1
+                    group-hover:scale-105
                   `}
                 >
-                  <Icon size={34} className="text-white" />
+                  <Icon size={28} className="text-white" />
                 </div>
 
                 {/* TITLE */}
 
                 <h3
                   className="
-                    text-3xl
+                    relative
 
+                    mt-7
+
+                    text-2xl
                     font-black
-
                     text-white
-
-                    mb-5
                   "
                 >
                   {item.title}
@@ -295,80 +480,157 @@ export default function PremiumInfoSection() {
 
                 <p
                   className="
-                    text-slate-300
+                    relative
 
-                    leading-8
+                    mt-4
 
-                    text-lg
+                    text-sm
+                    leading-7
+                    text-slate-400
 
-                    mb-8
+                    md:text-[15px]
                   "
                 >
                   {item.description}
                 </p>
 
-                {/* BUTTON */}
+                {/* POINTS */}
 
-                <button
+                <div
                   className="
-                    inline-flex
+                    relative
+
+                    mt-6
+
+                    space-y-3
+
+                    border-t
+                    border-white/[0.07]
+
+                    pt-5
+                  "
+                >
+                  {item.points.map((point, pointIndex) => (
+                    <div
+                      key={pointIndex}
+                      className="
+                          flex
+                          items-center
+                          gap-3
+                        "
+                    >
+                      <div
+                        className="
+                            flex
+                            h-6
+                            w-6
+                            shrink-0
+                            items-center
+                            justify-center
+
+                            rounded-full
+
+                            bg-emerald-400/10
+
+                            text-emerald-400
+                          "
+                      >
+                        <CheckCircle2 size={14} />
+                      </div>
+
+                      <span
+                        className="
+                            text-sm
+                            font-medium
+                            text-slate-300
+                          "
+                      >
+                        {point}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* FOOTER */}
+
+                <div
+                  className="
+                    relative
+
+                    mt-6
+
+                    flex
                     items-center
                     gap-2
 
+                    text-xs
+                    font-bold
                     text-yellow-300
-
-                    font-semibold
-
-                    group-hover:gap-3
-
-                    transition-all
                   "
                 >
-                  Learn More
-                  <ChevronRight size={18} />
-                </button>
-              </div>
+                  CampusNexus Framework
+                  <ChevronRight
+                    size={15}
+                    className="
+                      transition-transform
+                      duration-300
+
+                      group-hover:translate-x-1
+                    "
+                  />
+                </div>
+              </article>
             );
           })}
         </div>
 
-        {/* BOTTOM PANEL */}
+        {/* ======================================
+            CAMPUS STRUCTURE PANEL
+        ====================================== */}
 
         <div
           className="
             relative
 
+            mt-16
+
             overflow-hidden
 
-            mt-24
-
-            rounded-[40px]
+            rounded-[36px]
 
             border
-            border-yellow-400/10
+            border-white/10
 
-            bg-white/[0.04]
+            bg-gradient-to-br
+            from-white/[0.055]
+            via-white/[0.03]
+            to-white/[0.045]
 
-            backdrop-blur-2xl
+            p-7
 
-            p-10
-            md:p-16
+            shadow-[0_25px_80px_rgba(0,0,0,.35)]
 
-            shadow-[0_25px_80px_rgba(0,0,0,.45)]
+            backdrop-blur-xl
+
+            md:p-10
           "
         >
           {/* PANEL GLOW */}
 
           <div
             className="
+              pointer-events-none
+
               absolute
-              top-0
-              right-0
+              -right-20
+              -top-20
 
               h-72
               w-72
 
-              bg-yellow-400/20
+              rounded-full
+
+              bg-yellow-400/10
 
               blur-[120px]
             "
@@ -376,95 +638,330 @@ export default function PremiumInfoSection() {
 
           <div
             className="
+              pointer-events-none
+
               absolute
-              bottom-0
-              left-0
+              -bottom-20
+              -left-20
 
               h-72
               w-72
 
-              bg-blue-500/20
+              rounded-full
+
+              bg-blue-600/10
 
               blur-[120px]
             "
           />
+
+          {/* ==================================
+              PANEL HEADING
+          ================================== */}
 
           <div
             className="
               relative
 
-              grid
-              grid-cols-1
-              md:grid-cols-4
+              flex
+              flex-col
+              gap-6
 
-              gap-8
+              lg:flex-row
+              lg:items-center
+              lg:justify-between
             "
           >
-            {[
-              {
-                value: "12K+",
-                label: "Students Managed",
-              },
-
-              {
-                value: "24/7",
-                label: "Realtime Monitoring",
-              },
-
-              {
-                value: "99%",
-                label: "Issue Resolution",
-              },
-
-              {
-                value: "4.8★",
-                label: "Campus Rating",
-              },
-            ].map((item, index) => (
+            <div
+              className="
+                flex
+                items-start
+                gap-4
+              "
+            >
               <div
-                key={index}
                 className="
-                  rounded-3xl
+                  flex
+                  h-14
+                  w-14
+                  shrink-0
+                  items-center
+                  justify-center
 
-                  border
-                  border-white/10
+                  rounded-2xl
 
-                  bg-white/[0.05]
+                  bg-gradient-to-br
+                  from-[#1D4ED8]
+                  to-[#F4C430]
 
-                  p-8
+                  text-white
 
-                  text-center
-
-                  backdrop-blur-xl
-
-                  hover:border-yellow-400/20
-
-                  hover:-translate-y-2
-
-                  transition-all
-                  duration-500
+                  shadow-lg
                 "
               >
-                <h3
+                <Landmark size={26} />
+              </div>
+
+              <div>
+                <p
                   className="
-                    text-5xl
-
-                    font-black
-
-                    text-yellow-300
-
-                    mb-4
+                    text-xs
+                    font-bold
+                    uppercase
+                    tracking-[0.18em]
+                    text-blue-300
                   "
                 >
-                  {item.value}
+                  CampusNexus Governance
+                </p>
+
+                <h3
+                  className="
+                    mt-1
+
+                    text-2xl
+                    font-black
+                    text-white
+
+                    md:text-3xl
+                  "
+                >
+                  Built Around Campus Responsibilities
                 </h3>
 
-                <p className="text-slate-300">{item.label}</p>
+                <p
+                  className="
+                    mt-2
+                    max-w-2xl
+
+                    text-sm
+                    leading-6
+                    text-slate-400
+                  "
+                >
+                  Each user receives a dedicated ERP experience based on their
+                  operational responsibility within the campus.
+                </p>
               </div>
-            ))}
+            </div>
+
+            <div
+              className="
+                inline-flex
+                w-fit
+                items-center
+                gap-2
+
+                rounded-full
+
+                border
+                border-emerald-400/20
+
+                bg-emerald-400/[0.07]
+
+                px-4
+                py-2
+
+                text-xs
+                font-bold
+                text-emerald-300
+              "
+            >
+              <ShieldCheck size={15} />
+              Controlled Role Access
+            </div>
+          </div>
+
+          {/* ==================================
+              ROLE FLOW
+          ================================== */}
+
+          <div
+            className="
+              relative
+
+              mt-9
+
+              grid
+              grid-cols-2
+              gap-4
+
+              md:grid-cols-3
+              xl:grid-cols-6
+            "
+          >
+            <RoleBox icon={<GraduationCap size={21} />} title="Student" />
+
+            <RoleBox icon={<Users size={21} />} title="Warden" />
+
+            <RoleBox icon={<Building2 size={21} />} title="Hostel Director" />
+
+            <RoleBox icon={<ClipboardCheck size={21} />} title="Maintenance" />
+
+            <RoleBox icon={<Database size={21} />} title="Store" />
+
+            <RoleBox icon={<ShieldCheck size={21} />} title="Admin" />
+          </div>
+
+          {/* ==================================
+              GOVERNANCE ITEMS
+          ================================== */}
+
+          <div
+            className="
+              relative
+
+              mt-8
+
+              grid
+              grid-cols-2
+
+              overflow-hidden
+
+              rounded-[26px]
+
+              border
+              border-white/[0.07]
+
+              bg-[#071321]/60
+
+              lg:grid-cols-4
+            "
+          >
+            {governanceItems.map((item, index) => {
+              const Icon = item.icon;
+
+              return (
+                <div
+                  key={index}
+                  className="
+                      flex
+                      items-center
+                      gap-3
+
+                      border-b
+                      border-r
+                      border-white/[0.06]
+
+                      p-5
+
+                      last:border-r-0
+
+                      lg:border-b-0
+                    "
+                >
+                  <div
+                    className="
+                        flex
+                        h-11
+                        w-11
+                        shrink-0
+                        items-center
+                        justify-center
+
+                        rounded-xl
+
+                        bg-blue-500/10
+
+                        text-blue-300
+                      "
+                  >
+                    <Icon size={19} />
+                  </div>
+
+                  <div>
+                    <p
+                      className="
+                          text-sm
+                          font-black
+                          text-white
+                        "
+                    >
+                      {item.title}
+                    </p>
+
+                    <p
+                      className="
+                          mt-0.5
+                          text-xs
+                          text-slate-500
+                        "
+                    >
+                      {item.subtitle}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
     </section>
   );
 }
+
+// ==========================================
+// ROLE BOX
+// ==========================================
+
+const RoleBox = ({ icon, title }) => {
+  return (
+    <div
+      className="
+        flex
+        min-h-[105px]
+        flex-col
+        items-center
+        justify-center
+
+        rounded-2xl
+
+        border
+        border-white/[0.07]
+
+        bg-white/[0.035]
+
+        p-4
+
+        text-center
+
+        transition-all
+        duration-300
+
+        hover:-translate-y-1
+        hover:border-yellow-400/20
+        hover:bg-white/[0.05]
+      "
+    >
+      <div
+        className="
+          flex
+          h-10
+          w-10
+          items-center
+          justify-center
+
+          rounded-xl
+
+          bg-yellow-400/10
+
+          text-yellow-300
+        "
+      >
+        {icon}
+      </div>
+
+      <p
+        className="
+          mt-3
+
+          text-xs
+          font-extrabold
+          text-slate-200
+        "
+      >
+        {title}
+      </p>
+    </div>
+  );
+};
