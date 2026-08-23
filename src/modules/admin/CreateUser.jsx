@@ -367,8 +367,6 @@ const CreateUser = () => {
                   focus:ring-[#001B54]
                 "
               >
-                <option value="WARDEN">Warden</option>
-
                 <option value="MAINTENANCE_MANAGER">Maintenance Manager</option>
 
                 <option value="STORE_MANAGER">Store Manager</option>
