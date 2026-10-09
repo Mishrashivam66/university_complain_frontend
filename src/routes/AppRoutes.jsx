@@ -25,6 +25,7 @@ import LandingPage from "../modules/auth/pages/LandingPage";
 import ForgotPassword from "../modules/auth/pages/ForgotPassword";
 
 import ResetPassword from "../modules/auth/pages/ResetPassword";
+import BlockAdminDashboard from "../modules/blockAdmin/pages/BlockAdminDashboard.jsx";
 
 // ==========================================
 // NOTIFICATION PROVIDER
@@ -205,6 +206,17 @@ const AppRoutes = () => {
 
           <Route element={<ProtectedRoute allowedRoles={["STORE_MANAGER"]} />}>
             {StoreManagerRoutes}
+          </Route>
+
+          {/* ==================================
+    BLOCK ADMIN - READ ONLY MONITORING
+================================== */}
+
+          <Route element={<ProtectedRoute allowedRoles={["BLOCK_ADMIN"]} />}>
+            <Route
+              path="/block-admin/dashboard"
+              element={<BlockAdminDashboard />}
+            />
           </Route>
 
           {/* ==================================

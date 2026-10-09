@@ -1,11 +1,9 @@
 import { useState } from "react";
-
 import { useNavigate, Link } from "react-router-dom";
 
 import { Mail, Lock, ArrowLeft, Eye, EyeOff } from "lucide-react";
 
 import api from "../../../services/api";
-
 import "../styles/auth.css";
 
 const Login = () => {
@@ -16,15 +14,12 @@ const Login = () => {
   // ==========================================
 
   const [email, setEmail] = useState("");
-
   const [password, setPassword] = useState("");
 
   const [loading, setLoading] = useState(false);
-
   const [showPassword, setShowPassword] = useState(false);
 
   const [message, setMessage] = useState("");
-
   const [messageType, setMessageType] = useState("");
 
   // ==========================================
@@ -35,6 +30,7 @@ const Login = () => {
     e.preventDefault();
 
     setMessage("");
+    setMessageType("");
 
     try {
       setLoading(true);
@@ -43,17 +39,10 @@ const Login = () => {
       // API CALL
       // ==========================================
 
-      const res = await api.post(
-        "/auth/login",
-
-        {
-          email,
-
-          password,
-        },
-      );
-
-      console.log("LOGIN RESPONSE:", res.data);
+      const res = await api.post("/auth/login", {
+        email: email.trim().toLowerCase(),
+        password,
+      });
 
       // ==========================================
       // HANDLE RESPONSE
@@ -62,7 +51,6 @@ const Login = () => {
       const authData = res.data.data || res.data;
 
       const token = authData?.token;
-
       const user = authData?.user;
 
       // ==========================================
@@ -71,17 +59,13 @@ const Login = () => {
 
       if (!token) {
         setMessage("Token not found");
-
         setMessageType("error");
-
         return;
       }
 
       if (!user) {
         setMessage("User not found");
-
         setMessageType("error");
-
         return;
       }
 
@@ -91,18 +75,58 @@ const Login = () => {
 
       if (user.role === "STUDENT" && user.isHosteller && !user.isApproved) {
         setMessage("Waiting for Warden Approval");
-
         setMessageType("warning");
-
         return;
       }
 
       // ==========================================
-      // SAVE TOKEN
+      // ROLE NORMALIZATION
+      // ==========================================
+
+      const role = user.role?.toString().trim().toUpperCase();
+
+      // ==========================================
+      // ROLE BASED ROUTES
+      // ==========================================
+
+      const roleRoutes = {
+        ADMIN: "/admin/dashboard",
+        SUPER_ADMIN: "/admin/dashboard",
+
+        // NEW BLOCK ADMIN DASHBOARD
+        BLOCK_ADMIN: "/block-admin/dashboard",
+
+        HOSTEL_DIRECTOR: "/hostel-director/dashboard",
+        WARDEN: "/warden/dashboard",
+        MAINTENANCE_MANAGER: "/maintenance/dashboard",
+        STORE_MANAGER: "/store/dashboard",
+        MESS_MANAGER: "/mess/dashboard",
+        STUDENT: "/dashboard",
+      };
+
+      const redirectPath = roleRoutes[role];
+
+      if (!redirectPath) {
+        setMessage("Invalid Role");
+        setMessageType("error");
+        return;
+      }
+
+      // ==========================================
+      // BLOCK ADMIN VALIDATION
+      // ==========================================
+
+      if (role === "BLOCK_ADMIN" && !user.assignedBlock) {
+        setMessage("No block assigned to your account. Contact Admin.");
+        setMessageType("error");
+        return;
+      }
+
+      // ==========================================
+      // SAVE AUTH DATA
       // ==========================================
 
       localStorage.setItem("token", token);
-
       localStorage.setItem("user", JSON.stringify(user));
 
       // ==========================================
@@ -110,43 +134,15 @@ const Login = () => {
       // ==========================================
 
       setMessage("Login Successful");
-
       setMessageType("success");
-
-      // ==========================================
-      // ROLE
-      // ==========================================
-
-      const role = user?.role?.toString().trim().toUpperCase();
-
-      console.log("USER ROLE:", role);
 
       // ==========================================
       // NAVIGATION
       // ==========================================
 
-      setTimeout(() => {
-        if (role === "ADMIN" || role === "SUPER_ADMIN") {
-          navigate("/admin/dashboard");
-        } else if (role === "HOSTEL_DIRECTOR") {
-          navigate("/hostel-director/dashboard");
-        } else if (role === "WARDEN") {
-          navigate("/warden/dashboard");
-        } else if (role === "MAINTENANCE_MANAGER") {
-          navigate("/maintenance/dashboard");
-        } else if (role === "STORE_MANAGER") {
-          navigate("/store/dashboard");
-        } else if (role === "MESS_MANAGER") {
-          navigate("/mess/dashboard");
-        } else if (role === "STUDENT") {
-          navigate("/dashboard");
-        } else {
-          setMessage("Invalid Role");
-          setMessageType("error");
-        }
-      }, 1200);
+      navigate(redirectPath, { replace: true });
     } catch (error) {
-      console.log("LOGIN ERROR:", error);
+      console.error("LOGIN ERROR:", error);
 
       setMessage(
         error.response?.data?.message || error.message || "Login Failed",
@@ -187,16 +183,17 @@ const Login = () => {
     }
   };
 
+  // ==========================================
+  // UI
+  // ==========================================
+
   return (
     <div className="auth-page">
-      {/* REMOVE THIS LINE */}
-      {/* <AuthPreviewPanel mode="login" /> */}
-
       <div
         className="
-        auth-page__panel
-        auth-page__panel--form
-      "
+          auth-page__panel
+          auth-page__panel--form
+        "
       >
         {/* ========================================== */}
         {/* TOPBAR */}
@@ -231,28 +228,33 @@ const Login = () => {
             Login to access CampusPulse services
           </p>
 
+          {/* ========================================== */}
           {/* ALERT */}
+          {/* ========================================== */}
 
           {message && (
             <div
+              role="alert"
               className={`
-              mb-5
-              px-4
-              py-4
-              rounded-2xl
-              border
-              text-sm
-              font-semibold
-              shadow-sm
-              transition-all
-              ${getAlertClass()}
-            `}
+                mb-5
+                px-4
+                py-4
+                rounded-2xl
+                border
+                text-sm
+                font-semibold
+                shadow-sm
+                transition-all
+                ${getAlertClass()}
+              `}
             >
               {message}
             </div>
           )}
 
-          {/* FORM */}
+          {/* ========================================== */}
+          {/* LOGIN FORM */}
+          {/* ========================================== */}
 
           <form onSubmit={handleLogin}>
             {/* EMAIL */}
@@ -266,6 +268,7 @@ const Login = () => {
                 className="auth-form-input"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
                 required
               />
             </div>
@@ -281,6 +284,7 @@ const Login = () => {
                 className="auth-form-input"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                autoComplete="current-password"
                 required
               />
 
@@ -288,12 +292,15 @@ const Login = () => {
                 type="button"
                 className="password-toggle"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
               >
                 {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
 
+            {/* ========================================== */}
             {/* OPTIONS */}
+            {/* ========================================== */}
 
             <div className="auth-options">
               <label className="remember-me">
@@ -306,7 +313,9 @@ const Login = () => {
               </Link>
             </div>
 
-            {/* BUTTON */}
+            {/* ========================================== */}
+            {/* LOGIN BUTTON */}
+            {/* ========================================== */}
 
             <div className="auth-form-actions">
               <button type="submit" disabled={loading} className="auth-btn">
@@ -314,7 +323,9 @@ const Login = () => {
               </button>
             </div>
 
+            {/* ========================================== */}
             {/* FOOTER */}
+            {/* ========================================== */}
 
             <div className="auth-form-footer">
               <p>
