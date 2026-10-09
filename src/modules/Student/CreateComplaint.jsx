@@ -101,11 +101,25 @@ const availabilityTimes = [
 ];
 
 const CreateComplaint = () => {
-  const user = JSON.parse(localStorage.getItem("user")) || {};
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  });
   // Use the official User schema flag as the source of truth
   const isHosteller = user?.isHosteller === true;
   // Support either department or branch depending on your user object
-  const studentDepartment = user?.department || user?.branch || "";
+  const getDepartment = (value) =>
+    typeof value === "string"
+      ? value.trim()
+      : value && typeof value === "object"
+        ? String(value.name || value.departmentName || "").trim()
+        : "";
+  const [studentDepartment, setStudentDepartment] = useState(
+    () => getDepartment(user?.department) || getDepartment(user?.branch),
+  );
   // ==========================================  // STATES  // ==========================================
   const [categories, setCategories] = useState([]);
 
@@ -163,6 +177,45 @@ const CreateComplaint = () => {
   // ==========================================  // USE EFFECT  // ==========================================
   useEffect(() => {
     fetchCategories();
+  }, []);
+  // Fetch the same latest profile used by My Profile.
+  useEffect(() => {
+    let active = true;
+    const loadProfile = async () => {
+      try {
+        const res = await api.get("/auth/profile", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        });
+        if (!active || !res.data?.user) return;
+        const profile = res.data.user;
+        const department =
+          getDepartment(profile.department) || getDepartment(profile.branch);
+        setUser(profile);
+        setStudentDepartment(department);
+        localStorage.setItem("user", JSON.stringify(profile));
+        setFormData((prev) => ({
+          ...prev,
+          department,
+          hostel:
+            prev.complaintArea === "HOSTEL"
+              ? profile.hostel || ""
+              : prev.hostel,
+          roomNumber:
+            prev.complaintArea === "HOSTEL"
+              ? profile.roomNumber || ""
+              : prev.roomNumber,
+          block:
+            prev.complaintArea === "HOSTEL" ? profile.block || "" : prev.block,
+        }));
+      } catch (error) {
+        console.error("Failed to fetch profile for complaint:", error);
+        toast.error("Could not refresh your profile. Please try again.");
+      }
+    };
+    loadProfile();
+    return () => {
+      active = false;
+    };
   }, []);
   // ==========================================  // HANDLE CHANGE  // ==========================================
   const handleChange = (e) => {
@@ -531,8 +584,6 @@ const CreateComplaint = () => {
               </div>
             )}
           </div>
-
-          {/* DEPARTMENT DETAILS */}
 
           {/* DEPARTMENT DETAILS */}
 
