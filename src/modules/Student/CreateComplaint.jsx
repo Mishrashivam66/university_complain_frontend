@@ -456,68 +456,15 @@ const CreateComplaint = () => {
 
           {/* DEPARTMENT DETAILS */}
 
+          {/* DEPARTMENT DETAILS */}
           {formData.complaintArea === "DEPARTMENT" && (
-            <div
-              className="
-                bg-blue-50
-                border
-                border-blue-100
-                rounded-3xl
-                p-6
-              "
-            >
+            <div className="bg-blue-50 border border-blue-100 rounded-3xl p-6">
               <h2 className="text-xl font-black mb-5 text-[#0b2a7d]">
                 Department Details
               </h2>
 
               <div className="grid md:grid-cols-2 gap-5">
-                {isHosteller ? (
-                  <select
-                    name="block"
-                    value={formData.block}
-                    onChange={handleChange}
-                    required
-                    className="
-                      w-full
-                      border
-                      border-gray-200
-                      rounded-2xl
-                      px-5
-                      py-4
-                      bg-white
-                    "
-                  >
-                    <option value="">Select Block / Building</option>
-                    {campusBlocks.map((block) => (
-                      <option key={block} value={block}>
-                        {block}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div>
-                    <label className="text-sm font-semibold text-gray-600">
-                      Department Block
-                    </label>
-
-                    <select
-                      name="block"
-                      value={formData.block}
-                      onChange={handleChange}
-                      required
-                      className="mt-2 w-full border border-gray-200 rounded-2xl px-5 py-4 bg-white"
-                    >
-                      <option value="">Select Department Block</option>
-
-                      {["A", "B", "C", "D", "E", "F"].map((block) => (
-                        <option key={block} value={block}>
-                          Block {block}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
+                {/* DEPARTMENT BLOCK */}
                 <div>
                   <label className="text-sm font-semibold text-gray-600">
                     Department Block
@@ -538,6 +485,20 @@ const CreateComplaint = () => {
                       </option>
                     ))}
                   </select>
+                </div>
+
+                {/* STUDENT DEPARTMENT */}
+                <div>
+                  <label className="text-sm font-semibold text-gray-600">
+                    Your Department
+                  </label>
+
+                  <input
+                    type="text"
+                    value={studentDepartment || "Department not assigned"}
+                    readOnly
+                    className="mt-2 w-full border border-gray-200 bg-gray-100 rounded-2xl px-5 py-4 font-semibold cursor-not-allowed"
+                  />
                 </div>
               </div>
             </div>
