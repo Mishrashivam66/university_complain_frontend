@@ -107,7 +107,7 @@ const CreateComplaint = () => {
 
     hostel: isHosteller ? user?.hostel || "" : "",
 
-    block: user?.block || "",
+    block: isHosteller ? user?.block || "" : "",
 
     department: studentDepartment,
 
@@ -211,7 +211,12 @@ const CreateComplaint = () => {
             ? formData.hostel
             : "",
 
-        block: !isHosteller ? user?.block || "" : formData.block,
+        block:
+          formData.complaintArea === "DEPARTMENT"
+            ? formData.block
+            : formData.complaintArea === "HOSTEL"
+              ? user?.block || ""
+              : formData.block,
 
         department:
           formData.complaintArea === "DEPARTMENT" ? studentDepartment : "",
@@ -283,7 +288,7 @@ const CreateComplaint = () => {
 
         hostel: isHosteller ? user?.hostel || "" : "",
 
-        block: user?.block || "",
+        block: isHosteller ? user?.block || "" : "",
 
         department: studentDepartment,
 
@@ -492,49 +497,47 @@ const CreateComplaint = () => {
                 ) : (
                   <div>
                     <label className="text-sm font-semibold text-gray-600">
-                      Your Block
+                      Department Block
                     </label>
-                    <input
-                      type="text"
-                      value={user?.block || "Block not assigned"}
-                      readOnly
-                      className="
-                        mt-2
-                        w-full
-                        border
-                        border-gray-200
-                        bg-gray-100
-                        rounded-2xl
-                        px-5
-                        py-4
-                        font-semibold
-                        cursor-not-allowed
-                      "
-                    />
+
+                    <select
+                      name="block"
+                      value={formData.block}
+                      onChange={handleChange}
+                      required
+                      className="mt-2 w-full border border-gray-200 rounded-2xl px-5 py-4 bg-white"
+                    >
+                      <option value="">Select Department Block</option>
+
+                      {["A", "B", "C", "D", "E", "F"].map((block) => (
+                        <option key={block} value={block}>
+                          Block {block}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
 
                 <div>
                   <label className="text-sm font-semibold text-gray-600">
-                    Your Department
+                    Department Block
                   </label>
-                  <input
-                    type="text"
-                    value={studentDepartment || "Department not assigned"}
-                    readOnly
-                    className="
-                      mt-2
-                      w-full
-                      border
-                      border-gray-200
-                      bg-gray-100
-                      rounded-2xl
-                      px-5
-                      py-4
-                      font-semibold
-                      cursor-not-allowed
-                    "
-                  />
+
+                  <select
+                    name="block"
+                    value={formData.block}
+                    onChange={handleChange}
+                    required
+                    className="mt-2 w-full border border-gray-200 rounded-2xl px-5 py-4 bg-white"
+                  >
+                    <option value="">Select Department Block</option>
+
+                    {["A", "B", "C", "D", "E", "F"].map((block) => (
+                      <option key={block} value={block}>
+                        Block {block}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>
