@@ -1,40 +1,221 @@
-import { useEffect, useMemo, useState } from "react";
-
-import axios from "axios";
-
-import toast from "react-hot-toast";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import * as XLSX from "xlsx";
-
 import { saveAs } from "file-saver";
-
+import toast from "react-hot-toast";
+import StudentComplaintControls from "./StudentComplaintControls";
 import {
-  Search,
-  UserCheck,
-  UserX,
-  GraduationCap,
+  ArrowDown,
   Building2,
-  Trash2,
-  CheckCircle2,
-  Clock3,
-  Loader2,
   Download,
+  Eye,
+  FileSpreadsheet,
+  GraduationCap,
+  Loader2,
+  RefreshCcw,
+  Search,
+  ShieldAlert,
+  UserCheck,
   Users,
-  School,
-  Home,
-  UserRound,
+  X,
 } from "lucide-react";
 
-const ManageStudents = () => {
-  // =====================================
-  // STATES
-  // =====================================
+import api from "../../services/api";
 
+// ==============================================
+// DATA HELPERS
+// ==============================================
+
+const text = (value) => {
+  if (value == null) return "";
+
+  if (typeof value === "object") {
+    return String(
+      value.hostelCode || value.code || value.hostelName || value.name || "",
+    ).trim();
+  }
+
+  return String(value).trim();
+};
+
+const hostelCode = (value) => {
+  const input = text(value);
+  const match = input.match(/\bH\d+[A-Z]?\b/i);
+
+  return (match ? match[0] : input).toUpperCase();
+};
+
+const studentHostel = (student) =>
+  text(student.hostelCode || student.hostel || student.assignedHostel);
+
+const isHosteller = (student) => {
+  if (student.isHosteller === false) {
+    return false;
+  }
+
+  return (
+    student.isHosteller === true ||
+    /^(HOSTELLER|HOSTEL)$/i.test(text(student.studentType)) ||
+    Boolean(studentHostel(student))
+  );
+};
+
+const isBlocked = (student) =>
+  student.complaintAccessBlocked === true ||
+  student.isComplaintBlocked === true;
+
+const isGraduated = (student) =>
+  student.isAlumni === true ||
+  ["GRADUATED", "ALUMNI", "PASSED_OUT", "PASS_OUT"].includes(
+    text(student.academicStatus).toUpperCase(),
+  );
+
+const accountStatus = (student) =>
+  student.isActive === false ? "Inactive" : "Active";
+
+const academicStatus = (student) =>
+  text(student.academicStatus) || (isGraduated(student) ? "Graduated" : "—");
+
+const errorMessage = (error, fallback) =>
+  error?.response?.data?.message || error?.message || fallback;
+
+// ==============================================
+// SAFE EXCEL VALUES
+// ==============================================
+
+// Prevent spreadsheet formula injection
+// from student-entered text.
+
+const excelCell = (value) => {
+  const str = text(value);
+
+  return /^[\s]*[=+\-@]/.test(str) ? `'${str}` : str;
+};
+
+// ==============================================
+// STUDENT EXCEL ROW
+// ==============================================
+
+const excelRow = (student) => ({
+  "Student Name": excelCell(student.name),
+
+  "Enrollment / Amizone ID": excelCell(
+    student.enrollmentNumber || student.amizoneId || student.rollNumber,
+  ),
+
+  "Official Email": excelCell(student.email),
+
+  Mobile: excelCell(student.phone || student.mobileNumber),
+
+  "Student Type": isHosteller(student) ? "Hosteller" : "Day Scholar",
+
+  "Academic Block": excelCell(
+    student.departmentBlock || student.assignedBlock || student.academicBlock,
+  ),
+
+  Department: excelCell(student.department),
+
+  Batch: excelCell(student.batch),
+
+  Year: excelCell(student.year),
+
+  "Academic Status": excelCell(academicStatus(student)),
+
+  Hostel: excelCell(studentHostel(student)),
+
+  "Room (Existing Reference)": excelCell(student.roomNumber),
+
+  "Account Status": accountStatus(student),
+
+  "Complaint Permission": isBlocked(student) ? "Blocked" : "Allowed",
+
+  "Block Reason": excelCell(
+    isBlocked(student) ? student.complaintBlockReason : "",
+  ),
+});
+
+// ==============================================
+// EXCEL HELPERS
+// ==============================================
+
+const safeSheetName = (value) =>
+  text(value)
+    .replace(/[\\/?*[\]:]/g, "-")
+    .slice(0, 31) || "Hostel";
+
+const safeFilePart = (value) =>
+  text(value)
+    .replace(/[^A-Za-z0-9_-]/g, "_")
+    .slice(0, 32);
+
+const today = () =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+  })
+    .format(new Date())
+    .replaceAll("/", "-");
+
+// ==============================================
+// CREATE & DOWNLOAD WORKBOOK
+// ==============================================
+
+function saveWorkbook(sheets, fileName) {
+  const workbook = XLSX.utils.book_new();
+
+  sheets.forEach(({ title, students }) => {
+    const rows = students.map(excelRow);
+
+    const worksheet = XLSX.utils.json_to_sheet(
+      rows.length ? rows : [excelRow({})],
+    );
+
+    worksheet["!cols"] = [
+      { wch: 25 },
+      { wch: 25 },
+      { wch: 32 },
+      { wch: 18 },
+      { wch: 16 },
+      { wch: 20 },
+      { wch: 24 },
+      { wch: 16 },
+      { wch: 12 },
+      { wch: 18 },
+      { wch: 18 },
+      { wch: 24 },
+      { wch: 18 },
+      { wch: 22 },
+      { wch: 42 },
+    ];
+
+    if (worksheet["!ref"]) {
+      worksheet["!autofilter"] = {
+        ref: worksheet["!ref"],
+      };
+    }
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, safeSheetName(title));
+  });
+
+  const buffer = XLSX.write(workbook, {
+    bookType: "xlsx",
+    type: "array",
+  });
+
+  saveAs(
+    new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    fileName,
+  );
+}
+
+// ==============================================
+// MANAGE STUDENTS
+// ==============================================
+
+export default function ManageStudents() {
   const [students, setStudents] = useState([]);
-
-  const [stats, setStats] = useState({});
-
-  const [hostelAnalytics, setHostelAnalytics] = useState([]);
+  const [hostels, setHostels] = useState([]);
 
   const [loading, setLoading] = useState(true);
 
@@ -42,927 +223,782 @@ const ManageStudents = () => {
 
   const [selectedHostel, setSelectedHostel] = useState("ALL");
 
-  // =====================================
-  // FETCH STUDENTS
-  // =====================================
+  const [studentFilter, setStudentFilter] = useState("ALL");
 
-  const fetchStudents = async () => {
+  const [viewStudent, setViewStudent] = useState(null);
+
+  const listRef = useRef(null);
+
+  // ==========================================
+  // FETCH STUDENTS + DYNAMIC HOSTELS
+  // ==========================================
+
+  const load = useCallback(async () => {
     try {
       setLoading(true);
 
-      const token = localStorage.getItem("token");
+      const [studentResult, hostelResult] = await Promise.allSettled([
+        api.get("/admin/students"),
 
-      const { data } = await axios.get(
-        "https://complaine-backend.vercel.app/api/admin/students",
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
+        api.get("/admin/hostels/all", {
+          params: {
+            includeArchived: "true",
           },
-        },
+        }),
+      ]);
+
+      if (studentResult.status !== "fulfilled") {
+        throw studentResult.reason;
+      }
+
+      const raw = studentResult.value.data?.students;
+
+      if (!Array.isArray(raw)) {
+        throw new Error("Student API returned an invalid list");
+      }
+
+      // Only student accounts.
+      // Staff members belong to Manage Users.
+
+      setStudents(
+        raw.filter((student) => !student.role || student.role === "STUDENT"),
       );
 
-      // =====================================
-      // ONLY HOSTELLER STUDENTS
-      // =====================================
-      setStudents(data.students);
+      // Fetch Admin-created hostel master.
 
-      setStats(data.stats);
-
-      setHostelAnalytics(data.hostelAnalytics);
+      if (hostelResult.status === "fulfilled") {
+        setHostels(
+          Array.isArray(hostelResult.value.data?.hostels)
+            ? hostelResult.value.data.hostels
+            : [],
+        );
+      } else {
+        setHostels([]);
+      }
     } catch (error) {
-      console.log(error);
-
-      toast.error("Failed to load students");
+      toast.error(errorMessage(error, "Students could not be loaded"));
     } finally {
       setLoading(false);
     }
-  };
-
-  // =====================================
-  // INITIAL LOAD
-  // =====================================
-
-  useEffect(() => {
-    fetchStudents();
   }, []);
 
-  // =====================================
-  // DELETE STUDENT
-  // =====================================
+  useEffect(() => {
+    load();
+  }, [load]);
 
-  const deleteStudent = async (id) => {
-    try {
-      const token = localStorage.getItem("token");
+  // ==========================================
+  // DYNAMIC HOSTEL OPTIONS
+  // ==========================================
 
-      await axios.delete(
-        `https://complaine-backend.vercel.app/api/admin/students/${id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
+  const hostelOptions = useMemo(() => {
+    const map = new Map();
+
+    hostels.forEach((hostel) => {
+      const code = hostelCode(hostel.hostelCode || hostel.hostelName);
+
+      if (code) {
+        map.set(code, {
+          code,
+          label: text(hostel.hostelName) || code,
+        });
+      }
+    });
+
+    // Preserve hostels referenced by
+    // historical student records as well.
+
+    students.forEach((student) => {
+      const raw = studentHostel(student);
+      const code = hostelCode(raw);
+
+      if (code && !map.has(code)) {
+        map.set(code, {
+          code,
+          label: raw,
+        });
+      }
+    });
+
+    return [...map.values()].sort((a, b) =>
+      a.code.localeCompare(b.code, undefined, { numeric: true }),
+    );
+  }, [hostels, students]);
+
+  // ==========================================
+  // LIVE STUDENT COUNTS
+  // ==========================================
+
+  const stats = useMemo(
+    () => ({
+      ALL: students.length,
+
+      HOSTELLER: students.filter(isHosteller).length,
+
+      DAY_SCHOLAR: students.filter((student) => !isHosteller(student)).length,
+
+      BLOCKED: students.filter(isBlocked).length,
+
+      GRADUATED: students.filter(isGraduated).length,
+
+      ACTIVE: students.filter((student) => student.isActive !== false).length,
+    }),
+    [students],
+  );
+
+  // ==========================================
+  // FILTER STUDENTS
+  // ==========================================
+
+  const visibleStudents = useMemo(() => {
+    const term = search.trim().toLowerCase();
+
+    return students.filter((student) => {
+      const matchesType =
+        studentFilter === "ALL" ||
+        (studentFilter === "HOSTELLER" && isHosteller(student)) ||
+        (studentFilter === "DAY_SCHOLAR" && !isHosteller(student)) ||
+        (studentFilter === "BLOCKED" && isBlocked(student)) ||
+        (studentFilter === "GRADUATED" && isGraduated(student)) ||
+        (studentFilter === "ACTIVE" && student.isActive !== false);
+
+      const matchesHostel =
+        selectedHostel === "ALL" ||
+        hostelCode(studentHostel(student)) === selectedHostel;
+
+      const matchesSearch =
+        !term ||
+        [
+          student.name,
+          student.email,
+          student.amizoneId,
+          student.enrollmentNumber,
+          student.rollNumber,
+          studentHostel(student),
+          student.department,
+          student.batch,
+        ].some((field) => text(field).toLowerCase().includes(term));
+
+      return matchesType && matchesHostel && matchesSearch;
+    });
+  }, [students, search, selectedHostel, studentFilter]);
+
+  // ==========================================
+  // STAT CARD CLICK + SMOOTH SCROLL
+  // ==========================================
+
+  const applyStatFilter = (next) => {
+    setStudentFilter(next);
+    setSelectedHostel("ALL");
+    setSearch("");
+
+    requestAnimationFrame(() => {
+      listRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  };
+
+  // ==========================================
+  // EXCEL DOWNLOAD
+  // ==========================================
+
+  const download = (mode) => {
+    if (loading || !students.length) {
+      toast.error("No student data available for export");
+
+      return;
+    }
+
+    // OPTION 1:
+    // ALL STUDENTS, REGARDLESS OF FILTERS
+
+    if (mode === "ALL") {
+      saveWorkbook(
+        [
+          {
+            title: "All Students",
+            students,
           },
-        },
+        ],
+
+        `AmiMaintain_All_Students_${today()}.xlsx`,
+      );
+    }
+
+    // OPTION 2:
+    // ONE SELECTED HOSTEL
+    else if (mode === "HOSTEL") {
+      if (selectedHostel === "ALL") {
+        toast.error("Please select a hostel first");
+
+        return;
+      }
+
+      const matched = students.filter(
+        (student) =>
+          isHosteller(student) &&
+          hostelCode(studentHostel(student)) === selectedHostel,
       );
 
-      toast.success("Student removed successfully");
+      if (!matched.length) {
+        toast.error("No students found in this hostel");
 
-      fetchStudents();
-    } catch (error) {
-      console.log(error);
+        return;
+      }
 
-      toast.error("Failed to remove student");
-    }
-  };
+      saveWorkbook(
+        [
+          {
+            title: selectedHostel,
+            students: matched,
+          },
+        ],
 
-  // =====================================
-  // FILTER STUDENTS
-  // =====================================
-
-  const filteredStudents = useMemo(() => {
-    let data = students;
-
-    // SEARCH
-    data = data.filter(
-      (item) =>
-        item.name?.toLowerCase().includes(search.toLowerCase()) ||
-        item.hostel?.toLowerCase().includes(search.toLowerCase()) ||
-        item.roomNumber?.toLowerCase().includes(search.toLowerCase()),
-    );
-
-    // HOSTEL FILTER
-    if (selectedHostel !== "ALL") {
-      data = data.filter((student) => student.hostel === selectedHostel);
+        `AmiMaintain_Hostel_${safeFilePart(selectedHostel)}_${today()}.xlsx`,
+      );
     }
 
-    return data;
-  }, [students, search, selectedHostel]);
+    // OPTION 3:
+    // ALL HOSTELS, ONE SHEET PER HOSTEL
+    else if (mode === "ALL_HOSTELS") {
+      const sheets = hostelOptions
+        .map(({ code }) => ({
+          title: code,
 
-  // =====================================
-  // EXPORT EXCEL
-  // =====================================
+          students: students.filter(
+            (student) =>
+              isHosteller(student) &&
+              hostelCode(studentHostel(student)) === code,
+          ),
+        }))
+        .filter((sheet) => sheet.students.length);
 
-  const exportStudents = () => {
-    const exportData = filteredStudents.map((student) => ({
-      Name: student.name,
+      if (!sheets.length) {
+        toast.error("No hostel students available");
 
-      Email: student.email,
+        return;
+      }
 
-      Hostel: student.hostel,
+      saveWorkbook(
+        sheets,
 
-      Room: student.roomNumber,
-
-      Status: student.studentStatus,
-
-      Year: student.year,
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-
-    const workbook = XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Students");
-
-    const excelBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "array",
-    });
-
-    const data = new Blob([excelBuffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=UTF-8",
-    });
-
-    saveAs(
-      data,
-
-      selectedHostel === "ALL"
-        ? "All_Hosteller_Students.xlsx"
-        : `${selectedHostel}_Students.xlsx`,
-    );
-
-    toast.success("Excel downloaded successfully");
-  };
-
-  // =====================================
-  // STATUS COLOR
-  // =====================================
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "ACTIVE":
-        return `
-          bg-green-100
-          text-green-700
-          border
-          border-green-200
-        `;
-
-      case "LEFT_HOSTEL":
-        return `
-          bg-red-100
-          text-red-700
-          border
-          border-red-200
-        `;
-
-      default:
-        return `
-          bg-gray-100
-          text-gray-700
-        `;
+        `AmiMaintain_All_Hostels_${today()}.xlsx`,
+      );
     }
+
+    // OPTION 4:
+    // EXPORT CURRENT FILTERED VIEW
+    else if (mode === "VIEW") {
+      if (!visibleStudents.length) {
+        toast.error("Current view is empty");
+
+        return;
+      }
+
+      saveWorkbook(
+        [
+          {
+            title: "Filtered Students",
+            students: visibleStudents,
+          },
+        ],
+
+        `AmiMaintain_Filtered_Students_${today()}.xlsx`,
+      );
+    }
+
+    toast.success("Excel exported successfully");
   };
+
+  // ==========================================
+  // SUMMARY CARDS
+  // ==========================================
+
+  const statisticCards = [
+    {
+      key: "ALL",
+      label: "All Students",
+      icon: GraduationCap,
+    },
+    {
+      key: "HOSTELLER",
+      label: "Hostellers",
+      icon: Building2,
+    },
+    {
+      key: "DAY_SCHOLAR",
+      label: "Day Scholars",
+      icon: Users,
+    },
+    {
+      key: "ACTIVE",
+      label: "Active Accounts",
+      icon: UserCheck,
+    },
+    {
+      key: "BLOCKED",
+      label: "Complaint Blocked",
+      icon: ShieldAlert,
+    },
+    {
+      key: "GRADUATED",
+      label: "Graduated / Alumni",
+      icon: GraduationCap,
+    },
+  ];
+
+  // ==========================================
+  // UI
+  // ==========================================
 
   return (
-    <div className="space-y-6">
-      {/* =====================================
-            HEADER
-      ===================================== */}
+    <main className="min-h-full bg-[#F5F7FC] px-3 py-5 text-[#10264B] sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-5">
+        {/* HEADER */}
 
-      <div
-        className="
-          bg-gradient-to-r
-          from-[#001B54]
-          via-[#002B7F]
-          to-[#7A0019]
-
-          rounded-3xl
-
-          p-6
-          md:p-10
-
-          shadow-2xl
-
-          text-white
-        "
-      >
-        <div className="flex items-center gap-5">
-          <div
-            className="
-              w-16
-              h-16
-
-              rounded-2xl
-
-              bg-white/10
-
-              flex
-              items-center
-              justify-center
-            "
-          >
-            <GraduationCap size={36} />
-          </div>
-
+        <header className="flex flex-col gap-4 rounded-3xl bg-gradient-to-r from-[#071B3B] to-[#173B71] p-6 text-white shadow-lg sm:flex-row sm:items-center sm:justify-between sm:p-8">
           <div>
-            <h1
-              className="
-                text-3xl
-                md:text-5xl
+            <p className="text-xs font-bold uppercase tracking-[.2em] text-[#F2C66C]">
+              AmiMaintain · Users & Access
+            </p>
 
-                font-black
-              "
-            >
-              Hostel Students
+            <h1 className="mt-2 text-2xl font-black sm:text-3xl">
+              Manage Students
             </h1>
 
-            <p
-              className="
-                mt-2
-
-                text-blue-100
-              "
-            >
-              Manage all hostel students and occupancy.
+            <p className="mt-2 text-sm text-slate-200">
+              All students, hostel-wise records, academic batches and complaint
+              permissions.
             </p>
           </div>
-        </div>
-      </div>
 
-      {/* =====================================
-            FILTERS
-      ===================================== */}
-
-      <div
-        className="
-          bg-white
-
-          rounded-3xl
-
-          shadow-lg
-
-          border
-          border-gray-100
-
-          p-5
-
-          flex
-          flex-col
-          lg:flex-row
-
-          gap-4
-        "
-      >
-        {/* SEARCH */}
-
-        <div className="relative flex-1">
-          <Search
-            size={18}
-            className="
-              absolute
-              left-4
-              top-4
-              text-gray-400
-            "
-          />
-
-          <input
-            type="text"
-            placeholder="Search hostel students..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="
-              w-full
-
-              border
-              border-gray-200
-
-              rounded-2xl
-
-              pl-12
-              pr-4
-              py-4
-
-              focus:outline-none
-              focus:ring-2
-              focus:ring-[#001B54]
-            "
-          />
-        </div>
-
-        {/* HOSTEL FILTER */}
-
-        <select
-          value={selectedHostel}
-          onChange={(e) => setSelectedHostel(e.target.value)}
-          className="
-            border
-            border-gray-200
-
-            rounded-2xl
-
-            px-4
-            py-4
-
-            focus:outline-none
-          "
-        >
-          <option value="ALL">All Hostels</option>
-
-          <option value="H1">H1 Hostel</option>
-
-          <option value="H2">H2 Hostel</option>
-
-          <option value="H3">H3 Hostel</option>
-
-          <option value="H4">H4 Hostel</option>
-
-          <option value="H5">H5 Hostel</option>
-        </select>
-
-        {/* DOWNLOAD */}
-
-        <button
-          onClick={exportStudents}
-          className="
-            bg-[#001B54]
-            hover:bg-[#002B7F]
-
-            text-white
-
-            px-6
-            py-4
-
-            rounded-2xl
-
-            flex
-            items-center
-            justify-center
-            gap-2
-
-            font-semibold
-
-            transition-all
-          "
-        >
-          <Download size={18} />
-          Download Excel
-        </button>
-      </div>
-
-      {/* =====================================
-            LOADING
-      ===================================== */}
-
-      {loading ? (
-        <div
-          className="
-            flex
-            justify-center
-
-            py-20
-          "
-        >
-          <Loader2
-            size={45}
-            className="
-              animate-spin
-              text-[#001B54]
-            "
-          />
-        </div>
-      ) : (
-        <>
-          {/* =====================================
-                HOSTEL ANALYTICS
-          ===================================== */}
-
-          <div
-            className="
-              grid
-              grid-cols-1
-              md:grid-cols-2
-              xl:grid-cols-5
-
-              gap-5
-            "
+          <button
+            type="button"
+            onClick={load}
+            disabled={loading}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/25 px-4 py-3 text-sm font-bold disabled:opacity-50"
           >
-            {hostelAnalytics.map((hostel, index) => (
-              <div
-                key={index}
-                className="
-                    bg-white
+            <RefreshCcw size={16} />
+            Refresh
+          </button>
+        </header>
 
-                    rounded-3xl
+        {/* CLICKABLE STATISTICS */}
 
-                    shadow-lg
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+          {statisticCards.map(({ key, label, icon: Icon }) => (
+            <button
+              type="button"
+              key={key}
+              onClick={() => applyStatFilter(key)}
+              className={`rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:border-amber-400 hover:shadow-md ${
+                studentFilter === key ? "border-amber-400" : "border-slate-200"
+              }`}
+            >
+              <Icon size={20} className="text-[#1A4177]" />
 
-                    border
-                    border-gray-100
+              <span className="mt-3 block text-2xl font-black tabular-nums">
+                {stats[key]}
+              </span>
 
-                    p-5
-                  "
-              >
-                <div className="flex items-center justify-between">
-                  <School size={28} className="text-[#001B54]" />
+              <span className="mt-1 block text-xs font-semibold text-slate-500">
+                {label}
+              </span>
 
-                  <span
-                    className="
-                        text-xs
-                        font-bold
+              <span className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-amber-700">
+                View records
+                <ArrowDown size={12} />
+              </span>
+            </button>
+          ))}
+        </section>
 
-                        bg-blue-100
-                        text-blue-700
+        {/* EXCEL REPORTS */}
 
-                        px-3
-                        py-1
+        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+          <h2 className="flex items-center gap-2 text-base font-extrabold">
+            <FileSpreadsheet size={19} className="text-[#1A4177]" />
+            Excel Reports
+          </h2>
 
-                        rounded-full
-                      "
-                  >
-                    {hostel.hostel}
-                  </span>
-                </div>
+          <p className="mt-1 text-xs text-slate-500">
+            All Students aur All Hostels reports screen filters se independent
+            hain.
+          </p>
 
-                <h2
-                  className="
-                      text-3xl
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {/* ALL STUDENTS */}
 
-                      font-black
+            <button
+              type="button"
+              disabled={loading || !students.length}
+              onClick={() => download("ALL")}
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#0B2B56] px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+            >
+              <Download size={16} />
+              All Students Excel
+            </button>
 
-                      mt-5
+            {/* SELECTED HOSTEL */}
 
-                      text-[#001B54]
-                    "
+            <button
+              type="button"
+              disabled={loading || !students.length || selectedHostel === "ALL"}
+              onClick={() => download("HOSTEL")}
+              className="flex items-center justify-center gap-2 rounded-xl bg-[#E7BB62] px-4 py-3 text-sm font-bold text-[#0C244A] disabled:opacity-50"
+            >
+              <Download size={16} />
+              Selected Hostel Excel
+            </button>
+
+            {/* ALL HOSTELS */}
+
+            <button
+              type="button"
+              disabled={loading || !students.length}
+              onClick={() => download("ALL_HOSTELS")}
+              className="flex items-center justify-center gap-2 rounded-xl border border-[#193D75] px-4 py-3 text-sm font-bold text-[#113568] disabled:opacity-50"
+            >
+              <Download size={16} />
+              All Hostels (Sheets)
+            </button>
+
+            {/* CURRENT VIEW */}
+
+            <button
+              type="button"
+              disabled={loading || !visibleStudents.length}
+              onClick={() => download("VIEW")}
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-300 px-4 py-3 text-sm font-bold disabled:opacity-50"
+            >
+              <Download size={16} />
+              Current View Excel
+            </button>
+          </div>
+
+          <p className="mt-3 text-xs text-slate-500">
+            Hostel-wise Excel ke liye neeche hostel filter se hostel select
+            karo.
+          </p>
+        </section>
+
+        {/* STUDENT RECORDS */}
+
+        <section
+          ref={listRef}
+          className="scroll-mt-24 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5"
+        >
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-xl font-black">Student Records</h2>
+
+              <p className="text-sm text-slate-500">
+                {visibleStudents.length} matching students
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSearch("");
+                setSelectedHostel("ALL");
+                setStudentFilter("ALL");
+              }}
+              className="rounded-xl bg-slate-100 px-4 py-2.5 text-xs font-bold"
+            >
+              Clear Filters
+            </button>
+          </div>
+
+          {/* FILTERS */}
+
+          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_240px]">
+            <label className="relative block">
+              <Search
+                size={17}
+                className="absolute left-3.5 top-3.5 text-slate-400"
+              />
+
+              <input
+                type="search"
+                aria-label="Search students"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Name, email, Amizone ID, department, batch..."
+                className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-3 text-sm outline-none focus:border-amber-500"
+              />
+            </label>
+
+            <select
+              value={selectedHostel}
+              onChange={(e) => setSelectedHostel(e.target.value)}
+              aria-label="Filter by hostel"
+              className="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-amber-500"
+            >
+              <option value="ALL">All Hostels / Day Scholars</option>
+
+              {hostelOptions.map(({ code, label }) => (
+                <option key={code} value={code}>
+                  {label} ({code})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* COMPACT STUDENT LIST */}
+
+          {loading ? (
+            <div className="flex justify-center py-16 text-[#193D75]">
+              <Loader2 className="animate-spin" size={30} />
+            </div>
+          ) : visibleStudents.length === 0 ? (
+            <p className="py-12 text-center text-sm text-slate-500">
+              No students match these filters.
+            </p>
+          ) : (
+            <div className="mt-4 space-y-2">
+              {visibleStudents.map((student) => (
+                <article
+                  key={student._id}
+                  className="flex flex-col gap-3 rounded-xl border border-slate-200 px-4 py-3 sm:flex-row sm:items-center"
                 >
-                  {hostel.occupied}/{hostel.capacity}
+                  {/* AVATAR */}
+
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#EDF2FB] font-extrabold text-[#153A70]">
+                    {text(student.name).charAt(0).toUpperCase() || "S"}
+                  </span>
+
+                  {/* BASIC DETAILS */}
+
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-extrabold">
+                      {student.name || "Student"}
+                    </p>
+
+                    <p className="truncate text-xs text-slate-500">
+                      {student.email || "No email"}
+                      {" · "}
+                      {student.amizoneId || student.enrollmentNumber || "No ID"}
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      {isHosteller(student)
+                        ? studentHostel(student) || "Hosteller"
+                        : "Day Scholar"}
+
+                      {student.batch ? ` · Batch ${student.batch}` : ""}
+
+                      {student.year ? ` · Year ${student.year}` : ""}
+                    </p>
+                  </div>
+
+                  {/* STATUSES & ACTIONS */}
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isBlocked(student) && (
+                      <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-bold text-red-700">
+                        Complaint Blocked
+                      </span>
+                    )}
+
+                    {isGraduated(student) && (
+                      <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-slate-600">
+                        Graduated
+                      </span>
+                    )}
+
+                    <span
+                      className={`rounded-full px-2 py-1 text-xs font-bold ${
+                        student.isActive === false
+                          ? "bg-amber-50 text-amber-700"
+                          : "bg-emerald-50 text-emerald-700"
+                      }`}
+                    >
+                      {accountStatus(student)}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => setViewStudent(student)}
+                      className="inline-flex items-center gap-1 rounded-lg bg-[#102D56] px-3 py-2 text-xs font-bold text-white"
+                    >
+                      <Eye size={14} />
+                      View
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      {/* STUDENT DETAILS MODAL */}
+
+      {/* ==========================================
+    STUDENT DETAILS MODAL
+    WITH ADMIN COMPLAINT BLOCK / UNBLOCK
+========================================== */}
+
+      {viewStudent && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#06142A]/75 p-3">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="student-details-title"
+            className="flex max-h-[92dvh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+          >
+            {/* ======================================
+          HEADER
+      ====================================== */}
+
+            <header className="flex shrink-0 items-center justify-between border-b border-slate-200 p-5">
+              <div>
+                <h2
+                  id="student-details-title"
+                  className="text-xl font-extrabold text-[#102D56]"
+                >
+                  Student Details
                 </h2>
 
-                <p
-                  className="
-                      text-sm
-                      text-gray-500
-
-                      mt-2
-                    "
-                >
-                  Hostel Occupied
+                <p className="mt-1 text-sm text-slate-500">
+                  {viewStudent.name}
                 </p>
-
-                <div
-                  className="
-                      mt-4
-
-                      text-sm
-                      font-semibold
-
-                      text-green-600
-                    "
-                >
-                  {hostel.remaining} Seats Remaining
-                </div>
               </div>
-            ))}
-          </div>
 
-          {/* =====================================
-                STATS
-          ===================================== */}
-
-          <div
-            className="
-              grid
-              grid-cols-1
-              sm:grid-cols-2
-              lg:grid-cols-2
-              xl:grid-cols-4
-
-              gap-5
-            "
-          >
-            {/* ACTIVE */}
-
-            <div
-              className="
-                bg-green-100
-
-                rounded-3xl
-
-                p-6
-
-                shadow-lg
-              "
-            >
-              <UserCheck size={34} className="text-green-700" />
-
-              <h2
-                className="
-                  text-4xl
-
-                  font-black
-
-                  mt-5
-
-                  text-green-700
-                "
+              <button
+                type="button"
+                onClick={() => setViewStudent(null)}
+                aria-label="Close details"
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
               >
-                {stats.activeStudents || 0}
-              </h2>
-
-              <p
-                className="
-                  mt-2
-
-                  text-green-700
-
-                  font-semibold
-                "
-              >
-                Active Students
-              </p>
-            </div>
-
-            {/* LEFT */}
-
-            <div
-              className="
-                bg-red-100
-
-                rounded-3xl
-
-                p-6
-
-                shadow-lg
-              "
-            >
-              <UserX size={34} className="text-red-700" />
-
-              <h2
-                className="
-                  text-4xl
-
-                  font-black
-
-                  mt-5
-
-                  text-red-700
-                "
-              >
-                {stats.leftStudents || 0}
-              </h2>
-
-              <p
-                className="
-                  mt-2
-
-                  text-red-700
-
-                  font-semibold
-                "
-              >
-                Left Hostel
-              </p>
-            </div>
-
-            {/* TOTAL */}
-
-            <div
-              className="
-                bg-blue-100
-
-                rounded-3xl
-
-                p-6
-
-                shadow-lg
-              "
-            >
-              <Users size={34} className="text-blue-700" />
-
-              <h2
-                className="
-                  text-4xl
-
-                  font-black
-
-                  mt-5
-
-                  text-blue-700
-                "
-              >
-                {stats.hostellerStudents || 0}
-              </h2>
-
-              <p
-                className="
-                  mt-2
-
-                  text-blue-700
-
-                  font-semibold
-                "
-              >
-                Total Hostellers
-              </p>
-            </div>
-
-            {/* HOSTELS */}
-
-            <div
-              className="
-                bg-purple-100
-
-                rounded-3xl
-
-                p-6
-
-                shadow-lg
-              "
-            >
-              <Home size={34} className="text-purple-700" />
-
-              <h2
-                className="
-                  text-4xl
-
-                  font-black
-
-                  mt-5
-
-                  text-purple-700
-                "
-              >
-                5
-              </h2>
-
-              <p
-                className="
-                  mt-2
-
-                  text-purple-700
-
-                  font-semibold
-                "
-              >
-                Total Hostels
-              </p>
-            </div>
-          </div>
-
-          {/* DAY SCHOLAR */}
-
-          <div
-            className="
-    bg-indigo-100
-
-    rounded-3xl
-
-    p-6
-
-    shadow-lg
-  "
-          >
-            <UserRound size={34} className="text-indigo-700" />
-
-            <h2
-              className="
-      text-4xl
-
-      font-black
-
-      mt-5
-
-      text-indigo-700
-    "
-            >
-              {stats.nonHostellerStudents || 0}
-            </h2>
-
-            <p
-              className="
-      mt-2
-
-      text-indigo-700
-
-      font-semibold
-    "
-            >
-              Day Scholar Students
-            </p>
-          </div>
-
-          {/* =====================================
-                STUDENT CARDS
-          ===================================== */}
-
-          <div
-            className="
-              grid
-              grid-cols-1
-              md:grid-cols-2
-              xl:grid-cols-3
-
-              gap-6
-            "
-          >
-            {filteredStudents.map((student) => (
-              <div
-                key={student._id}
-                className="
-                    bg-white
-
-                    rounded-3xl
-
-                    shadow-lg
-
-                    border
-                    border-gray-100
-
-                    p-6
-
-                    hover:shadow-2xl
-
-                    transition-all
-                  "
-              >
-                {/* TOP */}
-
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h2
-                      className="
-                          text-2xl
-
-                          font-bold
-
-                          text-[#001B54]
-                        "
-                    >
-                      {student.name}
-                    </h2>
-
-                    <p
-                      className="
-                          text-sm
-                          text-gray-500
-
-                          mt-1
-                        "
-                    >
-                      {student.year || "1st Year"}
+                <X size={20} />
+              </button>
+            </header>
+
+            {/* ======================================
+          SCROLLABLE CONTENT
+      ====================================== */}
+
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {/* STUDENT INFORMATION */}
+
+              <div className="grid gap-3 p-5 sm:grid-cols-2">
+                {[
+                  ["Name", viewStudent.name],
+
+                  ["Email", viewStudent.email],
+
+                  [
+                    "Amizone / Enrollment",
+                    viewStudent.amizoneId || viewStudent.enrollmentNumber,
+                  ],
+
+                  [
+                    "Student Type",
+                    isHosteller(viewStudent) ? "Hosteller" : "Day Scholar",
+                  ],
+
+                  [
+                    "Academic Block",
+                    viewStudent.departmentBlock ||
+                      viewStudent.academicBlock ||
+                      viewStudent.block,
+                  ],
+
+                  ["Department", viewStudent.department],
+
+                  ["Batch", viewStudent.batch],
+
+                  ["Year", viewStudent.year],
+
+                  ["Academic Status", academicStatus(viewStudent)],
+
+                  ["Hostel", studentHostel(viewStudent) || "—"],
+
+                  ["Room (existing reference)", viewStudent.roomNumber],
+
+                  ["Account Status", accountStatus(viewStudent)],
+
+                  [
+                    "Complaint Access",
+                    isBlocked(viewStudent) ? "Blocked" : "Allowed",
+                  ],
+
+                  [
+                    "Complaint Block Reason",
+                    isBlocked(viewStudent)
+                      ? viewStudent.complaintBlockReason
+                      : "—",
+                  ],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-xl border border-slate-100 bg-slate-50 p-3"
+                  >
+                    <p className="text-xs font-semibold text-slate-500">
+                      {label}
                     </p>
 
-                    <p
-                      className="
-                          mt-2
-
-                          text-xs
-
-                          font-semibold
-
-                          text-purple-600
-                        "
-                    >
-                      Hosteller
+                    <p className="mt-1 break-words text-sm font-bold text-[#102D56]">
+                      {text(value) || "—"}
                     </p>
                   </div>
-
-                  <div
-                    className={`
-                        px-4
-                        py-2
-
-                        rounded-full
-
-                        text-xs
-                        font-bold
-
-                        ${getStatusColor(student.studentStatus)}
-                      `}
-                  >
-                    {student.studentStatus}
-                  </div>
-                </div>
-
-                {/* DETAILS */}
-
-                <div className="space-y-4 mt-6">
-                  {/* HOSTEL */}
-
-                  <div
-                    className="
-                        bg-blue-50
-
-                        rounded-2xl
-
-                        p-4
-
-                        flex
-                        items-center
-                        gap-3
-                      "
-                  >
-                    <Building2 size={20} className="text-blue-700" />
-
-                    <div>
-                      <p className="text-xs text-gray-500">Hostel</p>
-
-                      <p
-                        className="
-                            font-semibold
-                            text-blue-700
-                          "
-                      >
-                        {student.hostel}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* ROOM */}
-
-                  <div
-                    className="
-                        bg-yellow-50
-
-                        rounded-2xl
-
-                        p-4
-
-                        flex
-                        items-center
-                        gap-3
-                      "
-                  >
-                    <Clock3 size={20} className="text-yellow-700" />
-
-                    <div>
-                      <p className="text-xs text-gray-500">Room Number</p>
-
-                      <p
-                        className="
-                            font-semibold
-                            text-yellow-700
-                          "
-                      >
-                        {student.roomNumber || "N/A"}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* EMAIL */}
-
-                  <div
-                    className="
-                        bg-purple-50
-
-                        rounded-2xl
-
-                        p-4
-                      "
-                  >
-                    <p className="text-xs text-gray-500">Email</p>
-
-                    <p
-                      className="
-                          font-semibold
-                          text-purple-700
-
-                          break-all
-                        "
-                    >
-                      {student.email}
-                    </p>
-                  </div>
-                </div>
-
-                {/* ACTIONS */}
-
-                <div
-                  className="
-                      mt-6
-                    "
-                >
-                  <button
-                    onClick={() => deleteStudent(student._id)}
-                    className="
-                        w-full
-
-                        bg-red-100
-                        hover:bg-red-200
-
-                        text-red-700
-
-                        py-3
-
-                        rounded-2xl
-
-                        flex
-                        items-center
-                        justify-center
-                        gap-2
-
-                        transition-all
-                      "
-                  >
-                    <Trash2 size={16} />
-                    Remove Student
-                  </button>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </>
+
+              {/* ======================================
+            ADMIN COMPLAINT ACCESS CONTROL
+            BLOCK / UNBLOCK + REASON + HISTORY
+        ====================================== */}
+
+              <StudentComplaintControls
+                student={viewStudent}
+                onChanged={(updatedAccess) => {
+                  const studentId = viewStudent._id;
+
+                  // Update selected student modal
+                  setViewStudent((previous) =>
+                    previous && previous._id === studentId
+                      ? {
+                          ...previous,
+                          ...updatedAccess,
+                        }
+                      : previous,
+                  );
+
+                  // Update main student list
+                  setStudents((previous) =>
+                    previous.map((student) =>
+                      student._id === studentId
+                        ? {
+                            ...student,
+                            ...updatedAccess,
+                          }
+                        : student,
+                    ),
+                  );
+                }}
+              />
+            </div>
+
+            {/* ======================================
+          FOOTER
+      ====================================== */}
+
+            <footer className="flex shrink-0 justify-end border-t border-slate-200 bg-white p-4">
+              <button
+                type="button"
+                onClick={() => setViewStudent(null)}
+                className="rounded-xl bg-[#102D56] px-6 py-2.5 text-sm font-bold text-white transition hover:bg-[#173D73]"
+              >
+                Close
+              </button>
+            </footer>
+          </section>
+        </div>
       )}
-    </div>
+    </main>
   );
-};
-
-export default ManageStudents;
+}

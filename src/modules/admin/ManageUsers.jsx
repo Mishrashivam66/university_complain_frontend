@@ -1,493 +1,931 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 
 import {
-  Users,
-  Search,
   Archive,
+  Building2,
+  CheckCircle2,
+  ChevronDown,
+  Eye,
+  Mail,
+  Pencil,
+  RefreshCcw,
+  Search,
+  Shield,
   ShieldCheck,
   ShieldX,
-  RefreshCcw,
+  UserRound,
+  UsersRound,
+  Wrench,
+  Package,
   X,
 } from "lucide-react";
 
 import api from "../../services/api";
 
 // ==========================================
-// ROLE LABELS
+// ROLES
 // ==========================================
 
-const ROLE_LABELS = {
-  ADMIN: "Admin",
-  BLOCK_ADMIN: "Block Admin",
-  MAINTENANCE_MANAGER: "Maintenance Manager",
-  STORE_MANAGER: "Store Manager",
-  HOSTEL_DIRECTOR: "Hostel Director",
-  WARDEN: "Warden",
-  TECHNICIAN: "Technician",
-  WORKER: "Technician (Legacy)",
-  STUDENT: "Student",
-  FACULTY: "Faculty",
-  ADMIN_STAFF: "Admin Staff",
-  MESS_MANAGER: "Mess Manager (Legacy)",
-  IT_HEAD: "IT Head (Legacy)",
-  HOUSEKEEPING_HEAD: "Housekeeping (Legacy)",
+const CORE_ROLES = [
+  "ADMIN",
+  "MAINTENANCE_MANAGER",
+  "STORE_MANAGER",
+  "BLOCK_ADMIN",
+  "HOSTEL_DIRECTOR",
+  "WARDEN",
+  "TECHNICIAN",
+];
+
+const EDITABLE_ROLES = new Set([
+  "ADMIN",
+  "MAINTENANCE_MANAGER",
+  "STORE_MANAGER",
+  "BLOCK_ADMIN",
+]);
+
+const ROLE_INFO = {
+  ADMIN: {
+    label: "Admins",
+    icon: Shield,
+    note: "System administration",
+  },
+  MAINTENANCE_MANAGER: {
+    label: "Maintenance Managers",
+    icon: Wrench,
+    note: "Maintenance operations",
+  },
+  STORE_MANAGER: {
+    label: "Store Managers",
+    icon: Package,
+    note: "Material and inventory operations",
+  },
+  BLOCK_ADMIN: {
+    label: "Block Admins",
+    icon: Building2,
+    note: "Assigned-block monitoring",
+  },
+  HOSTEL_DIRECTOR: {
+    label: "Hostel Directors",
+    icon: ShieldCheck,
+    note: "Managed by hostel administration",
+  },
+  WARDEN: {
+    label: "Wardens",
+    icon: UserRound,
+    note: "Managed by Hostel Director",
+  },
+  TECHNICIAN: {
+    label: "Technicians",
+    icon: Wrench,
+    note: "Managed by Maintenance Manager",
+  },
+  WORKER: {
+    label: "Legacy Workers",
+    icon: Wrench,
+    note: "Existing worker accounts",
+  },
+  FACULTY: {
+    label: "Faculty",
+    icon: UsersRound,
+    note: "Existing faculty accounts",
+  },
+  ADMIN_STAFF: {
+    label: "Administrative Staff",
+    icon: UsersRound,
+    note: "Existing staff accounts",
+  },
+  MESS_MANAGER: {
+    label: "Legacy Mess Managers",
+    icon: UsersRound,
+    note: "Existing accounts only",
+  },
+  IT_HEAD: {
+    label: "Legacy IT Heads",
+    icon: UsersRound,
+    note: "Existing accounts only",
+  },
+  HOUSEKEEPING_HEAD: {
+    label: "Legacy Housekeeping Heads",
+    icon: UsersRound,
+    note: "Existing accounts only",
+  },
 };
 
+const roleLabel = (role) =>
+  ROLE_INFO[role]?.label || role?.replaceAll("_", " ") || "Unknown";
+
+const messageOf = (error, fallback) =>
+  error?.response?.data?.message || fallback;
+
+const fieldClass =
+  "w-full rounded-xl border border-slate-200 bg-[#F8FAFD] px-3.5 py-3 text-sm outline-none focus:border-amber-500";
+
+const cleanUser = (user) => ({
+  name: user.name || "",
+  email: user.email || "",
+  phone: user.phone || "",
+  designation: user.designation || "",
+  employeeId: user.employeeId || "",
+  assignedBlock: user.assignedBlock || "",
+});
+
 // ==========================================
-// MANAGE USERS
+// USER DETAILS MODAL
+// ==========================================
+
+function DetailsModal({ user, onClose, onEdit }) {
+  const rows = [
+    ["Full name", user.name],
+    ["Email", user.email],
+    ["Role", roleLabel(user.role)],
+    ["Phone", user.phone],
+    ["Designation", user.designation],
+    ["Employee ID", user.employeeId],
+    ["Academic block", user.assignedBlock],
+    ["Assigned hostel", user.assignedHostel],
+    ["Department", user.department],
+    ["Account status", user.isActive ? "Active" : "Inactive"],
+    ["Email verification", user.isVerified ? "Verified" : "Not verified"],
+    [
+      "Created",
+      user.createdAt ? new Date(user.createdAt).toLocaleString("en-IN") : "—",
+    ],
+    [
+      "Last login",
+      user.lastLogin
+        ? new Date(user.lastLogin).toLocaleString("en-IN")
+        : "Never",
+    ],
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/65 p-3"
+      role="presentation"
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="user-details-title"
+        className="w-full max-w-xl overflow-hidden rounded-3xl bg-white shadow-2xl"
+      >
+        <header className="flex items-center justify-between border-b p-5">
+          <div>
+            <h2 id="user-details-title" className="text-xl font-bold">
+              Account details
+            </h2>
+
+            <p className="text-sm text-slate-500">{user.name}</p>
+          </div>
+
+          <button type="button" onClick={onClose} aria-label="Close details">
+            <X size={21} />
+          </button>
+        </header>
+
+        <div className="grid max-h-[65dvh] grid-cols-1 gap-3 overflow-y-auto p-5 sm:grid-cols-2">
+          {rows.map(([label, value]) => (
+            <div key={label} className="rounded-xl bg-[#F5F7FB] p-3">
+              <p className="text-xs font-semibold text-slate-500">{label}</p>
+
+              <p className="mt-1 break-words text-sm font-semibold text-[#142C52]">
+                {value || "—"}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        <footer className="flex justify-end gap-2 border-t p-4">
+          <button
+            type="button"
+            className="rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-bold"
+            onClick={onClose}
+          >
+            Close
+          </button>
+
+          {EDITABLE_ROLES.has(user.role) && (
+            <button
+              type="button"
+              className="rounded-xl bg-[#102A53] px-5 py-2.5 text-sm font-bold text-white"
+              onClick={onEdit}
+            >
+              Edit details
+            </button>
+          )}
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+// ==========================================
+// MAIN MANAGE USERS PAGE
 // ==========================================
 
 export default function ManageUsers() {
   const [users, setUsers] = useState([]);
+  const [blocks, setBlocks] = useState([]);
+
   const [loading, setLoading] = useState(true);
-  const [savingId, setSavingId] = useState(null);
+  const [saving, setSaving] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState("ALL");
+  const [openRole, setOpenRole] = useState("ADMIN");
 
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [details, setDetails] = useState(null);
+  const [editing, setEditing] = useState(null);
+
+  const [editForm, setEditForm] = useState(cleanUser({}));
+
+  const [confirmation, setConfirmation] = useState(null);
 
   // ======================================
-  // LOAD USERS
+  // LOAD STAFF
   // ======================================
 
-  const fetchUsers = useCallback(async () => {
+  const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
 
-      const response = await api.get("/admin/users");
+      const { data } = await api.get("/admin/users");
 
-      setUsers(Array.isArray(response.data?.users) ? response.data.users : []);
+      // Students belong to Manage Students.
+      setUsers(
+        (Array.isArray(data?.users) ? data.users : []).filter(
+          (u) => u.role !== "STUDENT",
+        ),
+      );
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to load users");
+      toast.error(messageOf(error, "Unable to load staff accounts"));
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    loadUsers();
+  }, [loadUsers]);
 
   // ======================================
-  // FILTERED USERS
+  // LOAD ACADEMIC BLOCKS
   // ======================================
 
-  const filteredUsers = useMemo(() => {
+  useEffect(() => {
+    api
+      .get("/admin/blocks")
+      .then(({ data }) => {
+        setBlocks(
+          (data?.blocks || []).filter((b) => b.isActive && !b.isDeleted),
+        );
+      })
+      .catch(() => {
+        setBlocks([]);
+      });
+  }, []);
+
+  // ======================================
+  // GROUP STAFF BY ROLE
+  // ======================================
+
+  const groups = useMemo(() => {
+    const byRole = new Map();
+
+    users.forEach((u) => {
+      const role = u.role || "UNKNOWN";
+
+      if (!byRole.has(role)) {
+        byRole.set(role, []);
+      }
+
+      byRole.get(role).push(u);
+    });
+
+    const orderedRoles = [...new Set([...CORE_ROLES, ...byRole.keys()])];
+
+    return orderedRoles.map((role) => ({
+      role,
+      members: byRole.get(role) || [],
+      label: roleLabel(role),
+      icon: ROLE_INFO[role]?.icon || UsersRound,
+      note: ROLE_INFO[role]?.note || "Existing accounts",
+    }));
+  }, [users]);
+
+  const selectedGroup = groups.find((g) => g.role === openRole);
+
+  // ======================================
+  // SEARCH INSIDE SELECTED ROLE
+  // ======================================
+
+  const visibleMembers = useMemo(() => {
     const query = search.trim().toLowerCase();
 
-    return users.filter((user) => {
-      const matchesSearch =
-        !query ||
-        String(user.name || "")
+    return (selectedGroup?.members || []).filter((u) =>
+      [
+        u.name,
+        u.email,
+        u.phone,
+        u.employeeId,
+        u.assignedBlock,
+        u.assignedHostel,
+      ].some((v) =>
+        String(v || "")
           .toLowerCase()
-          .includes(query) ||
-        String(user.email || "")
-          .toLowerCase()
-          .includes(query);
-
-      const matchesRole = roleFilter === "ALL" || user.role === roleFilter;
-
-      return matchesSearch && matchesRole;
-    });
-  }, [users, search, roleFilter]);
-
-  const roleOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(users.map((user) => user.role).filter(Boolean)),
-      ).sort(),
-    [users],
-  );
+          .includes(query),
+      ),
+    );
+  }, [selectedGroup, search]);
 
   // ======================================
-  // TOGGLE STATUS
+  // OPEN EDIT FORM
   // ======================================
 
-  const toggleStatus = async (user) => {
-    if (savingId) return;
-
-    try {
-      setSavingId(user._id);
-
-      const response = await api.put(`/admin/users/status/${user._id}`, {});
-
-      toast.success(response.data?.message || "User status updated");
-
-      await fetchUsers();
-    } catch (error) {
-      toast.error(
-        error.response?.data?.message || "Failed to update user status",
-      );
-    } finally {
-      setSavingId(null);
-    }
-  };
-
-  // ======================================
-  // ARCHIVE USER
-  // ======================================
-
-  const archiveUser = async () => {
-    if (!selectedUser || savingId) {
+  const startEdit = (user) => {
+    if (!EDITABLE_ROLES.has(user.role)) {
       return;
     }
 
+    setDetails(null);
+    setEditing(user);
+    setEditForm(cleanUser(user));
+  };
+
+  // ======================================
+  // SAVE EDITED DETAILS
+  // ======================================
+
+  const submitEdit = async (event) => {
+    event.preventDefault();
+
+    if (!editing || saving) return;
+
+    if (editing.role === "BLOCK_ADMIN" && !editForm.assignedBlock) {
+      return toast.error("Assign an active academic block");
+    }
+
     try {
-      setSavingId(selectedUser._id);
+      setSaving(true);
 
-      const response = await api.delete(`/admin/users/${selectedUser._id}`);
+      const { data } = await api.put(`/admin/users/${editing._id}`, {
+        name: editForm.name.trim(),
 
-      toast.success(response.data?.message || "User archived successfully");
+        email: editForm.email.trim().toLowerCase(),
 
-      setSelectedUser(null);
+        phone: editForm.phone.trim(),
 
-      await fetchUsers();
+        designation: editForm.designation.trim(),
+
+        employeeId: editForm.employeeId.trim(),
+
+        ...(editing.role === "BLOCK_ADMIN"
+          ? {
+              assignedBlock: editForm.assignedBlock,
+            }
+          : {}),
+      });
+
+      toast.success(data?.message || "Account updated");
+
+      setEditing(null);
+      await loadUsers();
     } catch (error) {
-      toast.error(error.response?.data?.message || "Unable to archive user");
+      toast.error(messageOf(error, "Unable to update account"));
     } finally {
-      setSavingId(null);
+      setSaving(false);
     }
   };
 
   // ======================================
-  // USER LOCATION
+  // STATUS / ARCHIVE
   // ======================================
 
-  const getLocation = (user) => {
-    if (user.assignedBlock) {
-      return `Block ${user.assignedBlock}`;
-    }
+  const performAction = async () => {
+    if (!confirmation || saving) return;
 
-    if (user.assignedHostel) {
-      return user.assignedHostel;
-    }
+    const { user, kind } = confirmation;
 
-    if (user.hostel) {
-      return user.hostel;
-    }
+    try {
+      setSaving(true);
 
-    if (user.department) {
-      return user.department;
-    }
+      const { data } =
+        kind === "archive"
+          ? await api.delete(`/admin/users/${user._id}`)
+          : await api.put(`/admin/users/status/${user._id}`, {});
 
-    return "Campus Level";
+      toast.success(data?.message || "Updated successfully");
+
+      setConfirmation(null);
+      await loadUsers();
+    } catch (error) {
+      toast.error(messageOf(error, "Unable to change account"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const detailsSectionRef = useRef(null);
+
+  // ==========================================
+  // ROLE SELECT + AUTO SMOOTH SCROLL
+  // ==========================================
+
+  const handleRoleSelect = (role) => {
+    // Selected role ki details dikhao
+    setOpenRole(role);
+
+    // Previous search clear karo
+    setSearch("");
+
+    // Automatically scroll to details
+    requestAnimationFrame(() => {
+      detailsSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+        inline: "nearest",
+      });
+    });
   };
 
   // ======================================
-  // UI
+  // MAIN UI
   // ======================================
 
   return (
-    <main className="min-h-screen bg-[#F5F7FC] p-4 text-[#132547] sm:p-6 lg:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
+    <main className="min-h-full bg-[#F5F7FC] p-4 text-[#122A4F] sm:p-7">
+      <div className="mx-auto max-w-7xl space-y-5">
         {/* HEADER */}
 
-        <header className="rounded-[28px] bg-gradient-to-br from-[#071A3A] via-[#112B58] to-[#1D4578] p-6 text-white shadow-xl sm:p-9">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.3em] text-[#E7BE70]">
-                AmiMaintain Administration
-              </p>
+        <header className="flex flex-wrap items-center justify-between gap-4 rounded-3xl bg-gradient-to-r from-[#081B3A] to-[#183B70] p-6 text-white shadow-lg sm:p-8">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.2em] text-[#F2CA79]">
+              AmiMaintain · Users & Access
+            </p>
 
-              <h1 className="mt-3 text-3xl font-bold sm:text-4xl">
-                Manage Users
-              </h1>
+            <h1 className="mt-2 text-3xl font-extrabold">
+              Staff Account Management
+            </h1>
 
-              <p className="mt-3 max-w-xl text-sm leading-7 text-slate-200">
-                Search, review and manage account access without deleting
-                historical records.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={fetchUsers}
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold hover:bg-white/20 disabled:opacity-50"
-            >
-              <RefreshCcw size={17} />
-              Refresh
-            </button>
+            <p className="mt-2 text-sm text-slate-200">
+              Every role has its own box. Select a role to view all its
+              accounts.
+            </p>
           </div>
+
+          <button
+            type="button"
+            onClick={loadUsers}
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2.5 text-sm font-bold disabled:opacity-50"
+          >
+            <RefreshCcw size={16} />
+            Refresh
+          </button>
         </header>
 
         {/* SUMMARY */}
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          {[
-            {
-              title: "Total Users",
-              count: users.length,
-            },
-            {
-              title: "Active Users",
-              count: users.filter((user) => user.isActive).length,
-            },
-            {
-              title: "Inactive Users",
-              count: users.filter((user) => !user.isActive).length,
-            },
-          ].map((item) => (
-            <div
-              key={item.title}
-              className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-            >
-              <p className="text-sm font-semibold text-slate-500">
-                {item.title}
-              </p>
+        <section className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <p className="text-sm text-slate-500">Staff accounts</p>
 
-              <p className="mt-2 text-3xl font-bold text-[#0B2045]">
-                {item.count}
-              </p>
-            </div>
-          ))}
-        </div>
+            <p className="mt-1 text-3xl font-black">{users.length}</p>
+          </div>
 
-        {/* FILTERS */}
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <p className="text-sm text-slate-500">Active accounts</p>
 
-        <section className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-[1fr_240px]">
-          <label className="relative block">
-            <span className="sr-only">Search users</span>
+            <p className="mt-1 text-3xl font-black">
+              {users.filter((u) => u.isActive).length}
+            </p>
+          </div>
 
-            <Search
-              size={18}
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"
-            />
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <p className="text-sm text-slate-500">Separate staff roles</p>
 
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name or email..."
-              className="w-full rounded-xl border border-slate-200 bg-[#FAFBFE] py-3.5 pl-12 pr-4 outline-none focus:border-[#C49C52]"
-            />
-          </label>
-
-          <select
-            value={roleFilter}
-            onChange={(event) => setRoleFilter(event.target.value)}
-            aria-label="Filter by role"
-            className="rounded-xl border border-slate-200 bg-[#FAFBFE] px-4 py-3.5 outline-none focus:border-[#C49C52]"
-          >
-            <option value="ALL">All Roles</option>
-
-            {roleOptions.map((role) => (
-              <option key={role} value={role}>
-                {ROLE_LABELS[role] || role}
-              </option>
-            ))}
-          </select>
+            <p className="mt-1 text-3xl font-black">
+              {groups.filter((g) => g.members.length > 0).length}
+            </p>
+          </div>
         </section>
 
-        {/* USERS TABLE */}
+        {/* ROLE-WISE BOXES */}
 
-        <section className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="bg-[#0B2045] text-white">
-                <tr>
-                  <th className="px-5 py-4">User</th>
+        <section>
+          <h2 className="mb-3 text-lg font-extrabold">Choose a role</h2>
 
-                  <th className="px-5 py-4">Role</th>
+          {loading ? (
+            <p className="py-8 text-center text-slate-500">
+              Loading accounts...
+            </p>
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {groups.map((group) => {
+                const Icon = group.icon;
+                const active = openRole === group.role;
 
-                  <th className="px-5 py-4">Location</th>
+                return (
+                  <button
+                    key={group.role}
+                    type="button"
+                    onClick={() => handleRoleSelect(group.role)}
+                    className={`min-h-36 rounded-2xl border p-5 text-left shadow-sm transition hover:shadow-md ${
+                      active
+                        ? "border-amber-500 bg-[#FFFAEB]"
+                        : "border-slate-200 bg-white"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="rounded-xl bg-[#E8EDF8] p-2.5 text-[#193D73]">
+                        <Icon size={21} />
+                      </span>
 
-                  <th className="px-5 py-4">Status</th>
+                      <span className="text-3xl font-black">
+                        {group.members.length}
+                      </span>
+                    </div>
 
-                  <th className="px-5 py-4">Actions</th>
-                </tr>
-              </thead>
+                    <p className="mt-3 text-sm font-extrabold">{group.label}</p>
 
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-5 py-16 text-center text-slate-500"
-                    >
-                      Loading users...
-                    </td>
-                  </tr>
-                ) : filteredUsers.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={5}
-                      className="px-5 py-16 text-center text-slate-500"
-                    >
-                      No users found.
-                    </td>
-                  </tr>
-                ) : (
-                  filteredUsers.map((user) => (
-                    <tr
-                      key={user._id}
-                      className="border-b border-slate-100 transition hover:bg-[#F8FAFE]"
-                    >
-                      {/* USER */}
+                    <p className="mt-1 text-xs text-slate-500">{group.note}</p>
 
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#EAF0FA] text-[#0B2045]">
-                            <Users size={19} />
-                          </span>
+                    <div className="mt-3 flex items-center gap-1 text-xs font-bold text-[#976819]">
+                      {active ? "Viewing accounts" : "View accounts"}
 
-                          <div>
-                            <p className="font-bold text-[#122849]">
-                              {user.name}
-                            </p>
+                      <ChevronDown size={14} />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </section>
 
-                            <p className="mt-1 text-xs text-slate-500">
-                              {user.email || "No email"}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
+        {/* SELECTED ROLE ACCOUNTS */}
 
-                      {/* ROLE */}
+        {/* ==========================================
+    SELECTED ROLE ACCOUNTS
+========================================== */}
 
-                      <td className="px-5 py-4">
-                        <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-800">
-                          {ROLE_LABELS[user.role] || user.role}
-                        </span>
-                      </td>
+        {selectedGroup && (
+          <section
+            ref={detailsSectionRef}
+            className="scroll-mt-24 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
+          >
+            {/* HEADER */}
 
-                      {/* LOCATION */}
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-xl font-black">{selectedGroup.label}</h2>
 
-                      <td className="px-5 py-4 font-medium text-slate-600">
-                        {getLocation(user)}
-                      </td>
+                <p className="text-sm text-slate-500">
+                  {selectedGroup.members.length} accounts
+                  {" · "}
+                  {EDITABLE_ROLES.has(selectedGroup.role)
+                    ? "Admin can edit these accounts"
+                    : "Read only — managed by the responsible department"}
+                </p>
+              </div>
+
+              {/* SEARCH */}
+
+              <label className="relative block w-full sm:w-72">
+                <Search
+                  size={17}
+                  className="absolute left-3 top-3.5 text-slate-400"
+                />
+
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search within this role"
+                  className={`${fieldClass} pl-10`}
+                />
+              </label>
+            </div>
+
+            {/* ACCOUNT CARDS */}
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              {visibleMembers.map((user) => {
+                const editable = EDITABLE_ROLES.has(user.role);
+
+                return (
+                  <article
+                    key={user._id}
+                    className="rounded-2xl border border-slate-200 p-4 transition-all hover:border-amber-300 hover:shadow-md"
+                  >
+                    {/* USER INFO */}
+
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#E8EDF8] font-extrabold text-[#163464]">
+                        {user.name?.charAt(0)?.toUpperCase() || "U"}
+                      </span>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-bold">
+                          {user.name}
+                        </p>
+
+                        <p className="mt-0.5 flex min-w-0 items-center gap-1 truncate text-xs text-slate-500">
+                          <Mail size={12} />
+                          {user.email || "No email"}
+                        </p>
+
+                        <p className="mt-1 text-xs text-slate-500">
+                          {user.assignedBlock
+                            ? `Block ${user.assignedBlock}`
+                            : user.assignedHostel ||
+                              user.designation ||
+                              "Campus"}
+                        </p>
+                      </div>
 
                       {/* STATUS */}
 
-                      <td className="px-5 py-4">
-                        <span
-                          className={`rounded-full px-3 py-1.5 text-xs font-bold ${
-                            user.isActive
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-red-50 text-red-700"
-                          }`}
-                        >
-                          {user.isActive ? "Active" : "Inactive"}
-                        </span>
-                      </td>
+                      <span
+                        className={`rounded-full px-2 py-1 text-xs font-bold ${
+                          user.isActive
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-red-50 text-red-700"
+                        }`}
+                      >
+                        {user.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </div>
 
-                      {/* ACTIONS */}
+                    {/* ACTION BUTTONS */}
 
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2">
+                    <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+                      {/* VIEW */}
+
+                      <button
+                        type="button"
+                        onClick={() => setDetails(user)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold transition-colors hover:bg-slate-200"
+                      >
+                        <Eye size={14} />
+                        View
+                      </button>
+
+                      {editable && (
+                        <>
+                          {/* EDIT */}
+
                           <button
                             type="button"
-                            disabled={savingId === user._id}
-                            onClick={() => toggleStatus(user)}
-                            title={
-                              user.isActive
-                                ? "Deactivate user"
-                                : "Activate user"
+                            onClick={() => startEdit(user)}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-100"
+                          >
+                            <Pencil size={14} />
+                            Edit
+                          </button>
+
+                          {/* ACTIVATE / DEACTIVATE */}
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setConfirmation({
+                                user,
+                                kind: "status",
+                              })
                             }
-                            aria-label={
-                              user.isActive
-                                ? "Deactivate user"
-                                : "Activate user"
-                            }
-                            className={`rounded-xl p-3 transition disabled:opacity-50 ${
-                              user.isActive
-                                ? "bg-amber-50 text-amber-700 hover:bg-amber-100"
-                                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                            }`}
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800 transition-colors hover:bg-amber-100"
                           >
                             {user.isActive ? (
-                              <ShieldX size={19} />
+                              <ShieldX size={14} />
                             ) : (
-                              <ShieldCheck size={19} />
+                              <CheckCircle2 size={14} />
                             )}
+
+                            {user.isActive ? "Deactivate" : "Activate"}
                           </button>
+
+                          {/* ARCHIVE */}
 
                           <button
                             type="button"
-                            onClick={() => setSelectedUser(user)}
-                            aria-label="Archive user"
-                            title="Archive user"
-                            className="rounded-xl bg-red-50 p-3 text-red-700 transition hover:bg-red-100"
+                            onClick={() =>
+                              setConfirmation({
+                                user,
+                                kind: "archive",
+                              })
+                            }
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700 transition-colors hover:bg-red-100"
                           >
-                            <Archive size={19} />
+                            <Archive size={14} />
+                            Archive
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+                        </>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+
+              {/* EMPTY STATE */}
+
+              {visibleMembers.length === 0 && (
+                <div className="col-span-full rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center">
+                  <UsersRound size={28} className="mx-auto text-slate-400" />
+
+                  <p className="mt-3 text-sm font-semibold text-slate-500">
+                    No matching accounts.
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
       </div>
 
-      {/* ARCHIVE CONFIRMATION */}
+      {/* DETAILS MODAL */}
 
-      {selectedUser && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#061327]/70 p-4 backdrop-blur-sm"
-          role="presentation"
-          onClick={() => setSelectedUser(null)}
-        >
-          <div
+      {details && (
+        <DetailsModal
+          user={details}
+          onClose={() => setDetails(null)}
+          onEdit={() => startEdit(details)}
+        />
+      )}
+
+      {/* EDIT MODAL */}
+
+      {editing && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/70 p-3">
+          <section
             role="dialog"
             aria-modal="true"
-            aria-labelledby="archive-title"
-            className="w-full max-w-md rounded-[28px] bg-white p-6 shadow-2xl sm:p-8"
-            onClick={(event) => event.stopPropagation()}
+            aria-labelledby="edit-account-title"
+            className="flex max-h-[92dvh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
           >
-            <div className="flex items-start justify-between gap-3">
-              <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
-                <Archive size={28} />
-              </span>
+            <header className="flex items-center justify-between border-b p-5">
+              <div>
+                <h2 id="edit-account-title" className="text-xl font-bold">
+                  Edit Account
+                </h2>
+
+                <p className="text-xs text-slate-500">
+                  {roleLabel(editing.role)}
+                  {" · "}
+                  Role remains unchanged
+                </p>
+              </div>
 
               <button
                 type="button"
-                onClick={() => setSelectedUser(null)}
-                aria-label="Close confirmation"
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                aria-label="Close"
+                disabled={saving}
+                onClick={() => setEditing(null)}
               >
-                <X size={20} />
+                <X size={21} />
               </button>
-            </div>
+            </header>
 
-            <h2
-              id="archive-title"
-              className="mt-5 text-2xl font-bold text-[#0B2045]"
+            <form
+              id="edit-staff-form"
+              onSubmit={submitEdit}
+              className="grid min-h-0 gap-4 overflow-y-auto p-5 sm:grid-cols-2"
             >
-              Archive User?
+              {[
+                ["Full name", "name", "text"],
+                ["Official email", "email", "email"],
+                ["Phone", "phone", "tel"],
+                ["Designation", "designation", "text"],
+                ["Employee ID", "employeeId", "text"],
+              ].map(([label, key, type]) => (
+                <label key={key} className="text-sm font-bold">
+                  {label}
+                  {["name", "email"].includes(key) && " *"}
+
+                  <input
+                    type={type}
+                    value={editForm[key]}
+                    required={["name", "email"].includes(key)}
+                    maxLength={key === "email" ? 254 : 120}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        [key]: e.target.value,
+                      }))
+                    }
+                    className={`${fieldClass} mt-2`}
+                  />
+                </label>
+              ))}
+
+              {editing.role === "BLOCK_ADMIN" && (
+                <label className="text-sm font-bold">
+                  Assigned Academic Block *
+                  <select
+                    required
+                    value={editForm.assignedBlock}
+                    onChange={(e) =>
+                      setEditForm((prev) => ({
+                        ...prev,
+                        assignedBlock: e.target.value,
+                      }))
+                    }
+                    className={`${fieldClass} mt-2`}
+                  >
+                    <option value="">Select block</option>
+
+                    {blocks.map((b) => (
+                      <option key={b._id} value={b.code}>
+                        {b.name} ({b.code})
+                      </option>
+                    ))}
+
+                    {editForm.assignedBlock &&
+                      !blocks.some(
+                        (b) => b.code === editForm.assignedBlock,
+                      ) && (
+                        <option value={editForm.assignedBlock}>
+                          {editForm.assignedBlock} (currently assigned)
+                        </option>
+                      )}
+                  </select>
+                </label>
+              )}
+
+              <p className="text-xs leading-5 text-slate-500 sm:col-span-2">
+                For an incorrect role, archive the unused account and provision
+                a new account with the right role. Passwords are changed through
+                the password reset flow.
+              </p>
+            </form>
+
+            <footer className="flex justify-end gap-2 border-t p-4">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setEditing(null)}
+                className="rounded-xl bg-slate-100 px-5 py-2.5 text-sm font-bold"
+              >
+                Cancel
+              </button>
+
+              <button
+                form="edit-staff-form"
+                type="submit"
+                disabled={saving}
+                className="rounded-xl bg-[#E9BF6B] px-5 py-2.5 text-sm font-bold text-[#102342] disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {/* CONFIRM ACTION */}
+
+      {confirmation && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="confirm-user-title"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+          >
+            <h2 id="confirm-user-title" className="text-xl font-bold">
+              {confirmation.kind === "archive"
+                ? "Archive"
+                : confirmation.user.isActive
+                  ? "Deactivate"
+                  : "Activate"}{" "}
+              {confirmation.user.name}?
             </h2>
 
-            <p className="mt-3 text-sm leading-7 text-slate-600">
-              Are you sure you want to archive
-              <strong> {selectedUser.name}</strong>? Their account will no
-              longer be able to log in, but all previous complaint and work
-              history will be preserved.
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              {confirmation.kind === "archive"
+                ? "This account will lose login access, but complaint and work history will remain."
+                : "Account access will be updated. Other linked records will not be deleted."}
             </p>
 
-            <div className="mt-7 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-6 flex justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setSelectedUser(null)}
-                className="flex-1 rounded-xl bg-slate-100 px-4 py-3 font-semibold text-slate-700 hover:bg-slate-200"
+                disabled={saving}
+                onClick={() => setConfirmation(null)}
+                className="rounded-xl bg-slate-100 px-4 py-2 text-sm font-bold"
               >
                 Cancel
               </button>
 
               <button
                 type="button"
-                onClick={archiveUser}
-                disabled={Boolean(savingId)}
-                className="flex-1 rounded-xl bg-red-600 px-4 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                disabled={saving}
+                onClick={performAction}
+                className="rounded-xl bg-[#102A53] px-4 py-2 text-sm font-bold text-white disabled:opacity-50"
               >
-                {savingId ? "Archiving..." : "Archive User"}
+                {saving ? "Updating..." : "Confirm"}
               </button>
             </div>
-          </div>
+          </section>
         </div>
       )}
     </main>
