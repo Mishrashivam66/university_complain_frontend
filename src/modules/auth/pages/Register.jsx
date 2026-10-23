@@ -1,385 +1,448 @@
-import { useState } from "react";
-
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-
-import { BadgeCheck, Lock, Mail, User } from "lucide-react";
-
+import {
+  AlertCircle,
+  ArrowRight,
+  BadgeCheck,
+  Building2,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  GraduationCap,
+  LockKeyhole,
+  Mail,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
 import api from "../../../services/api";
+import AuthFrame from "../components/AuthFrame";
+import "../styles/amimaintain.css";
 
-import "../styles/register.css";
-
-// ==========================================
-// INITIAL STATE
-// ==========================================
-
-const initialFormData = {
+const INITIAL = {
   name: "",
-
   amizoneId: "",
-
   email: "",
-
   password: "",
-
   confirmPassword: "",
-
   isHosteller: false,
-
   hostel: "",
-
   floor: "",
-
   pocket: "",
-
   roomNumber: "",
 };
 
-const Register = () => {
+// Temporary backward compatibility until the Admin-managed public hostel API is ready.
+// Set VITE_PUBLIC_HOSTELS_ENDPOINT and API-provided hostels will replace these.
+const LEGACY_HOSTELS = ["H1", "H2", "H3", "H4", "H5"].map((code) => ({
+  value: code,
+  label: code,
+}));
+const DEFAULT_FLOORS = [
+  { value: "GROUND", label: "Ground Floor" },
+  { value: "FIRST", label: "First Floor" },
+  { value: "SECOND", label: "Second Floor" },
+  { value: "THIRD", label: "Third Floor" },
+];
+
+function normalizeHostels(payload) {
+  const root = payload?.data ?? payload;
+  const records = Array.isArray(root)
+    ? root
+    : (root?.hostels ?? root?.items ?? []);
+  if (!Array.isArray(records)) return [];
+  return records
+    .filter(
+      (item) =>
+        typeof item === "string" ||
+        (item && item.isActive !== false && item.isDeleted !== true),
+    )
+    .map((item) =>
+      typeof item === "string"
+        ? { value: item, label: item }
+        : {
+            value: String(
+              item.code || item.hostelCode || item.name || "",
+            ).trim(),
+            label: item.name || item.code || "Hostel",
+            floors: item.floors,
+          },
+    )
+    .filter((item) => Boolean(item.value));
+}
+function normalizeFloors(floors) {
+  if (!Array.isArray(floors) || !floors.length) return DEFAULT_FLOORS;
+  return floors
+    .map((item) =>
+      typeof item === "string"
+        ? { value: item, label: item }
+        : {
+            value: String(item.value || item.code || item.name || ""),
+            label: String(item.label || item.name || item.value || "Floor"),
+          },
+    )
+    .filter((item) => item.value);
+}
+function Field({ icon: Icon, label, children, wide = false }) {
+  return (
+    <label className={`ami-field ${wide ? "ami-field--wide" : ""}`}>
+      <span>{label}</span>
+      <span className="ami-input">
+        <Icon size={18} />
+        {children}
+      </span>
+    </label>
+  );
+}
+
+export default function Register() {
   const navigate = useNavigate();
-
-  // ==========================================
-  // STATES
-  // ==========================================
-
-  const [formData, setFormData] = useState(initialFormData);
-
-  const [message, setMessage] = useState("");
-
-  const [success, setSuccess] = useState(false);
-
+  const redirectTimer = useRef(null);
+  const [form, setForm] = useState(INITIAL);
+  const [hostels, setHostels] = useState(LEGACY_HOSTELS);
+  const [hostelLoading, setHostelLoading] = useState(false);
+  const [hostelError, setHostelError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [alert, setAlert] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  // ==========================================
-  // HANDLE CHANGE
-  // ==========================================
+  useEffect(
+    () => () => {
+      if (redirectTimer.current) clearTimeout(redirectTimer.current);
+    },
+    [],
+  );
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
+  useEffect(() => {
+    const endpoint = import.meta.env.VITE_PUBLIC_HOSTELS_ENDPOINT;
+    if (!endpoint) return undefined;
+    const controller = new AbortController();
+    const load = async () => {
+      setHostelLoading(true);
+      setHostelError("");
+      try {
+        const response = await api.get(endpoint, { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        const options = normalizeHostels(response.data);
+        setHostels(options);
+        if (!options.length)
+          setHostelError("No active hostels are available. Contact Admin.");
+      } catch {
+        if (controller.signal.aborted) return;
+        setHostels([]);
+        setHostelError(
+          "Hostel list could not be loaded. Please try again later.",
+        );
+      } finally {
+        if (!controller.signal.aborted) setHostelLoading(false);
+      }
+    };
+    load();
+    return () => controller.abort();
+  }, []);
 
-    setFormData((current) => ({
-      ...current,
-
+  const selectedHostel = useMemo(
+    () => hostels.find((h) => h.value === form.hostel),
+    [hostels, form.hostel],
+  );
+  const floors = useMemo(
+    () => normalizeFloors(selectedHostel?.floors),
+    [selectedHostel],
+  );
+  const change = (event) => {
+    const { name, checked, type, value } = event.target;
+    setAlert(null);
+    setForm((prev) => ({
+      ...prev,
       [name]: type === "checkbox" ? checked : value,
+      ...(name === "hostel" ? { floor: "" } : {}),
+      ...(name === "isHosteller" && !checked
+        ? { hostel: "", floor: "", pocket: "", roomNumber: "" }
+        : {}),
     }));
   };
 
-  // ==========================================
-  // HANDLE SUBMIT
-  // ==========================================
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    setMessage("");
-
-    if (formData.password !== formData.confirmPassword) {
-      setSuccess(false);
-
-      setMessage("Password and confirm password must match.");
-
+  const submit = async (event) => {
+    event.preventDefault();
+    if (loading) return;
+    setAlert(null);
+    if (form.password !== form.confirmPassword) {
+      setAlert({
+        type: "error",
+        text: "Password and confirm password do not match.",
+      });
       return;
     }
-
-    const basePayload = {
-      name: formData.name,
-
-      amizoneId: formData.amizoneId,
-
-      email: formData.email,
-
-      password: formData.password,
-
+    if (form.password.length < 8) {
+      setAlert({
+        type: "error",
+        text: "Please use a password with at least 8 characters.",
+      });
+      return;
+    }
+    if (form.isHosteller && !hostels.some((h) => h.value === form.hostel)) {
+      setAlert({ type: "error", text: "Select an available hostel." });
+      return;
+    }
+    const payload = {
+      name: form.name.trim(),
+      amizoneId: form.amizoneId.trim(),
+      email: form.email.trim().toLowerCase(),
+      password: form.password,
       role: "STUDENT",
-
-      isHosteller: formData.isHosteller,
+      isHosteller: form.isHosteller,
+      ...(form.isHosteller
+        ? {
+            hostel: form.hostel,
+            floor: form.floor,
+            pocket: form.pocket.trim(),
+            roomNumber: form.roomNumber.trim(),
+          }
+        : {}),
     };
-
-    const payload = formData.isHosteller
-      ? {
-          ...basePayload,
-
-          hostel: formData.hostel,
-
-          floor: formData.floor,
-
-          pocket: formData.pocket,
-
-          roomNumber: formData.roomNumber,
-        }
-      : basePayload;
-
+    setLoading(true);
     try {
-      setLoading(true);
-
-      const res = await api.post("/auth/register", payload);
-
-      setSuccess(true);
-
-      setMessage(res.data?.message || "Registration successful.");
-
-      const userEmail = formData.email;
-
-      setFormData(initialFormData);
-
-      setTimeout(() => {
-        navigate("/verify-otp", {
-          state: {
-            email: userEmail,
-          },
-        });
-      }, 1000);
-    } catch (error) {
-      console.log(error);
-
-      setSuccess(false);
-
-      setMessage(
-        error.response?.data?.message ||
-          error.message ||
-          "Registration failed.",
+      const response = await api.post("/auth/register", payload);
+      const registeredEmail = payload.email;
+      setAlert({
+        type: "success",
+        text:
+          response.data?.message ||
+          "Registration successful. Continue to verification.",
+      });
+      setForm(INITIAL);
+      redirectTimer.current = setTimeout(
+        () => navigate("/verify-otp", { state: { email: registeredEmail } }),
+        1000,
       );
+    } catch (error) {
+      setAlert({
+        type: "error",
+        text:
+          error.response?.data?.message ||
+          error.message ||
+          "Registration failed. Please try again.",
+      });
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="register-page">
-      <section className="register-form-panel">
-        <div className="register-card">
-          {/* HEADER */}
-
-          <div className="register-heading">
-            <span className="register-badge">CAMPUSNEXUS ERP</span>
-
-            <h2>Create Your Account</h2>
-
-            <p>Smart Campus Management System</p>
+    <AuthFrame type="register">
+      <div className="ami-form-card ami-form-card--register">
+        <span className="ami-form-kicker">
+          <GraduationCap size={15} /> CAMPUS ACCOUNT REGISTRATION
+        </span>
+        <h2>
+          Create your <span>account.</span>
+        </h2>
+        <p className="ami-form-card__intro">
+          Join AmiMaintain to report, monitor and resolve campus maintenance
+          requests.
+        </p>
+        {alert && (
+          <div
+            className={`ami-alert ami-alert--${alert.type}`}
+            role="alert"
+            aria-live="polite"
+          >
+            {alert.type === "success" ? (
+              <CheckCircle2 size={19} />
+            ) : (
+              <AlertCircle size={19} />
+            )}
+            <span>{alert.text}</span>
           </div>
-
-          {/* MESSAGE */}
-
-          {message && (
-            <div
-              className={
-                success ? "register-alert success" : "register-alert error"
-              }
-            >
-              <BadgeCheck size={18} />
-
-              <span>{message}</span>
+        )}
+        <form className="ami-form ami-register-form" onSubmit={submit}>
+          <div className="ami-form-grid">
+            <Field label="Full name" icon={UserRound}>
+              <input
+                type="text"
+                name="name"
+                value={form.name}
+                onChange={change}
+                placeholder="Your full name"
+                autoComplete="name"
+                required
+              />
+            </Field>
+            <Field label="Amizone ID / Employee ID" icon={BadgeCheck}>
+              <input
+                type="text"
+                name="amizoneId"
+                value={form.amizoneId}
+                onChange={change}
+                placeholder="Enter Amizone ID or Employee ID"
+                required
+              />
+            </Field>
+            <Field label="Amity email" icon={Mail} wide>
+              <input
+                type="email"
+                name="email"
+                value={form.email}
+                onChange={change}
+                placeholder="Your registered email"
+                autoComplete="email"
+                required
+              />
+            </Field>
+            <Field label="Password" icon={LockKeyhole}>
+              <input
+                type={showPassword ? "text" : "password"}
+                name="password"
+                value={form.password}
+                onChange={change}
+                placeholder="Minimum 8 characters"
+                minLength={8}
+                autoComplete="new-password"
+                required
+              />
+              <button
+                type="button"
+                className="ami-input__toggle"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </Field>
+            <Field label="Confirm password" icon={LockKeyhole}>
+              <input
+                type={showConfirm ? "text" : "password"}
+                name="confirmPassword"
+                value={form.confirmPassword}
+                onChange={change}
+                placeholder="Repeat your password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+              <button
+                type="button"
+                className="ami-input__toggle"
+                onClick={() => setShowConfirm((v) => !v)}
+                aria-label={showConfirm ? "Hide password" : "Show password"}
+              >
+                {showConfirm ? <EyeOff size={17} /> : <Eye size={17} />}
+              </button>
+            </Field>
+          </div>
+          <label className="ami-checkbox">
+            <input
+              type="checkbox"
+              name="isHosteller"
+              checked={form.isHosteller}
+              onChange={change}
+            />
+            <span>
+              <strong>I am a hosteller</strong>
+              <small>
+                Hostel accounts require Warden approval before access.
+              </small>
+            </span>
+          </label>
+          {form.isHosteller && (
+            <div className="ami-hostel-panel">
+              <div className="ami-hostel-panel__title">
+                <Building2 size={17} /> Hostel information
+              </div>
+              <div className="ami-form-grid">
+                <label className="ami-field">
+                  <span>Hostel</span>
+                  <span className="ami-input">
+                    <Building2 size={18} />
+                    <select
+                      name="hostel"
+                      value={form.hostel}
+                      onChange={change}
+                      disabled={hostelLoading || !hostels.length}
+                      required
+                    >
+                      <option value="">
+                        {hostelLoading ? "Loading hostels..." : "Select hostel"}
+                      </option>
+                      {hostels.map((h) => (
+                        <option key={h.value} value={h.value}>
+                          {h.label}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                </label>
+                <label className="ami-field">
+                  <span>Floor</span>
+                  <span className="ami-input">
+                    <Building2 size={18} />
+                    <select
+                      name="floor"
+                      value={form.floor}
+                      onChange={change}
+                      required
+                    >
+                      <option value="">Select floor</option>
+                      {floors.map((f) => (
+                        <option key={f.value} value={f.value}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>
+                  </span>
+                </label>
+                <Field label="Pocket / wing" icon={Building2}>
+                  <input
+                    name="pocket"
+                    value={form.pocket}
+                    onChange={change}
+                    placeholder="e.g. G1 / F2"
+                    required
+                  />
+                </Field>
+                <Field label="Room number" icon={Building2}>
+                  <input
+                    name="roomNumber"
+                    value={form.roomNumber}
+                    onChange={change}
+                    placeholder="e.g. G1A"
+                    required
+                  />
+                </Field>
+              </div>
+              {hostelError && <p className="ami-field-error">{hostelError}</p>}
             </div>
           )}
-
-          {/* FORM */}
-
-          <form className="register-form" onSubmit={handleSubmit}>
-            <div className="register-grid">
-              {/* NAME */}
-
-              <label className="register-field">
-                <span>Full Name</span>
-
-                <div className="register-input-wrap">
-                  <User size={18} />
-
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    placeholder="Enter full name"
-                    required
-                  />
-                </div>
-              </label>
-
-              {/* AMIZONE */}
-
-              <label className="register-field">
-                <span>Amizone ID</span>
-
-                <div className="register-input-wrap">
-                  <BadgeCheck size={18} />
-
-                  <input
-                    type="text"
-                    name="amizoneId"
-                    value={formData.amizoneId}
-                    onChange={handleChange}
-                    placeholder="Enter Amizone ID"
-                    required
-                  />
-                </div>
-              </label>
-
-              {/* EMAIL */}
-
-              <label className="register-field register-field--wide">
-                <span>Amity Email</span>
-
-                <div className="register-input-wrap">
-                  <Mail size={18} />
-
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    placeholder="name@amity.edu"
-                    required
-                  />
-                </div>
-              </label>
-
-              {/* PASSWORD */}
-
-              <label className="register-field">
-                <span>Password</span>
-
-                <div className="register-input-wrap">
-                  <Lock size={18} />
-
-                  <input
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    placeholder="Create password"
-                    required
-                  />
-                </div>
-              </label>
-
-              {/* CONFIRM PASSWORD */}
-
-              <label className="register-field">
-                <span>Confirm Password</span>
-
-                <div className="register-input-wrap">
-                  <Lock size={18} />
-
-                  <input
-                    type="password"
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    placeholder="Confirm password"
-                    required
-                  />
-                </div>
-              </label>
-            </div>
-
-            {/* HOSTELLER */}
-
-            <label className="register-checkbox">
-              <input
-                type="checkbox"
-                name="isHosteller"
-                checked={formData.isHosteller}
-                onChange={handleChange}
-              />
-
-              <span>Hosteller Student</span>
-            </label>
-
-            {/* HOSTEL PANEL */}
-
-            {formData.isHosteller && (
-              <div className="register-hostel-panel">
-                <label className="register-field">
-                  <span>Hostel</span>
-
-                  <select
-                    name="hostel"
-                    value={formData.hostel}
-                    onChange={handleChange}
-                    required
-                  >
-                    <option value="">Select Hostel</option>
-
-                    <option value="H1">H1</option>
-
-                    <option value="H2">H2</option>
-
-                    <option value="H3">H3</option>
-
-                    <option value="H4">H4</option>
-
-                    <option value="H5">H5</option>
-                  </select>
-                </label>
-
-                <label className="register-field">
-                  <span>Floor</span>
-
-                  <select
-                    name="floor"
-                    value={formData.floor}
-                    onChange={handleChange}
-                    required
-                  >
-                    <option value="">Select Floor</option>
-
-                    <option value="GROUND">Ground</option>
-
-                    <option value="FIRST">First</option>
-
-                    <option value="SECOND">Second</option>
-
-                    <option value="THIRD">Third</option>
-                  </select>
-                </label>
-
-                <label className="register-field">
-                  <span>Pocket</span>
-
-                  <input
-                    type="text"
-                    name="pocket"
-                    value={formData.pocket}
-                    onChange={handleChange}
-                    placeholder="G1 / F2"
-                    required
-                  />
-                </label>
-
-                <label className="register-field">
-                  <span>Room Number</span>
-
-                  <input
-                    type="text"
-                    name="roomNumber"
-                    value={formData.roomNumber}
-                    onChange={handleChange}
-                    placeholder="G1A"
-                    required
-                  />
-                </label>
-              </div>
+          <button
+            type="submit"
+            className="ami-button ami-button--gold ami-submit"
+            disabled={
+              loading ||
+              (form.isHosteller && (hostelLoading || !hostels.length))
+            }
+          >
+            {loading ? (
+              <>
+                <span className="ami-spinner" /> Registering...
+              </>
+            ) : (
+              <>
+                Create Account <ArrowRight size={18} />
+              </>
             )}
-
-            {/* BUTTON */}
-
-            <button
-              type="submit"
-              className="register-btn--primary"
-              disabled={loading}
-            >
-              {loading ? "Registering..." : "Register"}
-            </button>
-
-            {/* LOGIN */}
-
-            <p className="register-login-prompt">
-              Already have an account? <Link to="/">Login</Link>
-            </p>
-          </form>
-        </div>
-      </section>
-    </main>
+          </button>
+          <p className="ami-form-switch">
+            Already have an account?{" "}
+            <Link to="/login">
+              Sign in <ArrowRight size={14} />
+            </Link>
+          </p>
+          <p className="ami-register-privacy">
+            <ShieldCheck size={15} /> Your information is used for campus
+            maintenance service operations.
+          </p>
+        </form>
+      </div>
+    </AuthFrame>
   );
-};
-
-export default Register;
+}

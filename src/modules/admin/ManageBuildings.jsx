@@ -1,1509 +1,853 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import api from "../../services/api";
-
 import {
+  Archive,
   Building2,
-  Plus,
-  Trash2,
-  Layers3,
-  MapPin,
-  School,
-  Loader2,
-  X,
+  ChevronDown,
+  ChevronUp,
+  Eye,
   Pencil,
-  CheckCircle2,
+  Plus,
+  RefreshCcw,
+  RotateCcw,
+  Search,
+  Trash2,
+  X,
 } from "lucide-react";
 
-const ManageBuildings = () => {
-  // ==========================================
-  // STATES
-  // ==========================================
+import api from "../../services/api";
 
+const FLOORS = [
+  "Ground",
+  "First",
+  "Second",
+  "Third",
+  "Fourth",
+  "Fifth",
+  "Sixth",
+  "Seventh",
+  "Eighth",
+];
+
+const empty = () => ({
+  code: "",
+  name: "",
+  buildingType: "",
+  startFloor: "Ground",
+  endFloor: "Fourth",
+  roomRange: "",
+  description: "",
+  departments: [""],
+});
+
+const getError = (error, fallback) =>
+  error?.response?.data?.message || fallback;
+
+const inputClass =
+  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100";
+
+export default function ManageBuildings() {
+  const [blocks, setBlocks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const [createModal, setCreateModal] = useState(false);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const [expanded, setExpanded] = useState("");
 
-  const [editModal, setEditModal] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(empty());
 
-  const [deleteModal, setDeleteModal] = useState(false);
+  const [confirm, setConfirm] = useState(null);
 
-  const [selectedBuilding, setSelectedBuilding] = useState(null);
+  // ======================================
+  // LOAD ACADEMIC BLOCKS
+  // ======================================
 
-  const [buildings, setBuildings] = useState([]);
-
-  // ==========================================
-  // FORM DATA
-  // ==========================================
-
-  const [formData, setFormData] = useState({
-    buildingName: "",
-
-    buildingType: "ENGINEERING",
-
-    startFloor: "Ground",
-
-    endFloor: "First",
-
-    roomRange: "",
-
-    department: "",
-  });
-
-  // ==========================================
-  // FETCH BUILDINGS
-  // ==========================================
-
-  const fetchBuildings = async () => {
+  const loadBlocks = useCallback(async () => {
     try {
       setLoading(true);
 
-      const res = await api.get("/admin/buildings");
+      const result = await api.get("/admin/blocks", {
+        params: {
+          includeArchived: "true",
+        },
+      });
 
-      setBuildings(res.data.buildings || []);
+      setBlocks(Array.isArray(result.data?.blocks) ? result.data.blocks : []);
     } catch (error) {
-      console.log(error);
-
-      toast.error("Failed to fetch buildings");
+      toast.error(getError(error, "Academic Blocks could not be loaded"));
     } finally {
       setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchBuildings();
   }, []);
 
-  // ==========================================
-  // CREATE BUILDING
-  // ==========================================
+  useEffect(() => {
+    loadBlocks();
+  }, [loadBlocks]);
 
-  const createBuilding = async () => {
-    try {
-      if (!formData.buildingName) {
-        toast.error("Building name required");
+  // ======================================
+  // SEARCH AND FILTER
+  // ======================================
 
-        return;
-      }
+  const filteredBlocks = useMemo(() => {
+    return blocks.filter((block) => {
+      const query = search.toLowerCase().trim();
 
-      await api.post("/admin/buildings", formData);
+      const matchesSearch =
+        !query ||
+        [
+          block.code,
+          block.name,
+          block.buildingType,
+          ...(block.departments || []),
+        ].some((value) =>
+          String(value || "")
+            .toLowerCase()
+            .includes(query),
+        );
 
-      toast.success("Building created successfully");
+      const matchesStatus =
+        status === "all" ||
+        (status === "active" && block.isActive && !block.isDeleted) ||
+        (status === "inactive" && !block.isActive && !block.isDeleted) ||
+        (status === "archived" && block.isDeleted);
 
-      setCreateModal(false);
+      return matchesSearch && matchesStatus;
+    });
+  }, [blocks, search, status]);
 
-      fetchBuildings();
+  const counts = {
+    total: blocks.filter((block) => !block.isDeleted).length,
 
-      setFormData({
-        buildingName: "",
+    active: blocks.filter((block) => block.isActive && !block.isDeleted).length,
 
-        buildingType: "ENGINEERING",
+    departments: blocks
+      .filter((block) => !block.isDeleted)
+      .reduce((count, block) => count + (block.departments?.length || 0), 0),
 
-        startFloor: "Ground",
-
-        endFloor: "First",
-
-        roomRange: "",
-
-        department: "",
-      });
-    } catch (error) {
-      console.log(error);
-
-      toast.error(error.response?.data?.message || "Failed to create building");
-    }
+    archived: blocks.filter((block) => block.isDeleted).length,
   };
 
-  // ==========================================
-  // OPEN EDIT MODAL
-  // ==========================================
+  // ======================================
+  // FORM CONTROLS
+  // ======================================
 
-  const openEditModal = (building) => {
-    setSelectedBuilding(building);
+  const updateField = (key, value) => {
+    setForm((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
+  };
 
-    setFormData({
-      buildingName: building.buildingName,
+  const openNew = () => {
+    setEditing(null);
+    setForm(empty());
+    setFormOpen(true);
+  };
 
-      buildingType: building.buildingType,
+  const openEdit = (block) => {
+    setEditing(block);
 
-      startFloor: building.startFloor,
-
-      endFloor: building.endFloor,
-
-      roomRange: building.roomRange,
-
-      department: building.department || "",
+    setForm({
+      code: block.code,
+      name: block.name || "",
+      buildingType: block.buildingType || "",
+      startFloor: block.startFloor || "Ground",
+      endFloor: block.endFloor || "Fourth",
+      roomRange: block.roomRange || "",
+      description: block.description || "",
+      departments: block.departments?.length ? [...block.departments] : [""],
     });
 
-    setEditModal(true);
+    setFormOpen(true);
   };
 
-  // ==========================================
-  // UPDATE BUILDING
-  // ==========================================
+  const changeDepartment = (index, value) => {
+    setForm((previous) => ({
+      ...previous,
 
-  const updateBuilding = async () => {
+      departments: previous.departments.map((department, i) =>
+        i === index ? value : department,
+      ),
+    }));
+  };
+
+  const removeDepartment = (index) => {
+    setForm((previous) => {
+      const departments = previous.departments.filter((_, i) => i !== index);
+
+      return {
+        ...previous,
+        departments: departments.length ? departments : [""],
+      };
+    });
+  };
+
+  // ======================================
+  // SAVE ACADEMIC BLOCK
+  // ======================================
+
+  const submit = async (event) => {
+    event.preventDefault();
+
+    if (saving) return;
+
+    const payload = {
+      ...form,
+      code: form.code.trim().toUpperCase(),
+      name: form.name.trim(),
+
+      departments: form.departments
+        .map((value) => value.trim())
+        .filter(Boolean),
+    };
+
+    if (!/^[A-Z0-9][A-Z0-9_-]{0,11}$/.test(payload.code)) {
+      return toast.error("Enter a valid Block Code");
+    }
+
+    if (FLOORS.indexOf(payload.startFloor) > FLOORS.indexOf(payload.endFloor)) {
+      return toast.error("End floor must not be before start floor");
+    }
+
+    const departmentNames = payload.departments.map((name) =>
+      name.toLowerCase(),
+    );
+
+    if (new Set(departmentNames).size !== departmentNames.length) {
+      return toast.error("Duplicate departments are not allowed");
+    }
+
     try {
-      await api.put(
-        `/admin/buildings/${selectedBuilding._id}`,
+      setSaving(true);
 
-        formData,
+      if (editing) {
+        await api.put(`/admin/blocks/${editing._id}`, payload);
+      } else {
+        await api.post("/admin/blocks", payload);
+      }
+
+      toast.success(
+        editing ? "Academic Block updated" : "Academic Block created",
       );
 
-      toast.success("Building updated successfully");
-
-      setEditModal(false);
-
-      fetchBuildings();
+      setFormOpen(false);
+      await loadBlocks();
     } catch (error) {
-      console.log(error);
-
-      toast.error("Failed to update building");
+      toast.error(getError(error, "Unable to save Academic Block"));
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ==========================================
-  // DELETE MODAL
-  // ==========================================
+  // ======================================
+  // ACTIVATE / DEACTIVATE
+  // ======================================
 
-  const openDeleteModal = (building) => {
-    setSelectedBuilding(building);
-
-    setDeleteModal(true);
-  };
-
-  // ==========================================
-  // DELETE BUILDING
-  // ==========================================
-
-  const confirmDelete = async () => {
+  const toggleStatus = async (block) => {
     try {
-      await api.delete(`/admin/buildings/${selectedBuilding._id}`);
+      setSaving(true);
 
-      toast.success("Building deleted successfully");
+      await api.put(`/admin/blocks/${block._id}`, {
+        isActive: !block.isActive,
+      });
 
-      setDeleteModal(false);
+      toast.success(block.isActive ? "Block deactivated" : "Block activated");
 
-      fetchBuildings();
+      await loadBlocks();
     } catch (error) {
-      console.log(error);
-
-      toast.error("Delete failed");
+      toast.error(getError(error, "Unable to update block status"));
+    } finally {
+      setSaving(false);
     }
   };
+
+  // ======================================
+  // ARCHIVE / RESTORE
+  // ======================================
+
+  const performAction = async () => {
+    if (!confirm || saving) return;
+
+    try {
+      setSaving(true);
+
+      if (confirm.isDeleted) {
+        await api.patch(`/admin/blocks/${confirm._id}/restore`);
+      } else {
+        await api.delete(`/admin/blocks/${confirm._id}`);
+      }
+
+      toast.success(
+        confirm.isDeleted
+          ? "Academic Block restored"
+          : "Academic Block archived",
+      );
+
+      setConfirm(null);
+      await loadBlocks();
+    } catch (error) {
+      toast.error(getError(error, "Operation failed"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ======================================
+  // UI
+  // ======================================
 
   return (
-    <div className="space-y-6">
-      {/* ========================================== */}
-      {/* HEADER */}
-      {/* ========================================== */}
+    <main className="min-h-full bg-[#F5F7FB] px-3 py-5 text-[#0B234B] sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-5">
+        {/* HEADER */}
 
-      <div
-        className="
-          bg-gradient-to-r
-          from-[#001B54]
-          via-[#002B7F]
-          to-[#7A0019]
+        <header className="flex flex-col justify-between gap-4 rounded-3xl bg-gradient-to-r from-[#071C3C] via-[#0C2F66] to-[#173F76] p-6 text-white shadow-xl sm:flex-row sm:items-center sm:p-8">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.22em] text-amber-300">
+              AmiMaintain · Campus Setup
+            </p>
 
-          rounded-[34px]
+            <h1 className="mt-2 text-2xl font-black sm:text-3xl">
+              Academic Blocks
+            </h1>
 
-          p-6
-          md:p-10
-
-          shadow-2xl
-
-          text-white
-        "
-      >
-        <div
-          className="
-            flex
-            flex-col
-            lg:flex-row
-
-            lg:items-center
-            lg:justify-between
-
-            gap-6
-          "
-        >
-          <div
-            className="
-              flex
-              items-center
-              gap-5
-            "
-          >
-            <div
-              className="
-                h-20
-                w-20
-
-                rounded-3xl
-
-                bg-white/20
-
-                backdrop-blur-md
-
-                flex
-                items-center
-                justify-center
-              "
-            >
-              <Building2 size={42} />
-            </div>
-
-            <div>
-              <h1
-                className="
-                  text-4xl
-                  md:text-6xl
-
-                  font-black
-                "
-              >
-                Manage Buildings
-              </h1>
-
-              <p
-                className="
-                  mt-3
-
-                  text-blue-100
-
-                  text-sm
-                  md:text-lg
-                "
-              >
-                Manage campus infrastructure, departments and academic
-                buildings.
-              </p>
-            </div>
+            <p className="mt-2 text-sm text-slate-200">
+              Manage Academic Blocks, Departments and maintenance locations.
+            </p>
           </div>
 
-          {/* BUTTON */}
-
           <button
-            onClick={() => setCreateModal(true)}
-            className="
-              bg-white
-
-              text-[#001B54]
-
-              px-7
-              py-4
-
-              rounded-2xl
-
-              font-bold
-
-              flex
-              items-center
-              justify-center
-              gap-3
-
-              hover:scale-105
-
-              transition-all
-            "
+            type="button"
+            onClick={openNew}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#F0C56A] px-5 py-3 text-sm font-bold text-[#071C3C]"
           >
-            <Plus size={22} />
-            Add Building
+            <Plus size={18} />
+            Add Academic Block
           </button>
-        </div>
-      </div>
-
-      {/* ========================================== */}
-      {/* STATS */}
-      {/* ========================================== */}
-
-      <div
-        className="
-          grid
-          grid-cols-1
-          sm:grid-cols-2
-          xl:grid-cols-4
-
-          gap-5
-        "
-      >
-        {/* BUILDINGS */}
-
-        <div
-          className="
-            bg-gradient-to-br
-            from-blue-100
-            to-blue-50
-
-            rounded-[30px]
-
-            p-7
-
-            shadow-lg
-          "
-        >
-          <Building2
-            size={40}
-            className="
-              text-blue-700
-            "
-          />
-
-          <h2
-            className="
-              text-5xl
-
-              font-black
-
-              mt-5
-
-              text-blue-700
-            "
-          >
-            {buildings.length}
-          </h2>
-
-          <p
-            className="
-              mt-2
-
-              text-blue-700
-
-              font-semibold
-
-              text-lg
-            "
-          >
-            Total Buildings
-          </p>
-        </div>
-
-        {/* FLOORS */}
-
-        <div
-          className="
-            bg-gradient-to-br
-            from-green-100
-            to-green-50
-
-            rounded-[30px]
-
-            p-7
-
-            shadow-lg
-          "
-        >
-          <Layers3
-            size={40}
-            className="
-              text-green-700
-            "
-          />
-
-          <h2
-            className="
-              text-5xl
-
-              font-black
-
-              mt-5
-
-              text-green-700
-            "
-          >
-            {buildings.length * 5}
-          </h2>
-
-          <p
-            className="
-              mt-2
-
-              text-green-700
-
-              font-semibold
-
-              text-lg
-            "
-          >
-            Total Floors
-          </p>
-        </div>
-
-        {/* TYPES */}
-
-        <div
-          className="
-            bg-gradient-to-br
-            from-yellow-100
-            to-yellow-50
-
-            rounded-[30px]
-
-            p-7
-
-            shadow-lg
-          "
-        >
-          <School
-            size={40}
-            className="
-              text-yellow-700
-            "
-          />
-
-          <h2
-            className="
-              text-5xl
-
-              font-black
-
-              mt-5
-
-              text-yellow-700
-            "
-          >
-            9
-          </h2>
-
-          <p
-            className="
-              mt-2
-
-              text-yellow-700
-
-              font-semibold
-
-              text-lg
-            "
-          >
-            Departments
-          </p>
-        </div>
-
-        {/* ROOMS */}
-
-        <div
-          className="
-            bg-gradient-to-br
-            from-purple-100
-            to-purple-50
-
-            rounded-[30px]
-
-            p-7
-
-            shadow-lg
-          "
-        >
-          <MapPin
-            size={40}
-            className="
-              text-purple-700
-            "
-          />
-
-          <h2
-            className="
-              text-5xl
-
-              font-black
-
-              mt-5
-
-              text-purple-700
-            "
-          >
-            500+
-          </h2>
-
-          <p
-            className="
-              mt-2
-
-              text-purple-700
-
-              font-semibold
-
-              text-lg
-            "
-          >
-            Total Rooms
-          </p>
-        </div>
-      </div>
-
-      {/* ========================================== */}
-      {/* LOADING */}
-      {/* ========================================== */}
-
-      {loading ? (
-        <div
-          className="
-            flex
-            justify-center
-
-            py-24
-          "
-        >
-          <Loader2
-            size={55}
-            className="
-              animate-spin
-              text-[#001B54]
-            "
-          />
-        </div>
-      ) : (
-        <div
-          className="
-            grid
-            grid-cols-1
-            md:grid-cols-2
-
-            gap-6
-          "
-        >
-          {buildings.map((building) => (
-            <div
-              key={building._id}
-              className="
-                  bg-white
-
-                  rounded-[34px]
-
-                  p-7
-
-                  shadow-xl
-
-                  border
-                  border-gray-100
-
-                  hover:-translate-y-1
-
-                  transition-all
-                "
+        </header>
+
+        {/* CLICKABLE SUMMARY */}
+
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            {
+              title: "Total Blocks",
+              number: counts.total,
+              filter: "all",
+            },
+            {
+              title: "Active Blocks",
+              number: counts.active,
+              filter: "active",
+            },
+            {
+              title: "Departments",
+              number: counts.departments,
+              filter: "all",
+            },
+            {
+              title: "Archived",
+              number: counts.archived,
+              filter: "archived",
+            },
+          ].map((item) => (
+            <button
+              type="button"
+              key={item.title}
+              onClick={() => setStatus(item.filter)}
+              className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-amber-400"
             >
-              {/* TOP */}
+              <span className="text-2xl font-extrabold">{item.number}</span>
 
-              <div
-                className="
-                    flex
-                    items-start
-                    justify-between
-                  "
-              >
-                <div>
-                  <h2
-                    className="
-                        text-3xl
-
-                        font-black
-
-                        text-[#001B54]
-                      "
-                  >
-                    {building.buildingName}
-                  </h2>
-
-                  <p
-                    className="
-                        text-gray-500
-
-                        mt-1
-                      "
-                  >
-                    Campus Building
-                  </p>
-                </div>
-
-                <div
-                  className="
-                      px-5
-                      py-2
-
-                      rounded-full
-
-                      bg-blue-100
-
-                      text-blue-700
-
-                      text-sm
-                      font-bold
-                    "
-                >
-                  {building.buildingType}
-                </div>
-              </div>
-
-              {/* DETAILS */}
-
-              <div className="space-y-4 mt-7">
-                {/* FLOOR */}
-
-                <div
-                  className="
-                      bg-green-50
-
-                      rounded-2xl
-
-                      p-4
-
-                      flex
-                      items-center
-                      justify-between
-                    "
-                >
-                  <p
-                    className="
-                        text-green-700
-
-                        font-semibold
-                      "
-                  >
-                    Floors
-                  </p>
-
-                  <p
-                    className="
-                        text-green-700
-
-                        font-black
-                      "
-                  >
-                    {building.startFloor} → {building.endFloor}
-                  </p>
-                </div>
-
-                {/* ROOM RANGE */}
-
-                <div
-                  className="
-                      bg-purple-50
-
-                      rounded-2xl
-
-                      p-4
-
-                      flex
-                      items-center
-                      justify-between
-                    "
-                >
-                  <p
-                    className="
-                        text-purple-700
-
-                        font-semibold
-                      "
-                  >
-                    Room Range
-                  </p>
-
-                  <p
-                    className="
-                        text-purple-700
-
-                        font-black
-                      "
-                  >
-                    {building.roomRange}
-                  </p>
-                </div>
-
-                {/* DEPARTMENT */}
-
-                <div
-                  className="
-                      bg-yellow-50
-
-                      rounded-2xl
-
-                      p-4
-
-                      flex
-                      items-center
-                      justify-between
-                    "
-                >
-                  <p
-                    className="
-                        text-yellow-700
-
-                        font-semibold
-                      "
-                  >
-                    Department
-                  </p>
-
-                  <p
-                    className="
-                        text-yellow-700
-
-                        font-black
-                      "
-                  >
-                    {building.department || "N/A"}
-                  </p>
-                </div>
-              </div>
-
-              {/* STATUS */}
-
-              <div
-                className="
-                    mt-6
-
-                    flex
-                    items-center
-                    gap-2
-                  "
-              >
-                <CheckCircle2
-                  size={18}
-                  className="
-                      text-green-600
-                    "
-                />
-
-                <span
-                  className="
-                      text-green-600
-
-                      font-bold
-                    "
-                >
-                  Active Building
-                </span>
-              </div>
-
-              {/* ACTIONS */}
-
-              <div
-                className="
-                    flex
-                    gap-4
-
-                    mt-7
-                  "
-              >
-                {/* EDIT */}
-
-                <button
-                  onClick={() => openEditModal(building)}
-                  className="
-                      flex-1
-
-                      bg-blue-100
-                      hover:bg-blue-200
-
-                      text-blue-700
-
-                      py-4
-
-                      rounded-2xl
-
-                      flex
-                      items-center
-                      justify-center
-                      gap-2
-
-                      font-bold
-
-                      transition-all
-                    "
-                >
-                  <Pencil size={18} />
-                  Edit
-                </button>
-
-                {/* DELETE */}
-
-                <button
-                  onClick={() => openDeleteModal(building)}
-                  className="
-                      flex-1
-
-                      bg-red-100
-                      hover:bg-red-200
-
-                      text-red-700
-
-                      py-4
-
-                      rounded-2xl
-
-                      flex
-                      items-center
-                      justify-center
-                      gap-2
-
-                      font-bold
-
-                      transition-all
-                    "
-                >
-                  <Trash2 size={18} />
-                  Delete
-                </button>
-              </div>
-            </div>
+              <span className="mt-1 block text-xs font-semibold text-slate-500">
+                {item.title}
+              </span>
+            </button>
           ))}
-        </div>
-      )}
+        </section>
 
-      {/* ========================================== */}
-      {/* CREATE MODAL */}
-      {/* ========================================== */}
+        {/* MANAGEMENT LIST */}
 
-      {createModal && (
-        <div
-          className="
-              fixed
-              inset-0
+        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 px-3">
+              <Search size={18} className="text-slate-400" />
 
-              bg-black/50
-              backdrop-blur-sm
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="w-full bg-transparent py-3 text-sm outline-none"
+                placeholder="Search block, code or department..."
+              />
+            </label>
 
-              z-50
-
-              flex
-              items-center
-              justify-center
-
-              p-4
-            "
-        >
-          <div
-            className="
-                bg-white
-
-                w-full
-                max-w-3xl
-
-                rounded-[36px]
-
-                shadow-2xl
-
-                p-8
-              "
-          >
-            {/* TOP */}
-
-            <div
-              className="
-                  flex
-                  items-center
-                  justify-between
-
-                  mb-8
-                "
+            <select
+              aria-label="Filter blocks"
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+              className={`${inputClass} sm:w-44`}
             >
-              <div>
-                <h2
-                  className="
-                      text-4xl
+              <option value="all">All Blocks</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="archived">Archived</option>
+            </select>
 
-                      font-black
+            <button
+              type="button"
+              onClick={loadBlocks}
+              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold"
+            >
+              <RefreshCcw size={16} />
+              Refresh
+            </button>
+          </div>
 
-                      text-[#001B54]
-                    "
+          <div className="mt-4 space-y-2">
+            {loading ? (
+              <p className="py-12 text-center text-slate-500">
+                Loading Academic Blocks...
+              </p>
+            ) : filteredBlocks.length === 0 ? (
+              <p className="py-12 text-center text-slate-500">
+                No Academic Blocks found.
+              </p>
+            ) : (
+              filteredBlocks.map((block) => (
+                <div
+                  key={block._id}
+                  className="overflow-hidden rounded-xl border border-slate-200"
                 >
-                  Add Building
+                  {/* ONE LINE BLOCK ROW */}
+
+                  <div className="flex flex-wrap items-center gap-3 px-3 py-3 sm:flex-nowrap sm:px-4">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-800">
+                      <Building2 size={19} />
+                    </span>
+
+                    <div className="min-w-[130px] flex-1">
+                      <p className="truncate text-sm font-bold">{block.name}</p>
+
+                      <p className="text-xs text-slate-500">
+                        Code: {block.code} · {block.departments?.length || 0}{" "}
+                        Departments
+                      </p>
+                    </div>
+
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-bold ${
+                        block.isDeleted
+                          ? "bg-slate-100 text-slate-600"
+                          : block.isActive
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-amber-50 text-amber-700"
+                      }`}
+                    >
+                      {block.isDeleted
+                        ? "Archived"
+                        : block.isActive
+                          ? "Active"
+                          : "Inactive"}
+                    </span>
+
+                    <div className="ml-auto flex items-center gap-1.5">
+                      {/* VIEW DETAILS */}
+
+                      <button
+                        type="button"
+                        aria-expanded={expanded === block._id}
+                        onClick={() =>
+                          setExpanded(expanded === block._id ? "" : block._id)
+                        }
+                        className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold"
+                      >
+                        <Eye size={15} />
+                        View
+                        {expanded === block._id ? (
+                          <ChevronUp size={13} />
+                        ) : (
+                          <ChevronDown size={13} />
+                        )}
+                      </button>
+
+                      {/* EDIT */}
+
+                      {!block.isDeleted && (
+                        <button
+                          type="button"
+                          title="Edit Block"
+                          aria-label={`Edit ${block.name}`}
+                          onClick={() => openEdit(block)}
+                          className="rounded-lg bg-blue-50 p-2 text-blue-700"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      )}
+
+                      {/* STATUS */}
+
+                      {!block.isDeleted && (
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => toggleStatus(block)}
+                          className="rounded-lg bg-amber-50 px-2 py-2 text-xs font-bold text-amber-700"
+                        >
+                          {block.isActive ? "Off" : "On"}
+                        </button>
+                      )}
+
+                      {/* ARCHIVE / RESTORE */}
+
+                      <button
+                        type="button"
+                        disabled={saving}
+                        title={
+                          block.isDeleted ? "Restore Block" : "Archive Block"
+                        }
+                        onClick={() => setConfirm(block)}
+                        className="rounded-lg bg-red-50 p-2 text-red-700"
+                      >
+                        {block.isDeleted ? (
+                          <RotateCcw size={16} />
+                        ) : (
+                          <Archive size={16} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* VIEW DETAILS */}
+
+                  {expanded === block._id && (
+                    <div className="grid gap-3 border-t border-slate-200 bg-[#FBFCFF] p-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <div>
+                        <p className="text-xs font-bold text-slate-500">
+                          Building Type
+                        </p>
+
+                        <p className="mt-1 text-sm">
+                          {block.buildingType || "Not specified"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-bold text-slate-500">
+                          Floors
+                        </p>
+
+                        <p className="mt-1 text-sm">
+                          {block.startFloor || "Ground"}
+                          {" → "}
+                          {block.endFloor || "Fourth"}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-bold text-slate-500">
+                          Room Range
+                        </p>
+
+                        <p className="mt-1 text-sm">
+                          {block.roomRange || "Not specified"}
+                        </p>
+                      </div>
+
+                      <div className="sm:col-span-2 lg:col-span-3">
+                        <p className="text-xs font-bold text-slate-500">
+                          Departments
+                        </p>
+
+                        <p className="mt-1 text-sm">
+                          {block.departments?.length
+                            ? block.departments.join(" · ")
+                            : "No departments added"}
+                        </p>
+                      </div>
+
+                      {block.description && (
+                        <p className="text-sm text-slate-600 sm:col-span-2 lg:col-span-3">
+                          {block.description}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+      </div>
+
+      {/* =====================================
+          ADD / EDIT MODAL
+      ===================================== */}
+
+      {formOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-[#041126]/75 p-3 sm:p-6"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !saving) {
+              setFormOpen(false);
+            }
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="block-form-title"
+            className="flex max-h-[92dvh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
+          >
+            <header className="flex items-center justify-between border-b border-slate-100 p-5">
+              <div>
+                <h2 id="block-form-title" className="text-xl font-bold">
+                  {editing ? "Edit Academic Block" : "Add Academic Block"}
                 </h2>
 
-                <p
-                  className="
-                      text-gray-500
-
-                      mt-2
-                    "
-                >
-                  Create campus infrastructure
+                <p className="text-xs text-slate-500">
+                  Add Departments one by one.
                 </p>
               </div>
 
               <button
-                onClick={() => setCreateModal(false)}
-                className="
-                    h-12
-                    w-12
-
-                    rounded-full
-
-                    bg-gray-100
-
-                    flex
-                    items-center
-                    justify-center
-                  "
+                type="button"
+                aria-label="Close"
+                disabled={saving}
+                onClick={() => setFormOpen(false)}
               >
                 <X size={22} />
               </button>
-            </div>
+            </header>
 
-            {/* FORM */}
-
-            <div
-              className="
-                  grid
-                  grid-cols-1
-                  md:grid-cols-2
-
-                  gap-5
-                "
+            <form
+              id="academic-block-form"
+              onSubmit={submit}
+              className="min-h-0 space-y-4 overflow-y-auto p-5"
             >
-              <input
-                type="text"
-                placeholder="Building Name"
-                value={formData.buildingName}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    buildingName: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              />
-
-              <input
-                type="text"
-                placeholder="Department"
-                value={formData.department}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    department: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              />
-
-              <select
-                value={formData.buildingType}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    buildingType: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              >
-                <option value="ENGINEERING">ENGINEERING</option>
-
-                <option value="ADMINISTRATION">ADMINISTRATION</option>
-
-                <option value="MANAGEMENT">MANAGEMENT</option>
-
-                <option value="LAW">LAW</option>
-
-                <option value="LIBRARY">LIBRARY</option>
-
-                <option value="SPORTS">SPORTS</option>
-
-                <option value="MEDICAL">MEDICAL</option>
-
-                <option value="CAFETERIA">CAFETERIA</option>
-
-                <option value="AUDITORIUM">AUDITORIUM</option>
-              </select>
-
-              <input
-                type="text"
-                placeholder="Room Range (101-520)"
-                value={formData.roomRange}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    roomRange: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              />
-
-              <select
-                value={formData.startFloor}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    startFloor: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              >
-                <option>Ground</option>
-
-                <option>First</option>
-
-                <option>Second</option>
-
-                <option>Third</option>
-
-                <option>Fourth</option>
-
-                <option>Fifth</option>
-              </select>
-
-              <select
-                value={formData.endFloor}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    endFloor: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              >
-                <option>First</option>
-
-                <option>Second</option>
-
-                <option>Third</option>
-
-                <option>Fourth</option>
-
-                <option>Fifth</option>
-              </select>
-            </div>
-
-            {/* BUTTONS */}
-
-            <div
-              className="
-                  flex
-                  justify-end
-
-                  gap-4
-
-                  mt-8
-                "
-            >
-              <button
-                onClick={() => setCreateModal(false)}
-                className="
-                    px-7
-                    py-4
-
-                    rounded-2xl
-
-                    bg-gray-100
-
-                    font-semibold
-                  "
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={createBuilding}
-                className="
-                    px-7
-                    py-4
-
-                    rounded-2xl
-
-                    bg-gradient-to-r
-                    from-[#001B54]
-                    to-[#7A0019]
-
-                    text-white
-
-                    font-bold
-                  "
-              >
-                Create Building
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================== */}
-      {/* EDIT MODAL */}
-      {/* ========================================== */}
-
-      {editModal && (
-        <div
-          className="
-              fixed
-              inset-0
-
-              bg-black/50
-              backdrop-blur-sm
-
-              z-50
-
-              flex
-              items-center
-              justify-center
-
-              p-4
-            "
-        >
-          <div
-            className="
-                bg-white
-
-                w-full
-                max-w-3xl
-
-                rounded-[36px]
-
-                shadow-2xl
-
-                p-8
-              "
-          >
-            {/* TOP */}
-
-            <div
-              className="
-                  flex
-                  items-center
-                  justify-between
-
-                  mb-8
-                "
-            >
-              <h2
-                className="
-                    text-4xl
-
-                    font-black
-
-                    text-[#001B54]
-                  "
-              >
-                Edit Building
-              </h2>
-
-              <button
-                onClick={() => setEditModal(false)}
-                className="
-                    h-12
-                    w-12
-
-                    rounded-full
-
-                    bg-gray-100
-
-                    flex
-                    items-center
-                    justify-center
-                  "
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            {/* FORM */}
-
-            <div
-              className="
-                  grid
-                  grid-cols-1
-                  md:grid-cols-2
-
-                  gap-5
-                "
-            >
-              <input
-                type="text"
-                placeholder="Building Name"
-                value={formData.buildingName}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    buildingName: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              />
-
-              <input
-                type="text"
-                placeholder="Department"
-                value={formData.department}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    department: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              />
-            </div>
-
-            {/* BUTTONS */}
-
-            <div
-              className="
-                  flex
-                  justify-end
-
-                  gap-4
-
-                  mt-8
-                "
-            >
-              <button
-                onClick={() => setEditModal(false)}
-                className="
-                    px-7
-                    py-4
-
-                    rounded-2xl
-
-                    bg-gray-100
-                  "
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={updateBuilding}
-                className="
-                    px-7
-                    py-4
-
-                    rounded-2xl
-
-                    bg-gradient-to-r
-                    from-[#001B54]
-                    to-[#7A0019]
-
-                    text-white
-
-                    font-bold
-                  "
-              >
-                Update Building
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================== */}
-      {/* DELETE MODAL */}
-      {/* ========================================== */}
-
-      {deleteModal && (
-        <div
-          className="
-              fixed
-              inset-0
-
-              bg-black/50
-              backdrop-blur-sm
-
-              z-50
-
-              flex
-              items-center
-              justify-center
-
-              p-4
-            "
-        >
-          <div
-            className="
-                bg-white
-
-                w-full
-                max-w-lg
-
-                rounded-[36px]
-
-                p-8
-
-                shadow-2xl
-              "
-          >
-            <div
-              className="
-                  flex
-                  flex-col
-                  items-center
-
-                  text-center
-                "
-            >
-              <div
-                className="
-                    h-24
-                    w-24
-
-                    rounded-full
-
-                    bg-red-100
-
-                    flex
-                    items-center
-                    justify-center
-                  "
-              >
-                <Trash2
-                  size={40}
-                  className="
-                      text-red-600
-                    "
-                />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-sm font-semibold">
+                  Block Code *
+                  <input
+                    required
+                    maxLength={12}
+                    disabled={Boolean(editing)}
+                    value={form.code}
+                    onChange={(e) =>
+                      updateField("code", e.target.value.toUpperCase())
+                    }
+                    placeholder="A / B / C"
+                    className={`${inputClass} mt-2 disabled:bg-slate-100`}
+                  />
+                </label>
+
+                <label className="text-sm font-semibold">
+                  Academic Block Name *
+                  <input
+                    required
+                    value={form.name}
+                    onChange={(e) => updateField("name", e.target.value)}
+                    placeholder="Academic Block A"
+                    className={`${inputClass} mt-2`}
+                  />
+                </label>
+
+                <label className="text-sm font-semibold">
+                  Building Type
+                  <input
+                    value={form.buildingType}
+                    onChange={(e) =>
+                      updateField("buildingType", e.target.value)
+                    }
+                    placeholder="e.g. Engineering"
+                    className={`${inputClass} mt-2`}
+                  />
+                </label>
+
+                <label className="text-sm font-semibold">
+                  Room Range
+                  <input
+                    value={form.roomRange}
+                    onChange={(e) => updateField("roomRange", e.target.value)}
+                    placeholder="e.g. A101–A516"
+                    className={`${inputClass} mt-2`}
+                  />
+                </label>
+
+                <label className="text-sm font-semibold">
+                  From Floor
+                  <select
+                    value={form.startFloor}
+                    onChange={(e) => updateField("startFloor", e.target.value)}
+                    className={`${inputClass} mt-2`}
+                  >
+                    {FLOORS.map((floor) => (
+                      <option key={floor}>{floor}</option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-sm font-semibold">
+                  To Floor
+                  <select
+                    value={form.endFloor}
+                    onChange={(e) => updateField("endFloor", e.target.value)}
+                    className={`${inputClass} mt-2`}
+                  >
+                    {FLOORS.map((floor) => (
+                      <option key={floor}>{floor}</option>
+                    ))}
+                  </select>
+                </label>
               </div>
 
-              <h2
-                className="
-                    text-4xl
+              {/* MULTIPLE DEPARTMENT INPUTS */}
 
-                    font-black
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold">
+                      Departments Inside This Block
+                    </h3>
 
-                    mt-6
+                    <p className="text-xs text-slate-500">
+                      Add as many Departments as needed.
+                    </p>
+                  </div>
 
-                    text-[#001B54]
-                  "
-              >
-                Delete Building?
-              </h2>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setForm((previous) => ({
+                        ...previous,
+                        departments: [...previous.departments, ""],
+                      }))
+                    }
+                    className="inline-flex items-center gap-1 rounded-lg bg-[#102D56] px-3 py-2 text-xs font-bold text-white"
+                  >
+                    <Plus size={14} />
+                    Add Department
+                  </button>
+                </div>
 
-              <p
-                className="
-                    text-gray-500
+                <div className="space-y-2">
+                  {form.departments.map((department, index) => (
+                    <div key={index} className="flex gap-2">
+                      <input
+                        aria-label={`Department ${index + 1}`}
+                        value={department}
+                        onChange={(e) =>
+                          changeDepartment(index, e.target.value)
+                        }
+                        placeholder={`Department ${index + 1}`}
+                        className={inputClass}
+                      />
 
-                    mt-4
+                      <button
+                        type="button"
+                        title="Remove Department Input"
+                        onClick={() => removeDepartment(index)}
+                        className="rounded-lg bg-red-50 p-2 text-red-600"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
 
-                    text-lg
-                  "
-              >
-                This action cannot be undone.
+              <label className="block text-sm font-semibold">
+                Description
+                <textarea
+                  rows={2}
+                  value={form.description}
+                  onChange={(e) => updateField("description", e.target.value)}
+                  className={`${inputClass} mt-2`}
+                  placeholder="Maintenance location details..."
+                />
+              </label>
+
+              <p className="text-xs text-slate-500">
+                Room Range sirf maintenance location identify karta hai. Room
+                Allocation nahi.
               </p>
-            </div>
+            </form>
 
-            {/* BUTTONS */}
-
-            <div
-              className="
-                  flex
-                  gap-4
-
-                  mt-8
-                "
-            >
+            <footer className="flex justify-end gap-3 border-t border-slate-100 p-4">
               <button
-                onClick={() => setDeleteModal(false)}
-                className="
-                    flex-1
-
-                    py-4
-
-                    rounded-2xl
-
-                    bg-gray-100
-
-                    font-semibold
-                  "
+                type="button"
+                disabled={saving}
+                onClick={() => setFormOpen(false)}
+                className="rounded-xl bg-slate-100 px-5 py-2.5 font-semibold"
               >
                 Cancel
               </button>
 
               <button
-                onClick={confirmDelete}
-                className="
-                    flex-1
-
-                    py-4
-
-                    rounded-2xl
-
-                    bg-gradient-to-r
-                    from-red-500
-                    to-red-700
-
-                    text-white
-
-                    font-bold
-                  "
+                form="academic-block-form"
+                type="submit"
+                disabled={saving}
+                className="rounded-xl bg-[#EAC16A] px-5 py-2.5 font-bold text-[#071C3C] disabled:opacity-50"
               >
-                Delete
+                {saving
+                  ? "Saving..."
+                  : editing
+                    ? "Save Changes"
+                    : "Create Block"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {/* ARCHIVE / RESTORE CONFIRMATION */}
+
+      {confirm && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#041126]/75 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="block-confirm-title"
+            className="w-full max-w-md rounded-2xl bg-white p-6"
+          >
+            <h2 id="block-confirm-title" className="text-lg font-bold">
+              {confirm.isDeleted ? "Restore" : "Archive"} {confirm.name}?
+            </h2>
+
+            <p className="mt-3 text-sm text-slate-600">
+              {confirm.isDeleted
+                ? "This Block will become active again."
+                : "Block will be hidden from new assignments. Historical complaints will remain."}
+            </p>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setConfirm(null)}
+                className="rounded-lg bg-slate-100 px-4 py-2 font-semibold"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={saving}
+                onClick={performAction}
+                className="rounded-lg bg-[#112F5C] px-4 py-2 font-bold text-white"
+              >
+                {saving ? "Saving..." : "Confirm"}
               </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
-};
-
-export default ManageBuildings;
+}

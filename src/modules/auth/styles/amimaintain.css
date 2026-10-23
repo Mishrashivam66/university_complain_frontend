@@ -1,0 +1,2328 @@
+/* AmiMaintain public UI — scoped styles. No Tailwind setup required. */
+@import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=Manrope:wght@400;500;600;700;800&display=swap");
+:root {
+  --ami-navy: #06172f;
+  --ami-deep: #041125;
+  --ami-blue: #0d2f5d;
+  --ami-blue2: #11477e;
+  --ami-gold: #efbc52;
+  --ami-gold2: #e5a839;
+  --ami-ink: #0b2445;
+  --ami-cream: #fffaf2;
+  --ami-muted: #61738b;
+}
+.ami-site,
+.ami-auth-page {
+  font-family: "DM Sans", sans-serif;
+  color: var(--ami-ink);
+  -webkit-font-smoothing: antialiased;
+}
+.ami-site *,
+.ami-auth-page * {
+  box-sizing: border-box;
+}
+.ami-site a,
+.ami-auth-page a {
+  text-decoration: none;
+}
+.ami-site button,
+.ami-site input,
+.ami-site select,
+.ami-auth-page button,
+.ami-auth-page input,
+.ami-auth-page select {
+  font: inherit;
+}
+.ami-site button,
+.ami-auth-page button {
+  cursor: pointer;
+}
+.ami-site h1,
+.ami-site h2,
+.ami-site h3,
+.ami-auth-page h1,
+.ami-auth-page h2,
+.ami-auth-page h3 {
+  font-family: Manrope, "DM Sans", sans-serif;
+  letter-spacing: -0.045em;
+  margin: 0;
+}
+.ami-site p,
+.ami-auth-page p {
+  margin: 0;
+}
+.ami-site {
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: #f9fafc;
+}
+.ami-container {
+  max-width: 1330px;
+  margin: auto;
+  padding: 0 30px;
+}
+.ami-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  border-radius: 11px;
+  padding: 12px 23px;
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 800;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  transition:
+    transform 0.25s,
+    box-shadow 0.25s,
+    background 0.25s;
+  color: white;
+}
+.ami-button:hover {
+  transform: translateY(-2px);
+}
+.ami-button--gold {
+  color: #0a2344;
+  background: linear-gradient(115deg, #f9cf71, #e6a938);
+  box-shadow: 0 10px 28px #be841b3b;
+}
+.ami-button--gold:hover {
+  background: linear-gradient(115deg, #ffdc91, #f2b33d);
+  box-shadow: 0 13px 34px #be841b62;
+}
+.ami-button--outline {
+  border-color: #85a6d180;
+  background: #ffffff05;
+  color: white;
+}
+.ami-button--outline:hover {
+  background: #ffffff13;
+  border-color: #a7c5eb;
+}
+.ami-button--navy {
+  background: #0a2b58;
+  color: white;
+  box-shadow: 0 12px 30px #0a2b5830;
+}
+.ami-button--navy:hover {
+  background: #184276;
+}
+.ami-button--large {
+  padding: 15px 27px;
+  min-height: 52px;
+  font-size: 14px;
+}
+/* brand */
+.ami-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: white;
+  min-width: 0;
+}
+.ami-brand__mark {
+  width: 43px;
+  height: 47px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 43px;
+}
+.ami-brand__mark img {
+  max-width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 6px #0003);
+}
+.ami-brand__words {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  line-height: 1;
+}
+.ami-brand__name {
+  font:
+    800 23px/1.1 Manrope,
+    sans-serif;
+  letter-spacing: -0.07em;
+  white-space: nowrap;
+}
+.ami-brand__name span {
+  color: var(--ami-gold);
+}
+.ami-brand__subtitle {
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  color: #bed1e7;
+  font-weight: 800;
+}
+/* Header */
+.ami-header {
+  height: 82px;
+  background: #061831f7;
+  border-bottom: 1px solid #89afe520;
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  backdrop-filter: blur(22px);
+}
+.ami-header__inner {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+.ami-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 36px;
+  margin: auto;
+}
+.ami-nav > a {
+  font-size: 13px;
+  font-weight: 700;
+  color: #c5d1df;
+  position: relative;
+  transition: color 0.2s;
+}
+.ami-nav > a:hover {
+  color: #f4bd4e;
+}
+.ami-nav > a:after {
+  content: "";
+  position: absolute;
+  bottom: -14px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--ami-gold);
+  transform: scaleX(0);
+  transition: transform 0.25s;
+}
+.ami-nav > a:hover:after {
+  transform: scaleX(1);
+}
+.ami-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ami-header__actions .ami-button {
+  min-width: 102px;
+}
+.ami-menu-toggle,
+.ami-nav__mobile-actions {
+  display: none;
+}
+/* Hero */
+.ami-hero {
+  position: relative;
+  color: white;
+  background: radial-gradient(
+    ellipse at 73% 37%,
+    #164981 0%,
+    #0a2b52 33%,
+    #06182f 68%,
+    #041327 100%
+  );
+  padding: 68px 0 58px;
+  overflow: hidden;
+  isolation: isolate;
+}
+.ami-hero:after {
+  content: "";
+  position: absolute;
+  inset: auto -8% -150px -8%;
+  height: 260px;
+  background: radial-gradient(ellipse, #f0ad3352 0%, transparent 67%);
+  filter: blur(45px);
+  pointer-events: none;
+  z-index: -1;
+}
+.ami-hero__orbit {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid #77b7fc24;
+  pointer-events: none;
+}
+.ami-hero__orbit--one {
+  height: 950px;
+  width: 950px;
+  right: -270px;
+  top: -470px;
+  box-shadow:
+    0 0 0 80px #438edc08,
+    0 0 0 160px #76b7f107;
+}
+.ami-hero__orbit--two {
+  height: 420px;
+  width: 420px;
+  left: -280px;
+  top: 90px;
+  box-shadow: 0 0 0 60px #1d69ba0b;
+}
+.ami-hero__stars {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(#eeb74e91 0.9px, transparent 0.9px);
+  background-size: 25px 25px;
+  mask-image: linear-gradient(90deg, transparent 45%, #000 100%);
+  opacity: 0.27;
+  pointer-events: none;
+}
+.ami-hero__grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: 0.94fr 1.23fr;
+  gap: 36px;
+  align-items: center;
+  min-height: 515px;
+}
+.ami-hero__copy {
+  position: relative;
+  z-index: 2;
+  max-width: 615px;
+  padding: 14px 0 30px;
+}
+.ami-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #d4a34f65;
+  background: #2d54824a;
+  color: #d5e9fd;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  border-radius: 99px;
+  padding: 10px 14px;
+}
+.ami-eyebrow__dot {
+  height: 8px;
+  width: 8px;
+  background: #e6b54d;
+  border-radius: 100%;
+  box-shadow: 0 0 0 4px #e6b54d2a;
+}
+.ami-hero h1 {
+  font-size: clamp(40px, 4.05vw, 66px);
+  line-height: 1.095;
+  font-weight: 800;
+  margin: 24px 0 22px;
+  letter-spacing: -0.065em;
+}
+.ami-hero h1 span,
+.ami-auth-intro h1 em,
+.ami-section-heading h2 em,
+.ami-insights h2 em,
+.ami-faq h2 em {
+  font-style: normal;
+  color: var(--ami-gold);
+}
+.ami-hero__copy > p {
+  color: #bed0e6;
+  font-size: 15px;
+  line-height: 1.84;
+  max-width: 520px;
+}
+.ami-hero__actions {
+  display: flex;
+  gap: 13px;
+  flex-wrap: wrap;
+  margin-top: 30px;
+}
+.ami-hero__trust {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin-top: 34px;
+}
+.ami-hero__trust span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #d2dfec;
+}
+.ami-hero__trust svg {
+  color: var(--ami-gold);
+}
+.ami-connect-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #afc2da;
+  font-size: 11px;
+  margin-top: 27px;
+}
+.ami-connect-status__dot {
+  width: 7px;
+  height: 7px;
+  background: #7890ae;
+  border-radius: 50%;
+}
+.ami-connect-status__dot.is-live {
+  background: #3cdea5;
+  box-shadow: 0 0 0 4px #3cdea51e;
+}
+.ami-hero__visual {
+  position: relative;
+  z-index: 2;
+  min-width: 0;
+  perspective: 1100px;
+}
+.ami-preview-halo {
+  position: absolute;
+  inset: -20px;
+  z-index: -1;
+  border-radius: 60px;
+  background: linear-gradient(100deg, transparent, #3476cc5b, #efbc5230);
+  filter: blur(40px);
+}
+/* dashboard preview */
+.ami-preview-shell {
+  width: 100%;
+  border: 1px solid #b4d3f77d;
+  border-radius: 20px;
+  background: #113969;
+  box-shadow:
+    0 24px 75px #0008,
+    0 1px 0 #f0bd5a;
+  overflow: hidden;
+  transform: rotateY(-5deg) rotateX(2deg);
+  transform-origin: center;
+  transition: transform 0.4s;
+}
+.ami-preview-shell:hover {
+  transform: rotateY(0) rotateX(0);
+}
+.ami-preview-topline {
+  height: 29px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 14px;
+  background: #0b2c57;
+}
+.ami-preview-topline > span {
+  width: 6px;
+  height: 6px;
+  background: #7198c5;
+  border-radius: 50%;
+}
+.ami-preview-topline > span:first-child {
+  background: #e9aa45;
+}
+.ami-preview-topline p {
+  margin-left: auto !important;
+  color: #c2d2e2;
+  font-size: 8px !important;
+  letter-spacing: 0.14em;
+}
+.ami-preview {
+  height: 393px;
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+}
+.ami-preview-side {
+  background: linear-gradient(#082b56, #051a36);
+  padding: 15px 8px 9px;
+  color: #d5e6f8;
+  display: flex;
+  flex-direction: column;
+}
+.ami-preview-sidebrand {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  white-space: nowrap;
+  padding: 0 3px 16px;
+}
+.ami-preview-sidebrand img {
+  width: 22px;
+  height: 22px;
+}
+.ami-preview-sidebrand span {
+  color: #e4b047;
+}
+.ami-preview-menu {
+  display: grid;
+  gap: 4px;
+}
+.ami-preview-menu > div {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 8px;
+  font-size: 9px;
+  white-space: nowrap;
+  border-radius: 6px;
+  color: #a8c2dc;
+}
+.ami-preview-menu > div.is-current {
+  background: #1762c1;
+  color: white;
+  box-shadow: 0 2px 9px #1269c755;
+}
+.ami-preview-sidefooter {
+  font-size: 8px;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  margin-top: auto;
+  color: #a2b9ce;
+  padding: 8px 3px;
+}
+.ami-preview-main {
+  min-width: 0;
+  background: #f5f7fc;
+  color: #20375a;
+}
+.ami-preview-toolbar {
+  height: 39px;
+  background: #fff;
+  border-bottom: 1px solid #e6edf6;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  color: #6f86a7;
+}
+.ami-preview-toolbar > div {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-right: auto;
+  background: #f6f8fc;
+  border: 1px solid #eaf0f8;
+  padding: 5px 9px;
+  border-radius: 5px;
+  font-size: 8px;
+  min-width: 0;
+}
+.ami-preview-toolbar > div span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ami-preview-avatar {
+  display: grid;
+  place-items: center;
+  height: 21px;
+  width: 21px;
+  background: #0d356d;
+  color: white;
+  border-radius: 100%;
+  font-size: 10px;
+  font-weight: 800;
+}
+.ami-preview-content {
+  padding: 14px 13px;
+}
+.ami-preview-welcome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+.ami-preview-welcome h3 {
+  font-size: 15px;
+  letter-spacing: -0.04em;
+}
+.ami-preview-welcome p {
+  font-size: 8px;
+  color: #91a0b3;
+  margin-top: 3px;
+}
+.ami-preview-welcome > span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #e7edf4;
+  background: #fff;
+  border-radius: 5px;
+  padding: 5px 8px;
+  font-size: 9px;
+}
+.ami-demo-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+.ami-demo-stat {
+  min-width: 0;
+  background: #fff;
+  border: 1px solid #e5edf5;
+  border-radius: 8px;
+  padding: 10px 8px;
+  min-height: 74px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.ami-demo-stat__icon {
+  height: 20px;
+  width: 20px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+}
+.ami-demo-stat__icon--orange {
+  background: #fff0dc;
+  color: #ee8d21;
+}
+.ami-demo-stat__icon--teal {
+  background: #e5faf3;
+  color: #13a88d;
+}
+.ami-demo-stat__icon--blue {
+  background: #e9f2ff;
+  color: #246adb;
+}
+.ami-demo-stat__icon--purple {
+  background: #f0ecff;
+  color: #7652d1;
+}
+.ami-demo-stat small {
+  font-size: 7px;
+  color: #8392a4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ami-demo-stat strong {
+  font-size: 15px;
+  line-height: 1.1;
+  color: #142f50;
+}
+.ami-demo-analytics {
+  display: grid;
+  grid-template-columns: 1.45fr 1fr;
+  gap: 7px;
+  margin-top: 9px;
+}
+.ami-demo-chart,
+.ami-demo-workflow {
+  min-width: 0;
+  border-radius: 9px;
+  border: 1px solid #e5edf5;
+  background: #fff;
+  padding: 12px 10px;
+}
+.ami-demo-chart__heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 10px;
+  color: #172f4a;
+}
+.ami-demo-chart__heading select {
+  background: #f8faff;
+  border: 1px solid #e4ebf6;
+  border-radius: 4px;
+  font-size: 8px;
+  color: #506784;
+  padding: 4px;
+}
+.ami-demo-bars {
+  display: flex;
+  justify-content: space-around;
+  align-items: end;
+  height: 94px;
+  margin-top: 10px;
+  gap: 12px;
+  border-bottom: 1px solid #e7edf7;
+  background: repeating-linear-gradient(
+    to top,
+    transparent 0px,
+    transparent 22px,
+    #edf2fa 23px
+  );
+}
+.ami-demo-bars > div {
+  height: 100%;
+  display: flex;
+  align-items: end;
+  width: 15px;
+}
+.ami-demo-bars > div span {
+  width: 100%;
+  display: block;
+  background: linear-gradient(180deg, #3c8cf0, #a8d0ff);
+  border-radius: 4px 4px 0 0;
+}
+.ami-demo-chart__axis {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 5px;
+  font-size: 7px;
+  color: #94a4b8;
+}
+.ami-demo-chart > small {
+  display: block;
+  font-size: 7px;
+  margin-top: 7px;
+  color: #a1aaba;
+}
+.ami-demo-ring {
+  height: 111px;
+  width: 111px;
+  border-radius: 50%;
+  background: conic-gradient(#2d7bea 0 46%, #21b798 46% 78%, #f4b54a 78% 100%);
+  display: grid;
+  place-items: center;
+  margin: 11px auto 0;
+}
+.ami-demo-ring > span {
+  width: 80px;
+  height: 80px;
+  background: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  color: #2d5578;
+  gap: 2px;
+}
+.ami-demo-ring b {
+  font-size: 11px;
+}
+.ami-demo-ring small {
+  font-size: 8px;
+}
+.ami-demo-legend {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+  font-size: 7px;
+  color: #65758b;
+}
+.ami-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 2px;
+}
+.ami-dot--blue {
+  background: #3c8cf0;
+}
+.ami-dot--gold {
+  background: #f4b54a;
+}
+.ami-dot--green {
+  background: #21b798;
+}
+.ami-demo-bottom {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 0;
+  font-size: 8px;
+  color: #758aa2;
+}
+.ami-hero__metrics {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-top: 29px;
+}
+.ami-hero-metric {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #1239607d;
+  border: 1px solid #93bdfb30;
+  padding: 16px 19px;
+  border-radius: 14px;
+  backdrop-filter: blur(12px);
+}
+.ami-hero-metric > .ami-tone {
+  flex-shrink: 0;
+}
+.ami-hero-metric strong {
+  display: block;
+  font:
+    800 25px/1 Manrope,
+    sans-serif;
+  letter-spacing: -0.04em;
+  color: white;
+}
+.ami-hero-metric small {
+  display: block;
+  font-size: 11px;
+  color: #d0def0;
+  margin-top: 6px;
+}
+/* reusable sections */
+.ami-section {
+  padding: 94px 0;
+  scroll-margin-top: 82px;
+}
+.ami-section-heading {
+  text-align: center;
+  max-width: 820px;
+  margin: 0 auto 37px;
+}
+.ami-section-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 10px;
+  font-weight: 800;
+  color: #a57b30;
+}
+.ami-section-heading h2 {
+  margin-top: 13px;
+  font-size: clamp(30px, 3.2vw, 47px);
+  line-height: 1.18;
+}
+.ami-section-heading h2 em {
+  color: #d9a13b;
+}
+.ami-section-heading p {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #64748c;
+  margin-top: 13px;
+}
+.ami-section-heading--dark h2 {
+  color: white;
+}
+.ami-section-heading--dark p {
+  color: #afc5de;
+}
+.ami-section-heading--dark .ami-section-kicker {
+  color: #f0c06a;
+}
+.ami-tone {
+  width: 47px;
+  height: 47px;
+  display: grid;
+  place-items: center;
+  border-radius: 13px;
+  flex-shrink: 0;
+}
+.ami-tone--blue {
+  background: #e4efff;
+  color: #1466dd;
+}
+.ami-tone--gold {
+  background: #fff1d9;
+  color: #c58b1f;
+}
+.ami-tone--teal {
+  background: #dcf8f3;
+  color: #08a58e;
+}
+.ami-tone--violet {
+  background: #ede9ff;
+  color: #7953db;
+}
+.ami-tone--orange {
+  background: #ffeddf;
+  color: #ec8333;
+}
+.ami-tone--rose {
+  background: #ffeced;
+  color: #e55068;
+}
+.ami-feature-tabs {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-bottom: 25px;
+}
+.ami-feature-tabs button {
+  border: 1px solid #dce5f1;
+  background: white;
+  color: #5b7090;
+  padding: 9px 17px;
+  border-radius: 100px;
+  font-size: 12px;
+  font-weight: 800;
+  transition: all 0.2s;
+}
+.ami-feature-tabs button.is-active,
+.ami-feature-tabs button:hover {
+  color: white;
+  background: #123867;
+  border-color: #123867;
+}
+.ami-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 20px;
+}
+.ami-feature-card {
+  position: relative;
+  overflow: hidden;
+  padding: 27px;
+  background: white;
+  border: 1px solid #e3e9f2;
+  border-radius: 19px;
+  box-shadow: 0 15px 35px #1437610b;
+  transition:
+    transform 0.25s,
+    box-shadow 0.25s;
+}
+.ami-feature-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 48px #1437611e;
+}
+.ami-feature-card h3 {
+  margin-top: 20px;
+  font-size: 16px;
+  letter-spacing: -0.035em;
+}
+.ami-feature-card p {
+  font-size: 13px;
+  line-height: 1.8;
+  color: #6c7d95;
+  margin-top: 9px;
+  min-height: 65px;
+}
+.ami-feature-card__line {
+  position: absolute;
+  bottom: 0;
+  left: 27px;
+  right: 27px;
+  height: 2px;
+  background: linear-gradient(90deg, #e4b151, transparent);
+}
+.ami-modules {
+  color: white;
+  background: radial-gradient(
+    ellipse at 12% 0%,
+    #123e6b,
+    #071c39 45%,
+    #051429 95%
+  );
+  position: relative;
+  overflow: hidden;
+}
+.ami-modules:before {
+  content: "";
+  position: absolute;
+  top: -240px;
+  right: -180px;
+  width: 650px;
+  height: 650px;
+  border: 1px solid #5fa2f326;
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 70px #5fa2f30a,
+    0 0 0 145px #5fa2f30b;
+}
+.ami-role-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 15px;
+}
+.ami-role-card {
+  text-align: center;
+  padding: 25px 12px 22px;
+  background: #ffffff0b;
+  border: 1px solid #9ec6f129;
+  border-radius: 17px;
+  transition:
+    transform 0.25s,
+    background 0.25s;
+}
+.ami-role-card:hover {
+  transform: translateY(-5px);
+  background: #ffffff14;
+}
+.ami-role-card .ami-tone {
+  margin: auto;
+  width: 51px;
+  height: 51px;
+  background: #143a67;
+  color: #f0b958;
+}
+.ami-role-card h3 {
+  font-size: 14px;
+  color: white;
+  margin-top: 15px;
+}
+.ami-role-card p {
+  font-size: 11px;
+  color: #adbed3;
+  margin-top: 8px;
+}
+.ami-modules__note {
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: #9db4d0;
+  margin-top: 30px;
+  font-size: 11px;
+}
+.ami-workflow {
+  background: #fafbfd;
+}
+.ami-steps {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 18px;
+  margin-top: 60px;
+}
+.ami-step {
+  position: relative;
+  text-align: left;
+  padding: 20px 6px 10px;
+}
+.ami-step:before {
+  content: "";
+  position: absolute;
+  height: 2px;
+  background: #dce6f2;
+  top: 39px;
+  left: 45px;
+  right: -21px;
+}
+.ami-step:last-child:before {
+  display: none;
+}
+.ami-step__number {
+  height: 40px;
+  width: 40px;
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 100%;
+  border: 4px solid white;
+  box-shadow: 0 5px 15px #23446d22;
+  background: #1b68d1;
+  color: white;
+  font:
+    800 12px Manrope,
+    sans-serif;
+}
+.ami-step h3 {
+  font-size: 14px;
+  margin-top: 22px;
+}
+.ami-step p {
+  font-size: 12px;
+  line-height: 1.8;
+  color: #708099;
+  margin-top: 9px;
+}
+.ami-step__arrow {
+  position: absolute;
+  right: -15px;
+  top: 28px;
+  color: #abc2df;
+}
+.ami-workflow__note {
+  display: flex;
+  align-items: start;
+  gap: 12px;
+  padding: 19px 24px;
+  background: #fff8e9;
+  border: 1px solid #fae8bd;
+  border-radius: 13px;
+  max-width: 900px;
+  margin: 36px auto 0;
+}
+.ami-workflow__note svg {
+  flex-shrink: 0;
+  color: #c38c29;
+}
+.ami-workflow__note p {
+  font-size: 12px;
+  line-height: 1.7;
+  color: #896d41;
+}
+.ami-insights {
+  background: #eef3f9;
+}
+.ami-insights__grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 85px;
+  align-items: center;
+}
+.ami-insights h2,
+.ami-faq h2 {
+  font-size: clamp(30px, 3.25vw, 46px);
+  line-height: 1.2;
+  margin-top: 15px;
+}
+.ami-insights h2 em,
+.ami-faq h2 em {
+  color: #cf9837;
+}
+.ami-insights__grid > div:first-child > p {
+  font-size: 14px;
+  line-height: 1.9;
+  color: #667991;
+  margin-top: 21px;
+  max-width: 550px;
+}
+.ami-insight-points {
+  display: grid;
+  gap: 13px;
+  margin: 25px 0 28px;
+}
+.ami-insight-points span {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #234669;
+  font-size: 13px;
+  font-weight: 700;
+}
+.ami-insight-points svg {
+  color: #12967b;
+}
+.ami-insight-panel {
+  background: #fff;
+  border: 1px solid #e0e8f2;
+  border-radius: 20px;
+  box-shadow: 0 26px 70px #173c6920;
+  overflow: hidden;
+}
+.ami-insight-panel__top {
+  padding: 21px 25px;
+  border-bottom: 1px solid #eaf0f7;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+}
+.ami-insight-panel__top > span:first-child {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.ami-insight-panel__top svg {
+  color: #1b69d5;
+}
+.ami-live-tag {
+  font-size: 10px;
+  color: #128c6f;
+  background: #dff8ee;
+  padding: 6px 10px;
+  border-radius: 99px;
+  font-weight: 800;
+}
+.ami-insight-panel__stat {
+  padding: 28px;
+}
+.ami-insight-panel__stat small {
+  color: #687f9a;
+  font-size: 12px;
+}
+.ami-insight-panel__stat strong {
+  display: block;
+  margin-top: 7px;
+  font:
+    800 56px Manrope,
+    sans-serif;
+  letter-spacing: -0.06em;
+}
+.ami-meter {
+  height: 9px;
+  background: #eaf0f7;
+  border-radius: 50px;
+  overflow: hidden;
+  margin-top: 10px;
+}
+.ami-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 50px;
+  background: linear-gradient(90deg, #1568d5, #17b4a2);
+  transition: width 0.5s;
+}
+.ami-insight-panel__stat p {
+  font-size: 11px;
+  color: #8b9aaa;
+  margin-top: 12px;
+}
+.ami-insight-panel__bottom {
+  border-top: 1px solid #edf1f6;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 17px 25px;
+  gap: 15px;
+}
+.ami-insight-panel__bottom > span {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: #2f67ba;
+}
+.ami-insight-panel__bottom b {
+  font-size: 21px;
+  color: #182f51;
+}
+.ami-insight-panel__bottom small {
+  width: 100%;
+  font-size: 11px;
+  color: #718198;
+}
+.ami-faq {
+  background: white;
+}
+.ami-faq__grid {
+  display: grid;
+  grid-template-columns: 1fr 1.3fr;
+  gap: 75px;
+}
+.ami-faq__grid > div:first-child > p {
+  font-size: 14px;
+  color: #657991;
+  margin: 14px 0 22px;
+}
+.ami-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #b88a31;
+  font-weight: 800;
+  font-size: 13px;
+}
+.ami-faq-list {
+  border-top: 1px solid #e6edf4;
+}
+.ami-faq-item {
+  border-bottom: 1px solid #e6edf4;
+}
+.ami-faq-item > button {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  padding: 18px 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #122d50;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: left;
+}
+.ami-faq-item > button svg {
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+.ami-faq-item > button svg.is-open {
+  transform: rotate(180deg);
+}
+.ami-faq-item > p {
+  padding: 0 22px 18px 2px;
+  color: #697c96;
+  font-size: 12px;
+  line-height: 1.85;
+}
+.ami-cta {
+  color: #fff;
+  background: linear-gradient(100deg, #0c2a53, #164782 65%, #0b2548);
+  padding: 57px 0;
+  position: relative;
+  overflow: hidden;
+}
+.ami-cta:after {
+  content: "";
+  position: absolute;
+  right: -120px;
+  top: -210px;
+  height: 570px;
+  width: 570px;
+  border: 1px solid #ffd17a33;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.ami-cta__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 25px;
+  position: relative;
+  z-index: 1;
+}
+.ami-cta h2 {
+  font-size: clamp(23px, 2.5vw, 34px);
+  max-width: 700px;
+  margin: 13px 0;
+}
+.ami-cta p {
+  font-size: 13px;
+  color: #bbd0e6;
+}
+.ami-cta__inner > div:last-child {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.ami-footer {
+  background: #031126;
+  color: white;
+  padding: 62px 0 26px;
+}
+.ami-footer__grid {
+  display: grid;
+  grid-template-columns: 2.1fr 1fr 1fr 1.6fr;
+  gap: 45px;
+}
+.ami-footer__grid > div:first-child > p {
+  max-width: 340px;
+}
+.ami-footer h3 {
+  font-size: 13px;
+  margin: 12px 0 20px;
+}
+.ami-footer a:not(.ami-brand),
+.ami-footer p {
+  display: block;
+  color: #9eb3cb;
+  font-size: 12px;
+  line-height: 1.9;
+  margin: 6px 0;
+}
+.ami-footer a:hover:not(.ami-brand) {
+  color: #f0c163;
+}
+.ami-footer__end {
+  border-top: 1px solid #224062;
+  margin-top: 43px;
+  padding-top: 23px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  color: #819bbb;
+  font-size: 11px;
+}
+.ami-footer__end span:last-child {
+  color: #cca354;
+  letter-spacing: 0.06em;
+}
+/* Auth */
+.ami-auth-page {
+  min-height: 100vh;
+  background: #f8f9fc;
+  display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
+}
+.ami-auth-side {
+  position: relative;
+  color: white;
+  min-height: 100vh;
+  background: radial-gradient(
+    ellipse at 25% 30%,
+    #194878 0%,
+    #092a53 44%,
+    #06172f 90%
+  );
+  padding: 40px clamp(32px, 5.3vw, 90px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  isolation: isolate;
+}
+.ami-auth-ornament {
+  position: absolute;
+  border: 1px solid #e5b9592e;
+  border-radius: 50%;
+  pointer-events: none;
+}
+.ami-auth-ornament--one {
+  width: 650px;
+  height: 650px;
+  right: -350px;
+  top: -360px;
+  box-shadow:
+    0 0 0 60px #e8b95713,
+    0 0 0 120px #e8b9570c;
+}
+.ami-auth-ornament--two {
+  width: 420px;
+  height: 420px;
+  left: -310px;
+  bottom: 50px;
+  box-shadow: 0 0 0 90px #498ee813;
+}
+.ami-auth-brand {
+  position: relative;
+  z-index: 3;
+}
+.ami-auth-intro {
+  position: relative;
+  z-index: 2;
+  margin: clamp(50px, 8vh, 100px) 0 0;
+  max-width: 575px;
+}
+.ami-auth-intro h1 {
+  font-size: clamp(38px, 4.15vw, 61px);
+  line-height: 1.16;
+  letter-spacing: -0.064em;
+  margin-top: 18px;
+  max-width: 560px;
+}
+.ami-auth-intro > p {
+  color: #b9cfe4;
+  line-height: 1.86;
+  font-size: 14px;
+  max-width: 440px;
+  margin-top: 18px;
+}
+.ami-auth-benefits {
+  display: grid;
+  gap: 14px;
+  margin-top: 25px;
+}
+.ami-auth-benefits > div {
+  display: flex;
+  gap: 11px;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #d7e2f3;
+}
+.ami-auth-benefits > div > span {
+  display: grid;
+  place-items: center;
+  height: 24px;
+  width: 24px;
+  border-radius: 8px;
+  border: 1px solid #efbf5c9c;
+  color: #f4ca76;
+  background: #af771720;
+}
+.ami-auth-illustration {
+  height: 270px;
+  margin-top: auto;
+  background: url("/images/campus-illustration.svg") bottom center/contain
+    no-repeat;
+  filter: drop-shadow(0 15px 25px #0005);
+  position: relative;
+  z-index: 0;
+}
+.ami-auth-float {
+  position: absolute;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  background: #09274be0;
+  color: #f4d081;
+  border: 1px solid #ecc06b62;
+  border-radius: 11px;
+  padding: 12px 14px;
+  font-size: 11px;
+  font-weight: 800;
+  box-shadow: 0 15px 30px #04112455;
+  backdrop-filter: blur(8px);
+}
+.ami-auth-float--a {
+  left: 12%;
+  bottom: 195px;
+}
+.ami-auth-float--b {
+  right: 9%;
+  bottom: 105px;
+}
+.ami-auth-float--c {
+  right: 21%;
+  bottom: 240px;
+  padding: 12px;
+}
+.ami-auth-caption {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c7d8ed;
+  font-size: 11px;
+  margin-top: 16px;
+  position: relative;
+  z-index: 2;
+}
+.ami-auth-main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+  padding: 31px clamp(25px, 5vw, 80px) 27px;
+  overflow-y: auto;
+}
+.ami-auth-topnav {
+  width: 100%;
+  max-width: 565px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 30px;
+}
+.ami-auth-topnav > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #506883;
+}
+.ami-auth-topnav > a:hover {
+  color: #c39235;
+}
+.ami-auth-topnav > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #95a3b4;
+  font-size: 11px;
+}
+.ami-auth-mobile-brand {
+  display: none;
+}
+.ami-auth-form-shell {
+  width: 100%;
+  max-width: 565px;
+  margin: auto 0;
+  padding: 40px 0;
+}
+.ami-form-card {
+  background: #fff;
+  border: 1px solid #e7ecf2;
+  box-shadow: 0 27px 75px #0b26451a;
+  border-radius: 23px;
+  padding: clamp(28px, 3.35vw, 52px);
+  color: #102847;
+  position: relative;
+  overflow: hidden;
+}
+.ami-form-card:after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  border-top: 61px solid #f0be54;
+  border-left: 61px solid transparent;
+  opacity: 0.9;
+  pointer-events: none;
+}
+.ami-form-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #ab7e2a;
+  background: #fdf3df;
+  border-radius: 99px;
+  padding: 9px 12px;
+}
+.ami-form-card h2 {
+  font-size: clamp(29px, 2.6vw, 39px);
+  margin-top: 17px;
+  font-weight: 800;
+  line-height: 1.2;
+}
+.ami-form-card h2 span {
+  color: #e0a83d;
+}
+.ami-form-card__intro {
+  font-size: 13px;
+  line-height: 1.85;
+  color: #6b7c91;
+  margin-top: 9px;
+}
+.ami-form {
+  margin-top: 27px;
+  display: grid;
+  gap: 19px;
+}
+.ami-field {
+  display: block;
+  min-width: 0;
+}
+.ami-field > span:first-child {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 8px;
+  color: #203a5b;
+}
+.ami-input {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-height: 51px;
+  border: 1px solid #dce5ef;
+  border-radius: 11px;
+  background: #fbfcfe;
+  padding: 0 14px;
+  transition:
+    border 0.2s,
+    box-shadow 0.2s;
+}
+.ami-input:focus-within {
+  border-color: #e1ad4b;
+  box-shadow: 0 0 0 4px #ebbd5b27;
+  background: white;
+}
+.ami-input > svg {
+  color: #7a91ac;
+  flex-shrink: 0;
+}
+.ami-input input,
+.ami-input select {
+  background: transparent;
+  min-width: 0;
+  width: 100%;
+  outline: none;
+  border: 0;
+  flex: 1;
+  font-size: 12px;
+  color: #133353;
+  height: 49px;
+}
+.ami-input input::placeholder {
+  color: #a5b0c1;
+}
+.ami-input select {
+  cursor: pointer;
+}
+.ami-input__toggle {
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: #8193a9;
+  padding: 7px 1px;
+  display: flex;
+  align-items: center;
+}
+.ami-input__toggle:hover {
+  color: #d7a13e;
+}
+.ami-form-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  font-size: 11px;
+}
+.ami-form-row > span {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  color: #8c9aae;
+}
+.ami-form-row a {
+  color: #a67828;
+  font-weight: 800;
+}
+.ami-submit {
+  width: 100%;
+  min-height: 52px;
+  border: 0;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.ami-submit:disabled {
+  cursor: wait;
+  opacity: 0.75;
+  transform: none;
+}
+.ami-form-switch {
+  border-top: 1px solid #edf0f5;
+  text-align: center;
+  margin-top: 3px !important;
+  padding-top: 22px;
+  font-size: 12px;
+  color: #7b8a9c;
+}
+.ami-form-switch > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-weight: 800;
+  color: #b07f2a;
+  margin-left: 4px;
+}
+.ami-auth-mainfooter {
+  font-size: 10px;
+  text-align: center;
+  color: #8d9caf;
+  margin-top: auto;
+}
+.ami-alert {
+  margin-top: 20px;
+  padding: 13px;
+  border-radius: 11px;
+  border: 1px solid;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 12px;
+  line-height: 1.6;
+  font-weight: 700;
+}
+.ami-alert svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.ami-alert--error {
+  color: #b52a36;
+  background: #fff0f0;
+  border-color: #f1c8cb;
+}
+.ami-alert--warning {
+  color: #956919;
+  background: #fff9e8;
+  border-color: #f1deac;
+}
+.ami-alert--success {
+  color: #157e5a;
+  background: #ecfff6;
+  border-color: #beedd7;
+}
+.ami-spinner {
+  height: 17px;
+  width: 17px;
+  border-radius: 50%;
+  border: 2px solid #14365b3b;
+  border-top-color: #14365b;
+  display: inline-block;
+  animation: ami-spin 0.8s linear infinite;
+}
+@keyframes ami-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.ami-auth-page--register .ami-auth-intro {
+  margin-top: clamp(34px, 5vh, 65px);
+}
+.ami-auth-page--register .ami-auth-intro h1 {
+  font-size: clamp(35px, 3.8vw, 56px);
+}
+.ami-auth-page--register .ami-auth-illustration {
+  height: 185px;
+}
+.ami-auth-page--register .ami-auth-float--a {
+  bottom: 127px;
+}
+.ami-auth-page--register .ami-auth-float--b {
+  bottom: 75px;
+}
+.ami-auth-page--register .ami-auth-float--c {
+  bottom: 195px;
+}
+.ami-auth-page--register .ami-auth-main {
+  padding-top: 19px;
+  padding-bottom: 17px;
+}
+.ami-auth-page--register .ami-auth-form-shell {
+  padding: 17px 0;
+}
+.ami-form-card--register {
+  padding: clamp(25px, 2.8vw, 39px);
+}
+.ami-form-card--register .ami-form {
+  margin-top: 22px;
+  gap: 16px;
+}
+.ami-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  min-width: 0;
+}
+.ami-field--wide {
+  grid-column: 1/-1;
+}
+.ami-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #f8fafd;
+  border: 1px solid #e7edf5;
+  border-radius: 11px;
+  padding: 12px 14px;
+  cursor: pointer;
+}
+.ami-checkbox input {
+  accent-color: #173d70;
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  cursor: pointer;
+}
+.ami-checkbox strong {
+  display: block;
+  font-size: 12px;
+  color: #233d5c;
+}
+.ami-checkbox small {
+  display: block;
+  font-size: 11px;
+  color: #7f8fa2;
+  margin-top: 4px;
+}
+.ami-hostel-panel {
+  background: #f6f9fd;
+  border: 1px solid #dfebf6;
+  border-radius: 13px;
+  padding: 16px;
+}
+.ami-hostel-panel__title {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  color: #204469;
+  margin-bottom: 15px;
+}
+.ami-field-error {
+  font-size: 11px;
+  color: #bc373e;
+  margin-top: 10px !important;
+}
+.ami-register-privacy {
+  display: flex;
+  justify-content: center;
+  gap: 7px;
+  align-items: center;
+  font-size: 10px;
+  color: #92a0b0;
+}
+/* responsive */
+@media (max-width: 1200px) {
+  .ami-header__inner {
+    gap: 20px;
+  }
+  .ami-nav {
+    gap: 20px;
+  }
+  .ami-brand__name {
+    font-size: 20px;
+  }
+  .ami-brand__subtitle {
+    font-size: 7px;
+  }
+  .ami-hero__grid {
+    grid-template-columns: 0.9fr 1fr;
+    gap: 15px;
+  }
+  .ami-hero h1 {
+    font-size: clamp(37px, 4vw, 55px);
+  }
+  .ami-hero-metric {
+    padding: 13px 12px;
+  }
+  .ami-preview {
+    grid-template-columns: 105px minmax(0, 1fr);
+  }
+  .ami-preview-menu > div {
+    font-size: 8px;
+  }
+  .ami-auth-side {
+    padding-inline: 35px;
+  }
+  .ami-auth-main {
+    padding-inline: 30px;
+  }
+}
+@media (max-width: 980px) {
+  .ami-header {
+    height: 72px;
+  }
+  .ami-menu-toggle {
+    display: inline-flex;
+    margin-left: auto;
+    border: 1px solid #9eb9d74c;
+    background: #ffffff0a;
+    color: white;
+    border-radius: 9px;
+    padding: 8px;
+  }
+  .ami-nav {
+    display: none;
+    position: absolute;
+    top: 72px;
+    left: 0;
+    right: 0;
+    background: #06172f;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    margin: 0;
+    padding: 12px 24px 24px;
+    box-shadow: 0 15px 25px #0005;
+  }
+  .ami-nav--open {
+    display: flex;
+  }
+  .ami-nav > a {
+    padding: 12px 6px;
+  }
+  .ami-nav__mobile-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .ami-nav__mobile-actions a {
+    flex: 1;
+    text-align: center;
+    padding: 12px;
+    border: 1px solid #f0be566b;
+    border-radius: 10px;
+    color: #f0be56;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  .ami-header__actions {
+    margin-left: auto;
+  }
+  .ami-hero__grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .ami-hero__copy {
+    max-width: 750px;
+    text-align: center;
+    margin: auto;
+    padding: 0;
+  }
+  .ami-hero__copy > p {
+    margin: auto;
+  }
+  .ami-hero__actions,
+  .ami-hero__trust {
+    justify-content: center;
+  }
+  .ami-hero__visual {
+    max-width: 700px;
+    width: 100%;
+    margin: auto;
+  }
+  .ami-preview-shell {
+    transform: none;
+  }
+  .ami-hero__metrics {
+    max-width: 900px;
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .ami-feature-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .ami-role-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .ami-steps {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .ami-step:before,
+  .ami-step__arrow {
+    display: none;
+  }
+  .ami-insights__grid {
+    gap: 38px;
+  }
+  .ami-footer__grid {
+    grid-template-columns: 1.5fr 1fr;
+    gap: 30px;
+  }
+  .ami-auth-page {
+    grid-template-columns: 1fr;
+  }
+  .ami-auth-side {
+    display: none;
+  }
+  .ami-auth-main {
+    min-height: 100vh;
+    padding: 24px;
+  }
+  .ami-auth-mobile-brand {
+    display: block;
+    align-self: flex-start;
+    margin-bottom: 16px;
+  }
+  .ami-auth-mobile-brand .ami-brand__name {
+    color: #102b51;
+  }
+  .ami-auth-mobile-brand .ami-brand__subtitle {
+    color: #7186a2;
+  }
+  .ami-auth-topnav {
+    max-width: 575px;
+  }
+  .ami-auth-form-shell {
+    max-width: 575px;
+  }
+  .ami-auth-page--register .ami-auth-main {
+    padding: 24px;
+  }
+  .ami-auth-page--register .ami-auth-form-shell {
+    padding: 25px 0;
+  }
+}
+@media (max-width: 640px) {
+  .ami-container {
+    padding: 0 19px;
+  }
+  .ami-header {
+    height: 67px;
+  }
+  .ami-header__login {
+    display: none;
+  }
+  .ami-header__actions .ami-button {
+    min-width: 0;
+    padding: 10px 13px;
+    font-size: 11px;
+  }
+  .ami-menu-toggle {
+    padding: 7px;
+  }
+  .ami-nav {
+    top: 67px;
+  }
+  .ami-brand__mark {
+    width: 37px;
+    height: 40px;
+    flex-basis: 37px;
+  }
+  .ami-brand__name {
+    font-size: 19px;
+  }
+  .ami-brand__subtitle {
+    font-size: 6px;
+  }
+  .ami-hero {
+    padding: 57px 0 45px;
+  }
+  .ami-hero h1 {
+    font-size: clamp(35px, 9vw, 48px);
+    margin: 20px 0;
+  }
+  .ami-hero__copy > p {
+    font-size: 13px;
+  }
+  .ami-hero__trust {
+    gap: 12px;
+  }
+  .ami-hero__trust span {
+    font-size: 10px;
+  }
+  .ami-hero__actions .ami-button {
+    flex: 1;
+    padding: 13px 11px;
+    font-size: 12px;
+    min-height: 48px;
+  }
+  .ami-hero__visual {
+    margin-top: 18px;
+  }
+  .ami-preview-shell {
+    border-radius: 12px;
+  }
+  .ami-preview-topline {
+    height: 19px;
+  }
+  .ami-preview {
+    grid-template-columns: 75px minmax(0, 1fr);
+    height: 290px;
+  }
+  .ami-preview-side {
+    padding: 8px 4px;
+  }
+  .ami-preview-sidebrand {
+    font-size: 7px;
+    padding-bottom: 9px;
+  }
+  .ami-preview-sidebrand img {
+    width: 14px;
+    height: 14px;
+  }
+  .ami-preview-menu > div {
+    gap: 4px;
+    padding: 7px 3px;
+    font-size: 6px;
+  }
+  .ami-preview-menu > div svg {
+    height: 10px;
+    width: 10px;
+  }
+  .ami-preview-sidefooter {
+    display: none;
+  }
+  .ami-preview-toolbar {
+    height: 28px;
+    padding: 0 7px;
+    gap: 5px;
+  }
+  .ami-preview-toolbar > div {
+    font-size: 6px;
+    padding: 3px;
+  }
+  .ami-preview-content {
+    padding: 9px 7px;
+  }
+  .ami-preview-welcome {
+    margin-bottom: 7px;
+  }
+  .ami-preview-welcome h3 {
+    font-size: 10px;
+  }
+  .ami-preview-welcome p {
+    font-size: 6px;
+  }
+  .ami-preview-welcome > span {
+    font-size: 7px;
+  }
+  .ami-demo-stats {
+    gap: 4px;
+  }
+  .ami-demo-stat {
+    padding: 5px 4px;
+    min-height: 60px;
+  }
+  .ami-demo-stat__icon {
+    width: 16px;
+    height: 16px;
+  }
+  .ami-demo-stat__icon svg {
+    width: 12px;
+    height: 12px;
+  }
+  .ami-demo-stat small {
+    font-size: 6px;
+  }
+  .ami-demo-stat strong {
+    font-size: 11px;
+  }
+  .ami-demo-analytics {
+    gap: 4px;
+    margin-top: 5px;
+  }
+  .ami-demo-chart,
+  .ami-demo-workflow {
+    padding: 6px 5px;
+  }
+  .ami-demo-chart__heading {
+    font-size: 7px;
+  }
+  .ami-demo-chart__heading select {
+    font-size: 6px;
+  }
+  .ami-demo-bars {
+    height: 57px;
+    margin-top: 7px;
+    gap: 4px;
+  }
+  .ami-demo-bars > div {
+    width: 8px;
+  }
+  .ami-demo-chart__axis {
+    font-size: 5px;
+  }
+  .ami-demo-chart > small {
+    font-size: 6px;
+  }
+  .ami-demo-ring {
+    width: 65px;
+    height: 65px;
+    margin-top: 8px;
+  }
+  .ami-demo-ring > span {
+    width: 45px;
+    height: 45px;
+  }
+  .ami-demo-ring > span svg {
+    width: 13px;
+    height: 13px;
+  }
+  .ami-demo-ring b {
+    font-size: 7px;
+  }
+  .ami-demo-ring small {
+    font-size: 5px;
+  }
+  .ami-demo-legend {
+    font-size: 5px;
+  }
+  .ami-demo-bottom {
+    font-size: 6px;
+    padding: 6px 0;
+  }
+  .ami-hero__metrics {
+    gap: 9px;
+    margin-top: 19px;
+  }
+  .ami-hero-metric {
+    padding: 11px;
+    gap: 9px;
+  }
+  .ami-hero-metric .ami-tone {
+    width: 33px;
+    height: 33px;
+  }
+  .ami-hero-metric .ami-tone svg {
+    width: 18px;
+    height: 18px;
+  }
+  .ami-hero-metric strong {
+    font-size: 19px;
+  }
+  .ami-hero-metric small {
+    font-size: 9px;
+  }
+  .ami-section {
+    padding: 65px 0;
+  }
+  .ami-section-heading {
+    margin-bottom: 25px;
+  }
+  .ami-section-heading h2 {
+    font-size: 29px;
+  }
+  .ami-feature-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .ami-feature-card {
+    padding: 22px;
+  }
+  .ami-feature-card p {
+    min-height: 0;
+  }
+  .ami-role-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+  .ami-role-card {
+    padding: 19px 8px;
+  }
+  .ami-role-card h3 {
+    font-size: 12px;
+  }
+  .ami-steps {
+    grid-template-columns: 1fr;
+    gap: 3px;
+    margin-top: 24px;
+  }
+  .ami-step {
+    padding: 13px 12px 13px 63px;
+    min-height: 76px;
+  }
+  .ami-step__number {
+    position: absolute;
+    left: 0;
+    top: 18px;
+  }
+  .ami-step h3 {
+    margin-top: 0;
+  }
+  .ami-step p {
+    margin-top: 4px;
+  }
+  .ami-insights__grid,
+  .ami-faq__grid {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+  .ami-insight-panel__stat strong {
+    font-size: 48px;
+  }
+  .ami-cta__inner {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .ami-cta__inner > div:last-child {
+    width: 100%;
+  }
+  .ami-cta__inner .ami-button {
+    flex: 1;
+    padding: 13px 10px;
+    font-size: 12px;
+  }
+  .ami-footer__grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+  .ami-footer__grid > div:first-child {
+    grid-column: 1/-1;
+  }
+  .ami-footer__end {
+    flex-direction: column;
+  }
+  .ami-auth-main {
+    padding: 18px 14px;
+  }
+  .ami-auth-form-shell {
+    padding: 24px 0;
+  }
+  .ami-form-card {
+    padding: 26px 20px;
+    border-radius: 18px;
+  }
+  .ami-auth-topnav > a,
+  .ami-auth-topnav > span {
+    font-size: 10px;
+  }
+  .ami-form-card h2 {
+    font-size: 31px;
+  }
+  .ami-form-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+  .ami-form-card--register {
+    padding: 23px 18px;
+  }
+  .ami-form-card--register .ami-field--wide {
+    grid-column: auto;
+  }
+  .ami-form-card--register .ami-form {
+    gap: 14px;
+  }
+  .ami-auth-mainfooter {
+    font-size: 9px;
+  }
+  .ami-register-privacy {
+    line-height: 1.5;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ami-site *,
+  .ami-auth-page * {
+    transition: none !important;
+    animation: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+@supports selector(html:has(.ami-site)) {
+  html:has(.ami-site) {
+    scroll-behavior: smooth;
+    scroll-padding-top: 82px;
+  }
+}

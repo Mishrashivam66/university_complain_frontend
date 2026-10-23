@@ -1,1321 +1,691 @@
 import { useEffect, useMemo, useState } from "react";
-
+import { Link } from "react-router-dom";
 import {
-  Activity,
+  ArrowRight,
+  ArrowUpRight,
   BarChart3,
+  Blocks,
+  Check,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   ClipboardCheck,
-  Database,
   GraduationCap,
-  Landmark,
+  Layers3,
+  LayoutDashboard,
+  LockKeyhole,
+  Menu,
+  Package,
   ShieldCheck,
-  UserCheck,
-  Users,
+  Sparkles,
+  UserRoundCog,
+  UsersRound,
+  Warehouse,
+  Wrench,
+  X,
+  Zap,
+  MapPin,
+  Building2,
+  Headset,
 } from "lucide-react";
-
-// ==========================================
-// LANDING COMPONENTS
-// ==========================================
-
-import Header from "../components/Header";
-
-import LandingHero from "../components/LandingHero";
-
-import FeaturesSelector from "../components/FeaturesSelection";
-
-import PremiumInfoSection from "../components/PremiumInfoSection";
-
-import PortalDemo from "../components/PortalDemo";
-
-import ContactSection from "../components/ContactSection";
-
-import DevelopersSection from "../components/DevelopersSection";
-
-// ==========================================
-// API
-// ==========================================
-
 import api from "../../../services/api";
+import Brand from "./Brand";
+import DashboardPreview from "../components/DashboardPreview";
+import "../styles/amimaintain.css";
 
-// ==========================================
-// DEFAULT STATS
-// ==========================================
-
-const DEFAULT_STATS = {
+const initialStats = {
   totalStudents: null,
-
   activeStudents: null,
-
   activeWardens: null,
-
   openComplaints: null,
-
   resolvedToday: null,
-
   totalResolved: null,
 };
+const formatValue = (value, loading) =>
+  loading
+    ? "···"
+    : value == null || !Number.isFinite(Number(value))
+      ? "—"
+      : Number(value).toLocaleString("en-IN");
 
-// ==========================================
-// FORMAT NUMBER
-// ==========================================
+const features = [
+  {
+    icon: ClipboardCheck,
+    tone: "blue",
+    title: "Complaint Management",
+    desc: "Register, categorize and monitor maintenance complaints from request to resolution.",
+  },
+  {
+    icon: ShieldCheck,
+    tone: "gold",
+    title: "Role-Based Access",
+    desc: "Dedicated, permission-controlled workspaces for every authorized role.",
+  },
+  {
+    icon: Package,
+    tone: "teal",
+    title: "Material Management",
+    desc: "Request, issue, return and audit maintenance inventory from a single system.",
+  },
+  {
+    icon: Wrench,
+    tone: "violet",
+    title: "Technician Portal",
+    desc: "Track assigned tasks, field updates and completion evidence online.",
+  },
+  {
+    icon: BarChart3,
+    tone: "orange",
+    title: "Reports & Analytics",
+    desc: "Reliable operational insight from live complaint and service records.",
+  },
+  {
+    icon: MapPin,
+    tone: "rose",
+    title: "Multi-Location Support",
+    desc: "Manage hostels, academic blocks, sports facilities and other campus areas.",
+  },
+];
 
-const formatNumber = (value) => {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) {
-    return "—";
-  }
+const roles = [
+  {
+    icon: GraduationCap,
+    name: "Student",
+    detail: "Raise & track",
+    tone: "blue",
+  },
+  {
+    icon: ShieldCheck,
+    name: "Warden",
+    detail: "Hostel requests",
+    tone: "gold",
+  },
+  {
+    icon: UserRoundCog,
+    name: "Maintenance Manager",
+    detail: "Assign & verify",
+    tone: "teal",
+  },
+  {
+    icon: Warehouse,
+    name: "Store Manager",
+    detail: "Materials & inventory",
+    tone: "orange",
+  },
+  {
+    icon: Wrench,
+    name: "Technician",
+    detail: "Complete assigned work",
+    tone: "violet",
+  },
+  {
+    icon: UsersRound,
+    name: "Admin",
+    detail: "Configure & manage",
+    tone: "blue",
+  },
+  {
+    icon: Building2,
+    name: "Hostel Director",
+    detail: "Hostel monitoring",
+    tone: "gold",
+  },
+  {
+    icon: Blocks,
+    name: "Block Admin",
+    detail: "Block monitoring",
+    tone: "teal",
+  },
+];
 
-  return new Intl.NumberFormat("en-IN").format(Number(value));
-};
+const steps = [
+  {
+    label: "Complaint registered",
+    desc: "Student or warden submits a maintenance request.",
+  },
+  {
+    label: "Technician assigned",
+    desc: "Maintenance manager reviews and assigns work.",
+  },
+  {
+    label: "Materials coordinated",
+    desc: "Store processes any required material issue.",
+  },
+  {
+    label: "Work completed",
+    desc: "Technician updates progress and uploads proof.",
+  },
+  {
+    label: "Verified & closed",
+    desc: "Manager verifies the outcome and closes the case.",
+  },
+];
 
-// ==========================================
-// LANDING PAGE
-// ==========================================
+function Metric({ icon: Icon, value, label, tone }) {
+  return (
+    <div className="ami-hero-metric">
+      <span className={`ami-tone ami-tone--${tone}`}>
+        <Icon size={21} />
+      </span>
+      <span>
+        <strong>{value}</strong>
+        <small>{label}</small>
+      </span>
+    </div>
+  );
+}
+
+function SectionHeading({ tag, title, accent, description, dark = false }) {
+  return (
+    <div
+      className={`ami-section-heading ${dark ? "ami-section-heading--dark" : ""}`}
+    >
+      <span className="ami-section-kicker">
+        <Sparkles size={14} />
+        {tag}
+      </span>
+      <h2>
+        {title} <em>{accent}</em>
+      </h2>
+      <p>{description}</p>
+    </div>
+  );
+}
 
 export default function LandingPage() {
-  // ==========================================
-  // BACKEND STATS
-  // ==========================================
-
-  const [stats, setStats] = useState(DEFAULT_STATS);
-
+  const [stats, setStats] = useState(initialStats);
   const [statsLoading, setStatsLoading] = useState(true);
-
-  const [statsConnected, setStatsConnected] = useState(false);
-
-  // ==========================================
-  // FETCH LIVE LANDING STATS
-  // ==========================================
+  const [connected, setConnected] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [activeFaq, setActiveFaq] = useState(-1);
+  const [featureFilter, setFeatureFilter] = useState("all");
 
   useEffect(() => {
-    const fetchLandingStats = async () => {
+    const controller = new AbortController();
+    const run = async () => {
       try {
-        setStatsLoading(true);
-
-        // ==================================
-        // BACKEND:
-        // /api/common/landing-stats
-        //
-        // api.js already contains /api
-        // ==================================
-
-        const response = await api.get("/common/landing-stats");
-
-        console.log("LANDING STATS RESPONSE:", response.data);
-
-        if (response?.data?.success && response?.data?.stats) {
-          setStats({
-            ...DEFAULT_STATS,
-
-            ...response.data.stats,
-          });
-
-          setStatsConnected(true);
+        const response = await api.get("/common/landing-stats", {
+          signal: controller.signal,
+        });
+        if (controller.signal.aborted) return;
+        const result = response.data;
+        if (result?.success && result?.stats) {
+          setStats({ ...initialStats, ...result.stats });
+          setConnected(true);
         } else {
-          setStatsConnected(false);
+          setConnected(false);
         }
-      } catch (error) {
-        console.log("LANDING STATS ERROR:", error);
-
-        setStatsConnected(false);
-
-        setStats(DEFAULT_STATS);
+      } catch {
+        if (!controller.signal.aborted) setConnected(false);
       } finally {
-        setStatsLoading(false);
+        if (!controller.signal.aborted) setStatsLoading(false);
       }
     };
-
-    fetchLandingStats();
+    run();
+    return () => controller.abort();
   }, []);
 
-  // ==========================================
-  // RESOLUTION RATE
-  // ==========================================
-
-  const resolutionRate = useMemo(() => {
-    const resolved = Number(stats.totalResolved) || 0;
-
-    const open = Number(stats.openComplaints) || 0;
-
-    const total = resolved + open;
-
-    if (!total) {
+  const completion = useMemo(() => {
+    const done = Number(stats.totalResolved);
+    const open = Number(stats.openComplaints);
+    if (!Number.isFinite(done) || !Number.isFinite(open) || done + open <= 0)
       return null;
-    }
-
-    return Math.round((resolved / total) * 100);
+    return Math.round((done / (done + open)) * 100);
   }, [stats.totalResolved, stats.openComplaints]);
-
-  // ==========================================
-  // MAIN LIVE STATS
-  // ==========================================
-
-  const liveStats = [
+  const visibleFeatures = features.filter((f) => {
+    if (featureFilter === "all") return true;
+    if (featureFilter === "operations")
+      return [
+        "Complaint Management",
+        "Technician Portal",
+        "Material Management",
+      ].includes(f.title);
+    return [
+      "Role-Based Access",
+      "Reports & Analytics",
+      "Multi-Location Support",
+    ].includes(f.title);
+  });
+  const faqs = [
     {
-      label: "Registered Students",
-
-      value: statsLoading ? "..." : formatNumber(stats.totalStudents),
-
-      description: "Students registered in the CampusNexus ERP system.",
-
-      icon: GraduationCap,
-
-      iconClass: "from-[#1D4ED8] via-[#2563EB] to-[#60A5FA]",
-
-      glow: "bg-blue-500/15",
+      q: "Who can raise a maintenance complaint?",
+      a: "Students and authorized wardens can submit complaints using their assigned accounts, subject to the system's role and location rules.",
     },
-
     {
-      label: "Open Complaints",
-
-      value: statsLoading ? "..." : formatNumber(stats.openComplaints),
-
-      description: "Complaints currently active within campus workflows.",
-
-      icon: ClipboardCheck,
-
-      iconClass: "from-[#7A0019] via-[#A61B3C] to-[#E0526E]",
-
-      glow: "bg-red-500/15",
+      q: "How is a maintenance request tracked?",
+      a: "Authorized users can view complaint status updates through their role-based dashboard. Assignment, materials and verification remain recorded in the workflow.",
     },
-
     {
-      label: "Resolved Today",
-
-      value: statsLoading ? "..." : formatNumber(stats.resolvedToday),
-
-      description: "Complaints resolved or closed today through the ERP.",
-
-      icon: CheckCircle2,
-
-      iconClass: "from-[#047857] via-[#059669] to-[#34D399]",
-
-      glow: "bg-emerald-500/15",
-    },
-
-    {
-      label: "Active Wardens",
-
-      value: statsLoading ? "..." : formatNumber(stats.activeWardens),
-
-      description: "Wardens currently active in hostel operations.",
-
-      icon: UserCheck,
-
-      iconClass: "from-[#B7791F] via-[#D4A72C] to-[#F4C430]",
-
-      glow: "bg-yellow-400/15",
+      q: "Do I need a separate account for each portal?",
+      a: "Access is determined by the role and permissions assigned to your account. Contact your university administrator for account access or role corrections.",
     },
   ];
 
   return (
-    <div
-      className="
-        min-h-screen
-        overflow-x-hidden
-        bg-[#06101D]
-        text-white
-      "
-    >
-      {/* ======================================
-          HEADER
-      ====================================== */}
-
-      <Header />
-
-      {/* ======================================
-          MAIN
-      ====================================== */}
-
-      <main id="main-content">
-        {/* ==================================
-            HERO
-        ================================== */}
-
-        <LandingHero />
-
-        {/* ==================================
-            ACTUAL ERP DATABASE SNAPSHOT
-        ================================== */}
-
-        <section
-          id="live-campus-snapshot"
-          className="
-            relative
-            overflow-hidden
-
-            border-y
-            border-white/10
-
-            bg-gradient-to-b
-            from-[#071321]
-            via-[#091827]
-            to-[#071120]
-
-            py-24
-            md:py-28
-          "
-        >
-          {/* BACKGROUND GRID */}
-
-          <div
-            className="
-              pointer-events-none
-
-              absolute
-              inset-0
-
-              opacity-[0.035]
-
-              bg-[linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)]
-
-              bg-[size:68px_68px]
-            "
-          />
-
-          {/* BLUE GLOW */}
-
-          <div
-            className="
-              pointer-events-none
-
-              absolute
-              left-1/2
-              top-[-180px]
-
-              h-[500px]
-              w-[950px]
-
-              -translate-x-1/2
-
-              rounded-full
-
-              bg-blue-600/15
-
-              blur-[170px]
-            "
-          />
-
-          {/* GOLD GLOW */}
-
-          <div
-            className="
-              pointer-events-none
-
-              absolute
-              -right-32
-              bottom-[-120px]
-
-              h-[400px]
-              w-[400px]
-
-              rounded-full
-
-              bg-yellow-400/10
-
-              blur-[150px]
-            "
-          />
-
-          {/* MAROON GLOW */}
-
-          <div
-            className="
-              pointer-events-none
-
-              absolute
-              -left-32
-              bottom-[-120px]
-
-              h-[400px]
-              w-[400px]
-
-              rounded-full
-
-              bg-[#7A0019]/10
-
-              blur-[150px]
-            "
-          />
-
-          <div
-            className="
-              relative
-              z-10
-
-              mx-auto
-              max-w-7xl
-
-              px-6
-              md:px-10
-            "
+    <div className="ami-site" id="top">
+      <header className="ami-header">
+        <div className="ami-container ami-header__inner">
+          <Brand />
+          <nav
+            className={`ami-nav ${menuOpen ? "ami-nav--open" : ""}`}
+            aria-label="Main navigation"
           >
-            {/* ==================================
-                HEADER AREA
-            ================================== */}
-
-            <div
-              className="
-                flex
-                flex-col
-                gap-8
-
-                lg:flex-row
-                lg:items-end
-                lg:justify-between
-              "
-            >
-              <div
-                className="
-                  max-w-4xl
-                "
-              >
-                {/* BADGE */}
-
-                <div
-                  className="
-                    inline-flex
-                    items-center
-                    gap-2
-
-                    rounded-full
-
-                    border
-                    border-blue-400/20
-
-                    bg-blue-400/[0.08]
-
-                    px-5
-                    py-2.5
-
-                    text-sm
-                    font-bold
-                    text-blue-200
-
-                    backdrop-blur-xl
-                  "
-                >
-                  <Database size={17} />
-                  Campus ERP Snapshot
-                </div>
-
-                {/* TITLE */}
-
-                <h2
-                  className="
-                    mt-6
-
-                    text-4xl
-                    font-black
-                    leading-tight
-                    text-white
-
-                    md:text-6xl
-                  "
-                >
-                  Real Campus Data.
-                  <br />
-                  <span
-                    className="
-                      bg-gradient-to-r
-                      from-[#60A5FA]
-                      via-white
-                      to-[#F4C430]
-
-                      bg-clip-text
-                      text-transparent
-                    "
-                  >
-                    Direct From The ERP.
-                  </span>
-                </h2>
-
-                {/* DESCRIPTION */}
-
-                <p
-                  className="
-                    mt-6
-
-                    max-w-3xl
-
-                    text-base
-                    leading-8
-                    text-slate-300
-
-                    md:text-lg
-                  "
-                >
-                  These operational statistics are retrieved directly from the
-                  CampusNexus backend and MongoDB database rather than using
-                  hard-coded demonstration values.
-                </p>
-              </div>
-
-              {/* ==================================
-                  CONNECTION STATUS
-              ================================== */}
-
-              <div
-                className={`
-                  inline-flex
-                  w-fit
-                  items-center
-                  gap-3
-
-                  rounded-2xl
-
-                  border
-
-                  px-5
-                  py-3
-
-                  text-sm
-                  font-bold
-
-                  ${
-                    statsConnected
-                      ? `
-                        border-emerald-400/20
-                        bg-emerald-400/[0.08]
-                        text-emerald-300
-                      `
-                      : `
-                        border-slate-500/20
-                        bg-slate-500/[0.08]
-                        text-slate-400
-                      `
-                  }
-                `}
-              >
-                <span
-                  className={`
-                    h-2.5
-                    w-2.5
-
-                    rounded-full
-
-                    ${
-                      statsConnected
-                        ? `
-                          bg-emerald-400
-                          shadow-[0_0_12px_rgba(52,211,153,.8)]
-                        `
-                        : "bg-slate-500"
-                    }
-                  `}
-                />
-
-                {statsLoading
-                  ? "Connecting to ERP..."
-                  : statsConnected
-                    ? "Connected to Campus ERP"
-                    : "ERP Data Unavailable"}
-              </div>
-            </div>
-
-            {/* ==================================
-                PRIMARY LIVE STAT CARDS
-            ================================== */}
-
-            <div
-              className="
-                mt-14
-
-                grid
-                grid-cols-1
-                gap-5
-
-                sm:grid-cols-2
-                xl:grid-cols-4
-              "
-            >
-              {liveStats.map((item, index) => {
-                const Icon = item.icon;
-
+            {["Home", "Features", "Modules", "How it works", "About"].map(
+              (item) => {
+                const anchors = {
+                  Home: "top",
+                  Features: "features",
+                  Modules: "modules",
+                  "How it works": "workflow",
+                  About: "about",
+                };
                 return (
-                  <article
-                    key={index}
-                    className="
-                        group
-
-                        relative
-                        overflow-hidden
-
-                        rounded-[30px]
-
-                        border
-                        border-white/10
-
-                        bg-[#0C192A]/85
-
-                        p-6
-
-                        shadow-[0_20px_55px_rgba(0,0,0,.28)]
-
-                        backdrop-blur-xl
-
-                        transition-all
-                        duration-500
-
-                        hover:-translate-y-2
-                        hover:border-white/20
-                      "
+                  <a
+                    key={item}
+                    href={`#${anchors[item]}`}
+                    onClick={() => setMenuOpen(false)}
                   >
-                    {/* CARD COLOR LINE */}
-
-                    <div
-                      className={`
-                          absolute
-                          left-0
-                          top-0
-
-                          h-[3px]
-                          w-full
-
-                          bg-gradient-to-r
-
-                          ${item.iconClass}
-                        `}
-                    />
-
-                    {/* GLOW */}
-
-                    <div
-                      className={`
-                          pointer-events-none
-
-                          absolute
-                          -right-14
-                          -top-14
-
-                          h-40
-                          w-40
-
-                          rounded-full
-
-                          ${item.glow}
-
-                          blur-3xl
-                        `}
-                    />
-
-                    {/* ICON */}
-
-                    <div
-                      className={`
-                          relative
-
-                          flex
-                          h-14
-                          w-14
-                          items-center
-                          justify-center
-
-                          rounded-2xl
-
-                          bg-gradient-to-br
-
-                          ${item.iconClass}
-
-                          shadow-lg
-
-                          transition-transform
-                          duration-500
-
-                          group-hover:scale-105
-                        `}
-                    >
-                      <Icon size={25} className="text-white" />
-                    </div>
-
-                    {/* VALUE */}
-
-                    <p
-                      className="
-                          relative
-
-                          mt-7
-
-                          text-4xl
-                          font-black
-                          text-white
-
-                          md:text-5xl
-                        "
-                    >
-                      {item.value}
-                    </p>
-
-                    {/* LABEL */}
-
-                    <h3
-                      className="
-                          relative
-
-                          mt-3
-
-                          text-base
-                          font-extrabold
-                          text-white
-                        "
-                    >
-                      {item.label}
-                    </h3>
-
-                    {/* DESCRIPTION */}
-
-                    <p
-                      className="
-                          relative
-
-                          mt-3
-
-                          text-sm
-                          leading-6
-                          text-slate-400
-                        "
-                    >
-                      {item.description}
-                    </p>
-                  </article>
+                    {item}
+                  </a>
                 );
-              })}
+              },
+            )}
+            <div className="ami-nav__mobile-actions">
+              <Link to="/login">Login</Link>
+              <Link to="/register">Register</Link>
             </div>
-
-            {/* ==================================
-                SECONDARY STATS
-            ================================== */}
-
-            <div
-              className="
-                mt-6
-
-                grid
-                grid-cols-1
-                gap-4
-
-                md:grid-cols-3
-              "
+          </nav>
+          <div className="ami-header__actions">
+            <Link
+              className="ami-button ami-button--outline ami-header__login"
+              to="/login"
             >
-              <SmallStat
-                icon={<Users size={19} />}
-                label="Active Students"
-                value={
-                  statsLoading ? "..." : formatNumber(stats.activeStudents)
-                }
-                iconClass="
-                  bg-blue-500/10
-                  text-blue-300
-                "
-              />
+              Login
+            </Link>
+            <Link className="ami-button ami-button--gold" to="/register">
+              Register <ArrowRight size={16} />
+            </Link>
+          </div>
+          <button
+            type="button"
+            className="ami-menu-toggle"
+            onClick={() => setMenuOpen(!menuOpen)}
+            aria-label={menuOpen ? "Close menu" : "Open menu"}
+            aria-expanded={menuOpen}
+          >
+            {menuOpen ? <X size={23} /> : <Menu size={23} />}
+          </button>
+        </div>
+      </header>
 
-              <SmallStat
-                icon={<CheckCircle2 size={19} />}
-                label="Total Resolved"
-                value={statsLoading ? "..." : formatNumber(stats.totalResolved)}
-                iconClass="
-                  bg-emerald-500/10
-                  text-emerald-300
-                "
-              />
-
-              <SmallStat
-                icon={<BarChart3 size={19} />}
-                label="Resolution Rate"
-                value={
-                  statsLoading
-                    ? "..."
-                    : resolutionRate === null
-                      ? "—"
-                      : `${resolutionRate}%`
-                }
-                iconClass="
-                  bg-yellow-400/10
-                  text-yellow-300
-                "
-              />
+      <main>
+        <section className="ami-hero" aria-labelledby="hero-title">
+          <div className="ami-hero__orbit ami-hero__orbit--one" />
+          <div className="ami-hero__orbit ami-hero__orbit--two" />
+          <div className="ami-hero__stars" />
+          <div className="ami-container ami-hero__grid">
+            <div className="ami-hero__copy">
+              <span className="ami-eyebrow">
+                <span className="ami-eyebrow__dot" /> SMART CAMPUS MAINTENANCE
+                ERP
+              </span>
+              <h1 id="hero-title">
+                A Cleaner, Safer &amp; <span>Smarter Campus.</span>
+              </h1>
+              <p>
+                One centralized platform for complaint resolution, technician
+                coordination, materials tracking and efficient campus
+                maintenance operations.
+              </p>
+              <div className="ami-hero__actions">
+                <Link
+                  className="ami-button ami-button--gold ami-button--large"
+                  to="/register"
+                >
+                  Get Started <ArrowRight size={19} />
+                </Link>
+                <a
+                  className="ami-button ami-button--outline ami-button--large"
+                  href="#features"
+                >
+                  Explore Features <ArrowUpRight size={18} />
+                </a>
+              </div>
+              <div className="ami-hero__trust">
+                <span>
+                  <ShieldCheck size={17} /> Secure access
+                </span>
+                <span>
+                  <Zap size={17} /> Live tracking
+                </span>
+                <span>
+                  <Layers3 size={17} /> Digital workflows
+                </span>
+              </div>
+              <div className="ami-connect-status">
+                <span
+                  className={`ami-connect-status__dot ${connected ? "is-live" : ""}`}
+                />
+                {statsLoading
+                  ? "Checking ERP connection"
+                  : connected
+                    ? "Connected to live campus data"
+                    : "Live statistics currently unavailable"}
+              </div>
             </div>
+            <div className="ami-hero__visual">
+              <div className="ami-preview-halo" />
+              <DashboardPreview stats={stats} loading={statsLoading} />
+            </div>
+          </div>
+          <div
+            className="ami-container ami-hero__metrics"
+            aria-label="Campus maintenance metrics"
+          >
+            <Metric
+              icon={GraduationCap}
+              tone="blue"
+              label="Registered students"
+              value={formatValue(stats.totalStudents, statsLoading)}
+            />
+            <Metric
+              icon={ClipboardCheck}
+              tone="gold"
+              label="Open complaints"
+              value={formatValue(stats.openComplaints, statsLoading)}
+            />
+            <Metric
+              icon={CheckCircle2}
+              tone="teal"
+              label="Resolved today"
+              value={formatValue(stats.resolvedToday, statsLoading)}
+            />
+            <Metric
+              icon={ShieldCheck}
+              tone="violet"
+              label="Active wardens"
+              value={formatValue(stats.activeWardens, statsLoading)}
+            />
+          </div>
+        </section>
 
-            {/* ==================================
-                DATABASE NOTE
-            ================================== */}
-
+        <section className="ami-section ami-features" id="features">
+          <div className="ami-container">
+            <SectionHeading
+              tag="Platform capabilities"
+              title="Everything campus maintenance"
+              accent="needs."
+              description="Purpose-built tools that connect the right people, records and resources — all in one place."
+            />
             <div
-              className="
-                mt-6
-
-                flex
-                items-start
-                gap-3
-
-                rounded-2xl
-
-                border
-                border-white/[0.07]
-
-                bg-white/[0.025]
-
-                px-5
-                py-4
-              "
+              className="ami-feature-tabs"
+              role="group"
+              aria-label="Filter features"
             >
-              <ShieldCheck
-                size={18}
-                className="
-                  mt-0.5
-                  shrink-0
-                  text-emerald-400
-                "
-              />
+              {[
+                { value: "all", name: "All features" },
+                { value: "operations", name: "Operations" },
+                { value: "management", name: "Management" },
+              ].map((f) => (
+                <button
+                  key={f.value}
+                  type="button"
+                  aria-pressed={featureFilter === f.value}
+                  className={featureFilter === f.value ? "is-active" : ""}
+                  onClick={() => setFeatureFilter(f.value)}
+                >
+                  {f.name}
+                </button>
+              ))}
+            </div>
+            <div className="ami-feature-grid">
+              {visibleFeatures.map(({ icon: Icon, title, desc, tone }) => (
+                <article className="ami-feature-card" key={title}>
+                  <span className={`ami-tone ami-tone--${tone}`}>
+                    <Icon size={26} />
+                  </span>
+                  <h3>{title}</h3>
+                  <p>{desc}</p>
+                  <span className="ami-feature-card__line" />
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
 
-              <p
-                className="
-                  text-xs
-                  leading-6
-                  text-slate-500
-                "
-              >
-                Only aggregated campus statistics are displayed on the public
-                landing page. Individual student or complaint information
-                remains inside authenticated ERP dashboards.
+        <section className="ami-section ami-modules" id="modules">
+          <div className="ami-container">
+            <SectionHeading
+              dark
+              tag="Our workspaces"
+              title="One platform."
+              accent="Every maintenance role."
+              description="A connected maintenance ecosystem with carefully scoped access for each role."
+            />
+            <div className="ami-role-grid">
+              {roles.map(({ icon: Icon, name, detail, tone }) => (
+                <article className="ami-role-card" key={name}>
+                  <span className={`ami-tone ami-tone--${tone}`}>
+                    <Icon size={24} />
+                  </span>
+                  <h3>{name}</h3>
+                  <p>{detail}</p>
+                </article>
+              ))}
+            </div>
+            <div className="ami-modules__note">
+              <LockKeyhole size={17} /> Access to each workspace depends on
+              permissions assigned by the administrator.
+            </div>
+          </div>
+        </section>
+
+        <section className="ami-section ami-workflow" id="workflow">
+          <div className="ami-container">
+            <SectionHeading
+              tag="Digital journey"
+              title="From request to"
+              accent="resolution."
+              description="A traceable five-step service lifecycle, without routine paper-based job cards."
+            />
+            <div className="ami-steps">
+              {steps.map((step, i) => (
+                <div className="ami-step" key={step.label}>
+                  <span className="ami-step__number">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <h3>{step.label}</h3>
+                  <p>{step.desc}</p>
+                  {i < steps.length - 1 && (
+                    <ChevronRight className="ami-step__arrow" size={20} />
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="ami-workflow__note">
+              <ShieldCheck size={19} />
+              <p>
+                Emergency cases can use a separate, auditable job card workflow.
+                Normal tasks remain digitally tracked from assignment through
+                verification.
               </p>
             </div>
           </div>
         </section>
 
-        {/* ==================================
-            ERP FEATURES
-        ================================== */}
+        <section className="ami-section ami-insights" id="about">
+          <div className="ami-container ami-insights__grid">
+            <div>
+              <span className="ami-section-kicker">
+                <BarChart3 size={15} /> Data-driven maintenance
+              </span>
+              <h2>
+                Make informed decisions with{" "}
+                <em>real operational visibility.</em>
+              </h2>
+              <p>
+                Monitor service workload, follow up on unresolved complaints and
+                keep clear records of materials and technician activity.
+              </p>
+              <div className="ami-insight-points">
+                <span>
+                  <Check size={16} /> Transparent request status
+                </span>
+                <span>
+                  <Check size={16} /> Permission-aware reporting
+                </span>
+                <span>
+                  <Check size={16} /> Location-based monitoring
+                </span>
+              </div>
+              <Link to="/login" className="ami-button ami-button--navy">
+                Open Your Portal <ArrowRight size={17} />
+              </Link>
+            </div>
+            <div className="ami-insight-panel">
+              <div className="ami-insight-panel__top">
+                <span>
+                  <LayoutDashboard size={17} /> Live maintenance overview
+                </span>
+                <span className="ami-live-tag">
+                  {connected ? "Live" : "Unavailable"}
+                </span>
+              </div>
+              <div className="ami-insight-panel__stat">
+                <small>Completed / recorded outcomes</small>
+                <strong>
+                  {statsLoading
+                    ? "···"
+                    : completion == null
+                      ? "—"
+                      : `${completion}%`}
+                </strong>
+                <div className="ami-meter">
+                  <span style={{ width: `${completion ?? 0}%` }} />
+                </div>
+                <p>
+                  Calculated from the available resolved and open complaint
+                  totals.
+                </p>
+              </div>
+              <div className="ami-insight-panel__bottom">
+                <span>
+                  <CheckCircle2 size={20} />{" "}
+                  <b>{formatValue(stats.totalResolved, statsLoading)}</b>
+                  <small>Total resolved</small>
+                </span>
+                <span>
+                  <ClipboardCheck size={20} />{" "}
+                  <b>{formatValue(stats.openComplaints, statsLoading)}</b>
+                  <small>Open cases</small>
+                </span>
+              </div>
+            </div>
+          </div>
+        </section>
 
-        <FeaturesSelector />
+        <section className="ami-section ami-faq" id="faq">
+          <div className="ami-container ami-faq__grid">
+            <div>
+              <span className="ami-section-kicker">
+                <Headset size={15} /> Help center
+              </span>
+              <h2>
+                Good questions. <em>Clear answers.</em>
+              </h2>
+              <p>Everything you need to get started with AmiMaintain.</p>
+              <Link to="/login" className="ami-text-link">
+                Go to login <ArrowRight size={17} />
+              </Link>
+            </div>
+            <div className="ami-faq-list">
+              {faqs.map((item, i) => (
+                <div className="ami-faq-item" key={item.q}>
+                  <button
+                    type="button"
+                    aria-expanded={activeFaq === i}
+                    onClick={() => setActiveFaq(activeFaq === i ? -1 : i)}
+                  >
+                    {item.q}
+                    <ChevronDown
+                      size={19}
+                      className={activeFaq === i ? "is-open" : ""}
+                    />
+                  </button>
+                  {activeFaq === i && <p>{item.a}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
 
-        {/* ==================================
-            INSTITUTIONAL / SOLUTIONS
-        ================================== */}
-
-        <PremiumInfoSection />
-
-        {/* ==================================
-            ERP PLATFORM DEMO
-        ================================== */}
-
-        <PortalDemo />
-
-        {/* ==================================
-            CONTACT
-        ================================== */}
-
-        <ContactSection />
-
-        {/* ==================================
-            DEVELOPMENT TEAM
-        ================================== */}
-
-        <DevelopersSection />
+        <section className="ami-cta">
+          <div className="ami-container ami-cta__inner">
+            <div>
+              <span className="ami-section-kicker">
+                <Sparkles size={14} /> Smarter campus operations
+              </span>
+              <h2>Ready for a more connected maintenance experience?</h2>
+              <p>
+                Register as a student or sign in to your authorized workspace.
+              </p>
+            </div>
+            <div>
+              <Link
+                to="/register"
+                className="ami-button ami-button--gold ami-button--large"
+              >
+                Create Account <ArrowRight size={18} />
+              </Link>
+              <Link
+                to="/login"
+                className="ami-button ami-button--outline ami-button--large"
+              >
+                Sign In
+              </Link>
+            </div>
+          </div>
+        </section>
       </main>
 
-      {/* ======================================
-          FOOTER
-      ====================================== */}
-
-      <footer
-        className="
-          relative
-          overflow-hidden
-
-          border-t
-          border-white/10
-
-          bg-[#040A14]
-
-          pb-10
-          pt-20
-        "
-      >
-        {/* GRID */}
-
-        <div
-          className="
-            pointer-events-none
-
-            absolute
-            inset-0
-
-            opacity-[0.025]
-
-            bg-[linear-gradient(to_right,#ffffff_1px,transparent_1px),linear-gradient(to_bottom,#ffffff_1px,transparent_1px)]
-
-            bg-[size:70px_70px]
-          "
-        />
-
-        {/* GOLD GLOW */}
-
-        <div
-          className="
-            pointer-events-none
-
-            absolute
-            left-1/2
-            top-0
-
-            h-[300px]
-            w-[900px]
-
-            -translate-x-1/2
-
-            bg-yellow-400/10
-
-            blur-[160px]
-          "
-        />
-
-        <div
-          className="
-            relative
-
-            mx-auto
-            max-w-7xl
-
-            px-6
-            md:px-10
-          "
-        >
-          {/* ==================================
-              LIVE FOOTER METRICS
-          ================================== */}
-
-          <div
-            className="
-              grid
-              grid-cols-2
-              gap-4
-
-              lg:grid-cols-4
-            "
-          >
-            <FooterMetric
-              value={statsLoading ? "..." : formatNumber(stats.totalStudents)}
-              label="Registered Students"
-              accent="text-blue-300"
-            />
-
-            <FooterMetric
-              value={statsLoading ? "..." : formatNumber(stats.totalResolved)}
-              label="Resolved Issues"
-              accent="text-emerald-300"
-            />
-
-            <FooterMetric
-              value={statsLoading ? "..." : formatNumber(stats.activeWardens)}
-              label="Active Wardens"
-              accent="text-yellow-300"
-            />
-
-            <FooterMetric
-              value={statsLoading ? "..." : formatNumber(stats.openComplaints)}
-              label="Open Complaints"
-              accent="text-red-300"
-            />
-          </div>
-
-          {/* ==================================
-              BRAND
-          ================================== */}
-
-          <div
-            className="
-              mt-16
-
-              flex
-              flex-col
-              items-center
-              justify-center
-
-              text-center
-            "
-          >
-            {/* LOGO */}
-
-            <div
-              className="
-                flex
-                h-20
-                w-20
-                items-center
-                justify-center
-
-                rounded-[26px]
-
-                bg-gradient-to-br
-                from-[#2563EB]
-                via-[#3B82F6]
-                to-[#F4C430]
-
-                shadow-[0_20px_60px_rgba(59,130,246,.25)]
-              "
-            >
-              <Landmark className="text-white" size={35} />
-            </div>
-
-            {/* NAME */}
-
-            <h2
-              className="
-                mt-6
-
-                text-4xl
-                font-black
-                text-white
-              "
-            >
-              CampusNexus
-            </h2>
-
-            <p
-              className="
-                mt-2
-
-                text-[10px]
-                font-bold
-                uppercase
-                tracking-[0.45em]
-                text-blue-200/60
-              "
-            >
-              Smart Campus ERP
-            </p>
-
-            {/* DESCRIPTION */}
-
-            <p
-              className="
-                mt-6
-                max-w-3xl
-
-                text-sm
-                leading-7
-                text-slate-400
-
-                md:text-base
-              "
-            >
-              A centralized digital platform for campus complaints, hostel
-              operations, maintenance workflows, material management and
-              administrative coordination.
-            </p>
-
-            {/* TRUST PILLS */}
-
-            <div
-              className="
-                mt-7
-
-                flex
-                flex-wrap
-                justify-center
-                gap-3
-              "
-            >
-              <TrustPill icon={<ShieldCheck size={14} />} text="Role Based" />
-
-              <TrustPill icon={<Database size={14} />} text="Centralized" />
-
-              <TrustPill
-                icon={<ClipboardCheck size={14} />}
-                text="Workflow Driven"
-              />
-
-              <TrustPill icon={<Activity size={14} />} text="Trackable" />
-            </div>
-
-            {/* CONNECTION STATUS */}
-
-            <div
-              className={`
-                mt-7
-
-                inline-flex
-                items-center
-                gap-2
-
-                rounded-full
-
-                border
-
-                px-4
-                py-2
-
-                text-xs
-                font-bold
-
-                ${
-                  statsConnected
-                    ? `
-                      border-emerald-400/15
-                      bg-emerald-400/[0.06]
-                      text-emerald-300
-                    `
-                    : `
-                      border-white/10
-                      bg-white/[0.03]
-                      text-slate-500
-                    `
-                }
-              `}
-            >
-              <span
-                className={`
-                  h-2
-                  w-2
-                  rounded-full
-
-                  ${statsConnected ? "bg-emerald-400" : "bg-slate-600"}
-                `}
-              />
-
-              {statsConnected ? "Campus ERP Data Connected" : "Campus ERP"}
-            </div>
-          </div>
-
-          {/* ==================================
-              COPYRIGHT
-          ================================== */}
-
-          <div
-            className="
-              mt-14
-
-              flex
-              flex-col
-              items-center
-              justify-between
-              gap-3
-
-              border-t
-              border-white/10
-
-              pt-7
-
-              text-center
-
-              md:flex-row
-              md:text-left
-            "
-          >
-            <p
-              className="
-                text-xs
-                text-slate-500
-
-                md:text-sm
-              "
-            >
-              © {new Date().getFullYear()} CampusNexus ERP. All rights reserved.
-            </p>
-
-            <p
-              className="
-                text-xs
-                text-slate-500
-
-                md:text-sm
-              "
-            >
-              Smart Campus Management Platform
+      <footer className="ami-footer">
+        <div className="ami-container ami-footer__grid">
+          <div>
+            <Brand />
+            <p>
+              Building a better campus through organized, efficient and
+              transparent maintenance operations.
             </p>
           </div>
+          <div>
+            <h3>Explore</h3>
+            <a href="#features">Features</a>
+            <a href="#modules">Workspaces</a>
+            <a href="#workflow">How it works</a>
+          </div>
+          <div>
+            <h3>Access</h3>
+            <Link to="/login">Sign in</Link>
+            <Link to="/register">Student registration</Link>
+            <a href="#faq">Help & FAQs</a>
+          </div>
+          <div>
+            <h3>Campus operations</h3>
+            <p>Amity University Madhya Pradesh, Gwalior</p>
+            <p>
+              For account or service help, contact your campus maintenance
+              administrator.
+            </p>
+          </div>
+        </div>
+        <div className="ami-container ami-footer__end">
+          <span>
+            © {new Date().getFullYear()} AmiMaintain. Maintenance Management
+            System.
+          </span>
+          <span>SMART CAMPUS • BETTER MAINTENANCE</span>
         </div>
       </footer>
     </div>
   );
 }
-
-// ==========================================
-// SMALL STAT
-// ==========================================
-
-const SmallStat = ({ icon, label, value, iconClass }) => {
-  return (
-    <div
-      className="
-        flex
-        items-center
-        gap-4
-
-        rounded-2xl
-
-        border
-        border-white/10
-
-        bg-white/[0.035]
-
-        px-5
-        py-4
-
-        transition-all
-        duration-300
-
-        hover:bg-white/[0.05]
-      "
-    >
-      <div
-        className={`
-          flex
-          h-11
-          w-11
-          shrink-0
-          items-center
-          justify-center
-
-          rounded-xl
-
-          ${iconClass}
-        `}
-      >
-        {icon}
-      </div>
-
-      <div>
-        <p
-          className="
-            text-xl
-            font-black
-            text-white
-          "
-        >
-          {value}
-        </p>
-
-        <p
-          className="
-            mt-0.5
-
-            text-xs
-            font-semibold
-            text-slate-400
-          "
-        >
-          {label}
-        </p>
-      </div>
-    </div>
-  );
-};
-
-// ==========================================
-// FOOTER METRIC
-// ==========================================
-
-const FooterMetric = ({ value, label, accent }) => {
-  return (
-    <div
-      className="
-        relative
-        overflow-hidden
-
-        rounded-[24px]
-
-        border
-        border-white/10
-
-        bg-[#0E1728]/80
-
-        p-5
-
-        text-center
-
-        shadow-lg
-
-        transition-all
-        duration-300
-
-        hover:-translate-y-1
-        hover:border-white/15
-      "
-    >
-      <div
-        className="
-          pointer-events-none
-
-          absolute
-          left-1/2
-          top-0
-
-          h-20
-          w-32
-
-          -translate-x-1/2
-
-          bg-yellow-300/10
-
-          blur-3xl
-        "
-      />
-
-      <p
-        className={`
-          relative
-
-          text-3xl
-          font-black
-
-          md:text-4xl
-
-          ${accent}
-        `}
-      >
-        {value}
-      </p>
-
-      <p
-        className="
-          relative
-
-          mt-2
-
-          text-xs
-          font-semibold
-          text-slate-400
-
-          sm:text-sm
-        "
-      >
-        {label}
-      </p>
-    </div>
-  );
-};
-
-// ==========================================
-// TRUST PILL
-// ==========================================
-
-const TrustPill = ({ icon, text }) => {
-  return (
-    <span
-      className="
-        inline-flex
-        items-center
-        gap-2
-
-        rounded-full
-
-        border
-        border-white/10
-
-        bg-white/[0.04]
-
-        px-4
-        py-2
-
-        text-xs
-        font-bold
-        text-slate-300
-      "
-    >
-      <span className="text-yellow-300">{icon}</span>
-
-      {text}
-    </span>
-  );
-};

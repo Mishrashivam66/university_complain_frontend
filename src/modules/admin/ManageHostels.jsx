@@ -1,1506 +1,795 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import toast from "react-hot-toast";
 
-import api from "../../services/api";
-
 import {
-  Building2,
+  Archive,
   BedDouble,
-  Trash2,
+  ChevronDown,
+  ChevronUp,
+  Eye,
   Pencil,
   Plus,
-  Users,
-  Loader2,
+  RefreshCcw,
+  RotateCcw,
+  Search,
   X,
-  CheckCircle2,
 } from "lucide-react";
 
-const ManageHostels = () => {
-  // ==========================================
-  // STATES
-  // ==========================================
+import api from "../../services/api";
 
-  const [loading, setLoading] = useState(true);
+// ==========================================
+// HOSTEL TYPES
+// ==========================================
 
+const TYPES = [
+  {
+    value: "BOYS",
+    label: "Boys Hostel",
+  },
+  {
+    value: "GIRLS",
+    label: "Girls Hostel",
+  },
+  {
+    value: "CO-ED",
+    label: "Co-ed Hostel",
+  },
+  {
+    value: "STAFF",
+    label: "Staff / Faculty Hostel",
+  },
+];
+
+const blankForm = () => ({
+  hostelCode: "",
+  hostelName: "",
+  hostelType: "BOYS",
+  totalFloors: "4",
+  description: "",
+});
+
+const errorMessage = (error, fallback) =>
+  error?.response?.data?.message || fallback;
+
+const inputStyle =
+  "mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100";
+
+// ==========================================
+// HOSTEL MANAGEMENT
+// ==========================================
+
+export default function ManageHostels() {
   const [hostels, setHostels] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
-  const [createModal, setCreateModal] = useState(false);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const [expanded, setExpanded] = useState(null);
 
-  const [editModal, setEditModal] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [form, setForm] = useState(blankForm);
 
-  const [deleteModal, setDeleteModal] = useState(false);
+  const [confirmHostel, setConfirmHostel] = useState(null);
 
-  const [selectedHostel, setSelectedHostel] = useState(null);
+  // ======================================
+  // LOAD HOSTELS
+  // ======================================
 
-  // ==========================================
-  // FORM DATA
-  // ==========================================
-
-  const [formData, setFormData] = useState({
-    hostelName: "",
-
-    hostelType: "BOYS",
-
-    totalFloors: 4,
-
-    totalRooms: 0,
-
-    totalCapacity: 0,
-  });
-
-  // ==========================================
-  // FETCH HOSTELS
-  // ==========================================
-
-  const fetchHostels = async () => {
+  const fetchHostels = useCallback(async () => {
     try {
       setLoading(true);
 
-      const res = await api.get("/admin/hostels/all");
+      const result = await api.get("/admin/hostels/all", {
+        params: {
+          includeArchived: "true",
+        },
+      });
 
-      setHostels(res.data.hostels || []);
+      if (!Array.isArray(result.data?.hostels)) {
+        throw new Error("Invalid hostel list response");
+      }
+
+      setHostels(result.data.hostels);
     } catch (error) {
-      console.log(error);
-
-      toast.error("Failed to fetch hostels");
+      toast.error(errorMessage(error, "Unable to load hostels"));
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchHostels();
-  }, []);
+  }, [fetchHostels]);
 
-  // ==========================================
-  // CREATE HOSTEL
-  // ==========================================
+  // ======================================
+  // LIVE SUMMARY
+  // ======================================
 
-  const createHostel = async () => {
-    try {
-      if (!formData.hostelName) {
-        toast.error("Hostel name required");
+  const counts = useMemo(
+    () => ({
+      total: hostels.length,
 
-        return;
-      }
+      active: hostels.filter(
+        (hostel) => !hostel.isDeleted && hostel.isActive !== false,
+      ).length,
 
-      await api.post(
-        "/admin/hostels/create",
+      inactive: hostels.filter(
+        (hostel) => !hostel.isDeleted && hostel.isActive === false,
+      ).length,
 
-        formData,
-      );
+      archived: hostels.filter((hostel) => hostel.isDeleted).length,
+    }),
+    [hostels],
+  );
 
-      toast.success("Hostel created successfully");
+  // ======================================
+  // SEARCH & FILTER
+  // ======================================
 
-      setCreateModal(false);
+  const filtered = useMemo(() => {
+    return hostels.filter((hostel) => {
+      const query = search.trim().toLowerCase();
 
-      fetchHostels();
+      const matchesText =
+        !query ||
+        [
+          hostel.hostelName,
+          hostel.hostelCode,
+          hostel.hostelType,
+          hostel.description,
+        ].some((value) =>
+          String(value || "")
+            .toLowerCase()
+            .includes(query),
+        );
 
-      setFormData({
-        hostelName: "",
+      const matchesStatus =
+        status === "all" ||
+        (status === "active" &&
+          !hostel.isDeleted &&
+          hostel.isActive !== false) ||
+        (status === "inactive" &&
+          !hostel.isDeleted &&
+          hostel.isActive === false) ||
+        (status === "archived" && hostel.isDeleted);
 
-        hostelType: "BOYS",
+      return matchesText && matchesStatus;
+    });
+  }, [hostels, search, status]);
 
-        totalFloors: 4,
+  // ======================================
+  // ADD / EDIT
+  // ======================================
 
-        totalRooms: 0,
-
-        totalCapacity: 0,
-      });
-    } catch (error) {
-      console.log(error);
-
-      toast.error(error.response?.data?.message || "Failed to create hostel");
-    }
+  const showNew = () => {
+    setEditing(null);
+    setForm(blankForm());
+    setFormOpen(true);
   };
 
-  // ==========================================
-  // OPEN EDIT MODAL
-  // ==========================================
+  const showEdit = (hostel) => {
+    setEditing(hostel);
 
-  const openEditModal = (hostel) => {
-    setSelectedHostel(hostel);
-
-    setFormData({
-      hostelName: hostel.hostelName,
-
-      hostelType: hostel.hostelType,
-
-      totalFloors: hostel.totalFloors,
-
-      totalRooms: hostel.totalRooms,
-
-      totalCapacity: hostel.totalCapacity,
+    setForm({
+      hostelCode: hostel.hostelCode || "",
+      hostelName: hostel.hostelName || "",
+      hostelType: hostel.hostelType || "BOYS",
+      totalFloors: String(hostel.totalFloors ?? 4),
+      description: hostel.description || "",
     });
 
-    setEditModal(true);
+    setFormOpen(true);
   };
 
-  // ==========================================
-  // UPDATE HOSTEL
-  // ==========================================
+  const change = (key, value) => {
+    setForm((previous) => ({
+      ...previous,
+      [key]: value,
+    }));
+  };
 
-  const updateHostel = async () => {
+  // ======================================
+  // SAVE HOSTEL
+  // ======================================
+
+  const save = async (event) => {
+    event.preventDefault();
+
+    if (saving) return;
+
+    const payload = {
+      hostelCode: form.hostelCode.trim().toUpperCase(),
+
+      hostelName: form.hostelName.trim(),
+
+      hostelType: form.hostelType,
+
+      totalFloors: Number(form.totalFloors),
+
+      description: form.description.trim(),
+    };
+
+    if (!/^[A-Z0-9][A-Z0-9_-]{0,11}$/.test(payload.hostelCode)) {
+      toast.error("Enter a valid Hostel Code, such as H1");
+
+      return;
+    }
+
+    if (!payload.hostelName) {
+      toast.error("Hostel name is required");
+      return;
+    }
+
+    if (
+      !Number.isInteger(payload.totalFloors) ||
+      payload.totalFloors < 0 ||
+      payload.totalFloors > 100
+    ) {
+      toast.error("Enter a valid number of floors (0–100)");
+
+      return;
+    }
+
     try {
-      await api.put(
-        `/admin/hostels/update/${selectedHostel._id}`,
+      setSaving(true);
 
-        formData,
+      if (editing) {
+        await api.put(`/admin/hostels/update/${editing._id}`, payload);
+      } else {
+        await api.post("/admin/hostels/create", payload);
+      }
+
+      toast.success(editing ? "Hostel updated" : "Hostel created");
+
+      setFormOpen(false);
+
+      await fetchHostels();
+    } catch (error) {
+      toast.error(errorMessage(error, "Could not save hostel"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ======================================
+  // ACTIVATE / DEACTIVATE
+  // ======================================
+
+  const toggleActive = async (hostel) => {
+    if (saving) return;
+
+    try {
+      setSaving(true);
+
+      await api.put(`/admin/hostels/update/${hostel._id}`, {
+        isActive: hostel.isActive === false,
+      });
+
+      toast.success(
+        hostel.isActive === false ? "Hostel activated" : "Hostel deactivated",
       );
 
-      toast.success("Hostel updated successfully");
-
-      setEditModal(false);
-
-      fetchHostels();
+      await fetchHostels();
     } catch (error) {
-      console.log(error);
-
-      toast.error("Failed to update hostel");
+      toast.error(errorMessage(error, "Cannot update hostel status"));
+    } finally {
+      setSaving(false);
     }
   };
 
-  // ==========================================
-  // DELETE MODAL
-  // ==========================================
+  // ======================================
+  // ARCHIVE / RESTORE
+  // ======================================
 
-  const openDeleteModal = (hostel) => {
-    setSelectedHostel(hostel);
+  const archiveOrRestore = async () => {
+    if (!confirmHostel || saving) return;
 
-    setDeleteModal(true);
-  };
-
-  // ==========================================
-  // DELETE HOSTEL
-  // ==========================================
-
-  const confirmDelete = async () => {
     try {
-      await api.delete(`/admin/hostels/delete/${selectedHostel._id}`);
+      setSaving(true);
 
-      toast.success("Hostel deleted successfully");
+      if (confirmHostel.isDeleted) {
+        await api.patch(`/admin/hostels/restore/${confirmHostel._id}`);
+      } else {
+        await api.delete(`/admin/hostels/delete/${confirmHostel._id}`);
+      }
 
-      setDeleteModal(false);
+      toast.success(
+        confirmHostel.isDeleted ? "Hostel restored" : "Hostel archived safely",
+      );
 
-      fetchHostels();
+      setConfirmHostel(null);
+
+      await fetchHostels();
     } catch (error) {
-      console.log(error);
-
-      toast.error("Delete failed");
+      toast.error(errorMessage(error, "Unable to perform action"));
+    } finally {
+      setSaving(false);
     }
   };
+
+  // ======================================
+  // UI
+  // ======================================
 
   return (
-    <div className="space-y-6">
-      {/* ========================================== */}
-      {/* HEADER */}
-      {/* ========================================== */}
+    <div className="min-h-full bg-[#F4F7FC] px-3 py-5 text-[#0B234B] sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-5">
+        {/* HEADER */}
 
-      <div
-        className="
-          bg-gradient-to-r
-          from-[#001B54]
-          via-[#002B7F]
-          to-[#7A0019]
+        <header className="flex flex-col gap-4 rounded-3xl bg-gradient-to-r from-[#071C3C] to-[#153D77] p-6 text-white shadow-xl sm:flex-row sm:items-center sm:justify-between sm:p-8">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.2em] text-amber-300">
+              AmiMaintain · Campus Setup
+            </p>
 
-          rounded-[34px]
+            <h1 className="mt-2 text-2xl font-black sm:text-3xl">
+              Hostel Management
+            </h1>
 
-          p-6
-          md:p-10
-
-          shadow-2xl
-
-          text-white
-        "
-      >
-        <div
-          className="
-            flex
-            flex-col
-            lg:flex-row
-
-            lg:items-center
-            lg:justify-between
-
-            gap-6
-          "
-        >
-          <div
-            className="
-              flex
-              items-center
-              gap-5
-            "
-          >
-            <div
-              className="
-                h-20
-                w-20
-
-                rounded-3xl
-
-                bg-white/20
-
-                flex
-                items-center
-                justify-center
-              "
-            >
-              <Building2 size={42} />
-            </div>
-
-            <div>
-              <h1
-                className="
-                  text-4xl
-                  md:text-6xl
-
-                  font-black
-                "
-              >
-                Manage Hostels
-              </h1>
-
-              <p
-                className="
-                  mt-3
-
-                  text-blue-100
-                "
-              >
-                Manage hostel infrastructure, capacity and occupancy.
-              </p>
-            </div>
+            <p className="mt-2 text-sm text-slate-200">
+              Configure hostels for maintenance complaints — not room
+              allocation.
+            </p>
           </div>
-
-          {/* BUTTON */}
 
           <button
-            onClick={() => setCreateModal(true)}
-            className="
-              bg-white
-
-              text-[#001B54]
-
-              px-7
-              py-4
-
-              rounded-2xl
-
-              font-bold
-
-              flex
-              items-center
-              gap-3
-
-              hover:scale-105
-
-              transition-all
-            "
+            type="button"
+            onClick={showNew}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F0C56A] px-5 py-3 text-sm font-bold text-[#071C3C]"
           >
-            <Plus size={22} />
+            <Plus size={18} />
             Add Hostel
           </button>
-        </div>
-      </div>
+        </header>
 
-      {/* ========================================== */}
-      {/* STATS */}
-      {/* ========================================== */}
+        {/* CLICKABLE STATISTICS */}
 
-      <div
-        className="
-          grid
-          grid-cols-1
-          sm:grid-cols-2
-          xl:grid-cols-4
-
-          gap-5
-        "
-      >
-        {/* HOSTELS */}
-
-        <div
-          className="
-            bg-blue-100
-
-            rounded-[30px]
-
-            p-7
-
-            shadow-lg
-          "
-        >
-          <Building2
-            size={38}
-            className="
-              text-blue-700
-            "
-          />
-
-          <h2
-            className="
-              text-5xl
-
-              font-black
-
-              mt-5
-
-              text-blue-700
-            "
-          >
-            {hostels.length}
-          </h2>
-
-          <p
-            className="
-              mt-2
-
-              text-blue-700
-
-              font-semibold
-            "
-          >
-            Total Hostels
-          </p>
-        </div>
-
-        {/* FLOORS */}
-
-        <div
-          className="
-            bg-green-100
-
-            rounded-[30px]
-
-            p-7
-
-            shadow-lg
-          "
-        >
-          <Users
-            size={38}
-            className="
-              text-green-700
-            "
-          />
-
-          <h2
-            className="
-              text-5xl
-
-              font-black
-
-              mt-5
-
-              text-green-700
-            "
-          >
-            {hostels.reduce(
-              (acc, hostel) => acc + hostel.totalFloors,
-
-              0,
-            )}
-          </h2>
-
-          <p
-            className="
-              mt-2
-
-              text-green-700
-
-              font-semibold
-            "
-          >
-            Total Floors
-          </p>
-        </div>
-
-        {/* ROOMS */}
-
-        <div
-          className="
-            bg-yellow-100
-
-            rounded-[30px]
-
-            p-7
-
-            shadow-lg
-          "
-        >
-          <BedDouble
-            size={38}
-            className="
-              text-yellow-700
-            "
-          />
-
-          <h2
-            className="
-              text-5xl
-
-              font-black
-
-              mt-5
-
-              text-yellow-700
-            "
-          >
-            {hostels.reduce(
-              (acc, hostel) => acc + hostel.totalRooms,
-
-              0,
-            )}
-          </h2>
-
-          <p
-            className="
-              mt-2
-
-              text-yellow-700
-
-              font-semibold
-            "
-          >
-            Total Rooms
-          </p>
-        </div>
-
-        {/* CAPACITY */}
-
-        <div
-          className="
-            bg-purple-100
-
-            rounded-[30px]
-
-            p-7
-
-            shadow-lg
-          "
-        >
-          <Users
-            size={38}
-            className="
-              text-purple-700
-            "
-          />
-
-          <h2
-            className="
-              text-5xl
-
-              font-black
-
-              mt-5
-
-              text-purple-700
-            "
-          >
-            {hostels.reduce(
-              (acc, hostel) => acc + hostel.totalCapacity,
-
-              0,
-            )}
-          </h2>
-
-          <p
-            className="
-              mt-2
-
-              text-purple-700
-
-              font-semibold
-            "
-          >
-            Total Capacity
-          </p>
-        </div>
-      </div>
-
-      {/* ========================================== */}
-      {/* LOADING */}
-      {/* ========================================== */}
-
-      {loading ? (
-        <div
-          className="
-            flex
-            justify-center
-
-            py-20
-          "
-        >
-          <Loader2
-            size={55}
-            className="
-              animate-spin
-              text-[#001B54]
-            "
-          />
-        </div>
-      ) : (
-        <div
-          className="
-            grid
-            grid-cols-1
-            md:grid-cols-2
-            xl:grid-cols-3
-
-            gap-6
-          "
-        >
-          {hostels.map((hostel) => (
-            <div
-              key={hostel._id}
-              className="
-                  bg-white
-
-                  rounded-[34px]
-
-                  p-7
-
-                  shadow-xl
-
-                  border
-                  border-gray-100
-
-                  hover:-translate-y-1
-
-                  transition-all
-                "
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[
+            {
+              title: "Total Hostels",
+              value: counts.total,
+              filter: "all",
+            },
+            {
+              title: "Active Hostels",
+              value: counts.active,
+              filter: "active",
+            },
+            {
+              title: "Inactive Hostels",
+              value: counts.inactive,
+              filter: "inactive",
+            },
+            {
+              title: "Archived",
+              value: counts.archived,
+              filter: "archived",
+            },
+          ].map((item) => (
+            <button
+              type="button"
+              key={item.title}
+              onClick={() => setStatus(item.filter)}
+              className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-amber-400"
             >
-              {/* TOP */}
+              <span className="block text-2xl font-extrabold">
+                {item.value}
+              </span>
 
-              <div
-                className="
-                    flex
-                    items-start
-                    justify-between
-                  "
-              >
-                <div>
-                  <h2
-                    className="
-                        text-3xl
-
-                        font-black
-
-                        text-[#001B54]
-                      "
-                  >
-                    {hostel.hostelName}
-                  </h2>
-
-                  <p
-                    className="
-                        text-gray-500
-
-                        mt-1
-                      "
-                  >
-                    Hostel Building
-                  </p>
-                </div>
-
-                <div
-                  className="
-                      px-5
-                      py-2
-
-                      rounded-full
-
-                      bg-blue-100
-
-                      text-blue-700
-
-                      text-sm
-                      font-bold
-                    "
-                >
-                  {hostel.hostelType}
-                </div>
-              </div>
-
-              {/* DETAILS */}
-
-              <div className="space-y-4 mt-7">
-                {/* FLOORS */}
-
-                <div
-                  className="
-                      bg-green-50
-
-                      rounded-2xl
-
-                      p-4
-
-                      flex
-                      items-center
-                      justify-between
-                    "
-                >
-                  <p
-                    className="
-                        text-green-700
-
-                        font-semibold
-                      "
-                  >
-                    Floors
-                  </p>
-
-                  <p
-                    className="
-                        text-green-700
-
-                        font-black
-                      "
-                  >
-                    {hostel.totalFloors}
-                  </p>
-                </div>
-
-                {/* ROOMS */}
-
-                <div
-                  className="
-                      bg-yellow-50
-
-                      rounded-2xl
-
-                      p-4
-
-                      flex
-                      items-center
-                      justify-between
-                    "
-                >
-                  <p
-                    className="
-                        text-yellow-700
-
-                        font-semibold
-                      "
-                  >
-                    Rooms
-                  </p>
-
-                  <p
-                    className="
-                        text-yellow-700
-
-                        font-black
-                      "
-                  >
-                    {hostel.totalRooms}
-                  </p>
-                </div>
-
-                {/* CAPACITY */}
-
-                <div
-                  className="
-                      bg-purple-50
-
-                      rounded-2xl
-
-                      p-4
-
-                      flex
-                      items-center
-                      justify-between
-                    "
-                >
-                  <p
-                    className="
-                        text-purple-700
-
-                        font-semibold
-                      "
-                  >
-                    Capacity
-                  </p>
-
-                  <p
-                    className="
-                        text-purple-700
-
-                        font-black
-                      "
-                  >
-                    {hostel.totalCapacity}
-                  </p>
-                </div>
-              </div>
-
-              {/* STATUS */}
-
-              <div
-                className="
-                    mt-6
-
-                    flex
-                    items-center
-                    gap-2
-                  "
-              >
-                <CheckCircle2
-                  size={18}
-                  className="
-                      text-green-600
-                    "
-                />
-
-                <span
-                  className="
-                      text-green-600
-
-                      font-bold
-                    "
-                >
-                  Active Hostel
-                </span>
-              </div>
-
-              {/* ACTIONS */}
-
-              <div
-                className="
-                    flex
-                    gap-4
-
-                    mt-7
-                  "
-              >
-                {/* EDIT */}
-
-                <button
-                  onClick={() => openEditModal(hostel)}
-                  className="
-                      flex-1
-
-                      bg-blue-100
-                      hover:bg-blue-200
-
-                      text-blue-700
-
-                      py-4
-
-                      rounded-2xl
-
-                      flex
-                      items-center
-                      justify-center
-                      gap-2
-
-                      font-bold
-
-                      transition-all
-                    "
-                >
-                  <Pencil size={18} />
-                  Edit
-                </button>
-
-                {/* DELETE */}
-
-                <button
-                  onClick={() => openDeleteModal(hostel)}
-                  className="
-                      flex-1
-
-                      bg-red-100
-                      hover:bg-red-200
-
-                      text-red-700
-
-                      py-4
-
-                      rounded-2xl
-
-                      flex
-                      items-center
-                      justify-center
-                      gap-2
-
-                      font-bold
-
-                      transition-all
-                    "
-                >
-                  <Trash2 size={18} />
-                  Delete
-                </button>
-              </div>
-            </div>
+              <span className="mt-1 block text-xs font-semibold text-slate-500">
+                {item.title}
+              </span>
+            </button>
           ))}
         </div>
-      )}
 
-      {/* ========================================== */}
-      {/* CREATE MODAL */}
-      {/* ========================================== */}
+        {/* FILTERS AND LIST */}
 
-      {createModal && (
-        <div
-          className="
-              fixed
-              inset-0
+        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 px-3">
+              <Search size={18} className="text-slate-400" />
 
-              bg-black/50
-              backdrop-blur-sm
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="w-full bg-transparent py-3 text-sm outline-none"
+                placeholder="Search hostel code, name or type..."
+              />
+            </label>
 
-              z-50
-
-              flex
-              items-center
-              justify-center
-
-              p-4
-            "
-        >
-          <div
-            className="
-                bg-white
-
-                w-full
-                max-w-3xl
-
-                rounded-[36px]
-
-                shadow-2xl
-
-                p-8
-              "
-          >
-            {/* TOP */}
-
-            <div
-              className="
-                  flex
-                  items-center
-                  justify-between
-
-                  mb-8
-                "
+            <select
+              aria-label="Filter hostels"
+              value={status}
+              onChange={(event) => setStatus(event.target.value)}
+              className="rounded-xl border border-slate-200 px-3 py-3 text-sm sm:w-44"
             >
-              <h2
-                className="
-                    text-4xl
+              <option value="all">All Hostels</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="archived">Archived</option>
+            </select>
 
-                    font-black
-
-                    text-[#001B54]
-                  "
-              >
-                Add Hostel
-              </h2>
-
-              <button
-                onClick={() => setCreateModal(false)}
-                className="
-                    h-12
-                    w-12
-
-                    rounded-full
-
-                    bg-gray-100
-
-                    flex
-                    items-center
-                    justify-center
-                  "
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            {/* FORM */}
-
-            <div
-              className="
-                  grid
-                  grid-cols-1
-                  md:grid-cols-2
-
-                  gap-5
-                "
+            <button
+              type="button"
+              onClick={fetchHostels}
+              disabled={loading}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold disabled:opacity-50"
             >
-              <input
-                type="text"
-                placeholder="Hostel Name"
-                value={formData.hostelName}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    hostelName: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              />
-
-              <select
-                value={formData.hostelType}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    hostelType: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              >
-                <option value="BOYS">BOYS</option>
-
-                <option value="GIRLS">GIRLS</option>
-
-                <option value="CO-ED">CO-ED</option>
-              </select>
-
-              <input
-                type="number"
-                placeholder="Total Floors"
-                value={formData.totalFloors}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    totalFloors: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              />
-
-              <input
-                type="number"
-                placeholder="Total Rooms"
-                value={formData.totalRooms}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    totalRooms: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              />
-
-              <input
-                type="number"
-                placeholder="Total Capacity"
-                value={formData.totalCapacity}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    totalCapacity: e.target.value,
-                  })
-                }
-                className="
-                    md:col-span-2
-
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              />
-            </div>
-
-            {/* BUTTONS */}
-
-            <div
-              className="
-                  flex
-                  justify-end
-
-                  gap-4
-
-                  mt-8
-                "
-            >
-              <button
-                onClick={() => setCreateModal(false)}
-                className="
-                    px-7
-                    py-4
-
-                    rounded-2xl
-
-                    bg-gray-100
-
-                    font-semibold
-                  "
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={createHostel}
-                className="
-                    px-7
-                    py-4
-
-                    rounded-2xl
-
-                    bg-gradient-to-r
-                    from-[#001B54]
-                    to-[#7A0019]
-
-                    text-white
-
-                    font-bold
-                  "
-              >
-                Create Hostel
-              </button>
-            </div>
+              <RefreshCcw size={16} />
+              Refresh
+            </button>
           </div>
-        </div>
-      )}
 
-      {/* ========================================== */}
-      {/* EDIT MODAL */}
-      {/* ========================================== */}
+          {/* HOSTELS COMPACT ROWS */}
 
-      {editModal && (
-        <div
-          className="
-              fixed
-              inset-0
+          <div className="mt-4 space-y-2">
+            {loading ? (
+              <p className="py-12 text-center text-slate-500">
+                Loading hostels...
+              </p>
+            ) : filtered.length === 0 ? (
+              <p className="py-12 text-center text-slate-500">
+                No hostels found.
+              </p>
+            ) : (
+              filtered.map((hostel) => (
+                <article
+                  key={hostel._id}
+                  className="overflow-hidden rounded-xl border border-slate-200"
+                >
+                  <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:gap-3 sm:px-4">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-800">
+                      <BedDouble size={19} />
+                    </span>
 
-              bg-black/50
-              backdrop-blur-sm
+                    <div className="min-w-[130px] flex-1">
+                      <p className="truncate text-sm font-bold">
+                        {hostel.hostelName}
+                      </p>
 
-              z-50
+                      <p className="text-xs text-slate-500">
+                        {hostel.hostelCode || "No code"}
+                        {" · "}
+                        {hostel.hostelType || "Hostel"}
+                      </p>
+                    </div>
 
-              flex
-              items-center
-              justify-center
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-bold ${
+                        hostel.isDeleted
+                          ? "bg-slate-100 text-slate-600"
+                          : hostel.isActive === false
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-emerald-50 text-emerald-700"
+                      }`}
+                    >
+                      {hostel.isDeleted
+                        ? "Archived"
+                        : hostel.isActive === false
+                          ? "Inactive"
+                          : "Active"}
+                    </span>
 
-              p-4
-            "
-        >
-          <div
-            className="
-                bg-white
+                    <div className="ml-auto flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpanded(
+                            expanded === hostel._id ? null : hostel._id,
+                          )
+                        }
+                        aria-expanded={expanded === hostel._id}
+                        className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold"
+                      >
+                        <Eye size={15} />
+                        View
+                        {expanded === hostel._id ? (
+                          <ChevronUp size={13} />
+                        ) : (
+                          <ChevronDown size={13} />
+                        )}
+                      </button>
 
-                w-full
-                max-w-3xl
+                      {!hostel.isDeleted && (
+                        <>
+                          <button
+                            type="button"
+                            title="Edit hostel"
+                            aria-label={`Edit ${hostel.hostelName}`}
+                            onClick={() => showEdit(hostel)}
+                            className="rounded-lg bg-blue-50 p-2 text-blue-700"
+                          >
+                            <Pencil size={16} />
+                          </button>
 
-                rounded-[36px]
+                          <button
+                            type="button"
+                            disabled={saving}
+                            onClick={() => toggleActive(hostel)}
+                            className="rounded-lg bg-amber-50 px-2 py-2 text-xs font-bold text-amber-700 disabled:opacity-50"
+                          >
+                            {hostel.isActive === false ? "On" : "Off"}
+                          </button>
+                        </>
+                      )}
 
-                shadow-2xl
+                      <button
+                        type="button"
+                        disabled={saving}
+                        title={hostel.isDeleted ? "Restore" : "Archive"}
+                        aria-label={`${
+                          hostel.isDeleted ? "Restore" : "Archive"
+                        } ${hostel.hostelName}`}
+                        onClick={() => setConfirmHostel(hostel)}
+                        className="rounded-lg bg-red-50 p-2 text-red-700 disabled:opacity-50"
+                      >
+                        {hostel.isDeleted ? (
+                          <RotateCcw size={16} />
+                        ) : (
+                          <Archive size={16} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
 
-                p-8
-              "
-          >
-            {/* TOP */}
+                  {/* EXPANDED DETAILS */}
 
-            <div
-              className="
-                  flex
-                  items-center
-                  justify-between
+                  {expanded === hostel._id && (
+                    <div className="grid gap-4 border-t border-slate-200 bg-[#FBFCFF] p-4 sm:grid-cols-2 lg:grid-cols-3">
+                      <div>
+                        <p className="text-xs font-bold text-slate-500">
+                          Hostel Code
+                        </p>
 
-                  mb-8
-                "
-            >
-              <h2
-                className="
-                    text-4xl
+                        <p className="mt-1 text-sm">
+                          {hostel.hostelCode || "Not set"}
+                        </p>
+                      </div>
 
-                    font-black
+                      <div>
+                        <p className="text-xs font-bold text-slate-500">Type</p>
 
-                    text-[#001B54]
-                  "
-              >
-                Edit Hostel
-              </h2>
+                        <p className="mt-1 text-sm">
+                          {TYPES.find(
+                            (type) => type.value === hostel.hostelType,
+                          )?.label ||
+                            hostel.hostelType ||
+                            "—"}
+                        </p>
+                      </div>
 
-              <button
-                onClick={() => setEditModal(false)}
-                className="
-                    h-12
-                    w-12
+                      <div>
+                        <p className="text-xs font-bold text-slate-500">
+                          Floors
+                        </p>
 
-                    rounded-full
+                        <p className="mt-1 text-sm">
+                          {hostel.totalFloors ?? "Not specified"}
+                        </p>
+                      </div>
 
-                    bg-gray-100
+                      <div className="sm:col-span-2 lg:col-span-3">
+                        <p className="text-xs font-bold text-slate-500">
+                          Description
+                        </p>
 
-                    flex
-                    items-center
-                    justify-center
-                  "
-              >
-                <X size={22} />
-              </button>
-            </div>
-
-            {/* FORM */}
-
-            <div
-              className="
-                  grid
-                  grid-cols-1
-                  md:grid-cols-2
-
-                  gap-5
-                "
-            >
-              <input
-                type="text"
-                placeholder="Hostel Name"
-                value={formData.hostelName}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    hostelName: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              />
-
-              <select
-                value={formData.hostelType}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    hostelType: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              >
-                <option value="BOYS">BOYS</option>
-
-                <option value="GIRLS">GIRLS</option>
-
-                <option value="CO-ED">CO-ED</option>
-              </select>
-
-              <input
-                type="number"
-                placeholder="Total Floors"
-                value={formData.totalFloors}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    totalFloors: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              />
-
-              <input
-                type="number"
-                placeholder="Total Rooms"
-                value={formData.totalRooms}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    totalRooms: e.target.value,
-                  })
-                }
-                className="
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              />
-
-              <input
-                type="number"
-                placeholder="Total Capacity"
-                value={formData.totalCapacity}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-
-                    totalCapacity: e.target.value,
-                  })
-                }
-                className="
-                    md:col-span-2
-
-                    border
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-                    py-4
-                  "
-              />
-            </div>
-
-            {/* BUTTONS */}
-
-            <div
-              className="
-                  flex
-                  justify-end
-
-                  gap-4
-
-                  mt-8
-                "
-            >
-              <button
-                onClick={() => setEditModal(false)}
-                className="
-                    px-7
-                    py-4
-
-                    rounded-2xl
-
-                    bg-gray-100
-                  "
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={updateHostel}
-                className="
-                    px-7
-                    py-4
-
-                    rounded-2xl
-
-                    bg-gradient-to-r
-                    from-[#001B54]
-                    to-[#7A0019]
-
-                    text-white
-
-                    font-bold
-                  "
-              >
-                Update Hostel
-              </button>
-            </div>
+                        <p className="mt-1 text-sm">
+                          {hostel.description || "No description"}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </article>
+              ))
+            )}
           </div>
-        </div>
-      )}
+        </section>
+      </div>
 
-      {/* ========================================== */}
-      {/* DELETE MODAL */}
-      {/* ========================================== */}
+      {/* ADD / EDIT HOSTEL MODAL */}
 
-      {deleteModal && (
+      {formOpen && (
         <div
-          className="
-              fixed
-              inset-0
-
-              bg-black/50
-              backdrop-blur-sm
-
-              z-50
-
-              flex
-              items-center
-              justify-center
-
-              p-4
-            "
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-[#041126]/75 p-3"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !saving) {
+              setFormOpen(false);
+            }
+          }}
         >
-          <div
-            className="
-                bg-white
-
-                w-full
-                max-w-lg
-
-                rounded-[36px]
-
-                p-8
-
-                shadow-2xl
-              "
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hostel-modal-title"
+            className="flex max-h-[92dvh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
           >
-            <div
-              className="
-                  flex
-                  flex-col
-                  items-center
+            <header className="flex items-center justify-between border-b border-slate-100 p-5">
+              <div>
+                <h2 id="hostel-modal-title" className="text-xl font-bold">
+                  {editing ? "Edit Hostel" : "Add Hostel"}
+                </h2>
 
-                  text-center
-                "
-            >
-              <div
-                className="
-                    h-24
-                    w-24
-
-                    rounded-full
-
-                    bg-red-100
-
-                    flex
-                    items-center
-                    justify-center
-                  "
-              >
-                <Trash2
-                  size={40}
-                  className="
-                      text-red-600
-                    "
-                />
+                <p className="text-xs text-slate-500">
+                  Maintenance locations only
+                </p>
               </div>
 
-              <h2
-                className="
-                    text-4xl
-
-                    font-black
-
-                    mt-6
-
-                    text-[#001B54]
-                  "
-              >
-                Delete Hostel?
-              </h2>
-
-              <p
-                className="
-                    text-gray-500
-
-                    mt-4
-
-                    text-lg
-                  "
-              >
-                This action cannot be undone.
-              </p>
-            </div>
-
-            {/* BUTTONS */}
-
-            <div
-              className="
-                  flex
-                  gap-4
-
-                  mt-8
-                "
-            >
               <button
-                onClick={() => setDeleteModal(false)}
-                className="
-                    flex-1
+                type="button"
+                aria-label="Close"
+                disabled={saving}
+                onClick={() => setFormOpen(false)}
+              >
+                <X size={22} />
+              </button>
+            </header>
 
-                    py-4
+            <form
+              id="hostel-form"
+              onSubmit={save}
+              className="min-h-0 space-y-4 overflow-y-auto p-5"
+            >
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-semibold">
+                  Hostel Code *
+                  <input
+                    required
+                    maxLength={12}
+                    disabled={!!editing?.hostelCode}
+                    value={form.hostelCode}
+                    onChange={(event) =>
+                      change("hostelCode", event.target.value.toUpperCase())
+                    }
+                    placeholder="H1"
+                    className={`${inputStyle} disabled:bg-slate-100`}
+                  />
+                </label>
 
-                    rounded-2xl
+                <label className="text-sm font-semibold">
+                  Hostel Name *
+                  <input
+                    required
+                    maxLength={120}
+                    value={form.hostelName}
+                    onChange={(event) =>
+                      change("hostelName", event.target.value)
+                    }
+                    placeholder="Boys Hostel H1"
+                    className={inputStyle}
+                  />
+                </label>
 
-                    bg-gray-100
+                <label className="text-sm font-semibold">
+                  Hostel Type *
+                  <select
+                    value={form.hostelType}
+                    onChange={(event) =>
+                      change("hostelType", event.target.value)
+                    }
+                    className={inputStyle}
+                  >
+                    {TYPES.map((type) => (
+                      <option key={type.value} value={type.value}>
+                        {type.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-                    font-semibold
-                  "
+                <label className="text-sm font-semibold">
+                  Number of Floors
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    required
+                    value={form.totalFloors}
+                    onChange={(event) =>
+                      change("totalFloors", event.target.value)
+                    }
+                    className={inputStyle}
+                  />
+                </label>
+              </div>
+
+              <label className="block text-sm font-semibold">
+                Description / Maintenance Notes
+                <textarea
+                  rows={3}
+                  maxLength={1000}
+                  value={form.description}
+                  onChange={(event) =>
+                    change("description", event.target.value)
+                  }
+                  placeholder="Maintenance access, common areas, etc."
+                  className={inputStyle}
+                />
+              </label>
+
+              <p className="text-xs leading-5 text-slate-500">
+                Room numbers may be entered on individual complaints for exact
+                repair locations. No room allocation or occupancy tracking is
+                included.
+              </p>
+            </form>
+
+            <footer className="flex justify-end gap-3 border-t border-slate-100 p-4">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setFormOpen(false)}
+                className="rounded-xl bg-slate-100 px-5 py-2.5 font-semibold"
               >
                 Cancel
               </button>
 
               <button
-                onClick={confirmDelete}
-                className="
-                    flex-1
-
-                    py-4
-
-                    rounded-2xl
-
-                    bg-gradient-to-r
-                    from-red-500
-                    to-red-700
-
-                    text-white
-
-                    font-bold
-                  "
+                form="hostel-form"
+                type="submit"
+                disabled={saving}
+                className="rounded-xl bg-[#EAC16A] px-5 py-2.5 font-bold text-[#071C3C] disabled:opacity-50"
               >
-                Delete
+                {saving
+                  ? "Saving..."
+                  : editing
+                    ? "Save Changes"
+                    : "Create Hostel"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
+
+      {/* ARCHIVE / RESTORE CONFIRMATION */}
+
+      {confirmHostel && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#041126]/75 p-4">
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="hostel-confirm-title"
+            className="w-full max-w-md rounded-2xl bg-white p-6"
+          >
+            <h2 id="hostel-confirm-title" className="text-lg font-bold">
+              {confirmHostel.isDeleted ? "Restore" : "Archive"}{" "}
+              {confirmHostel.hostelName}?
+            </h2>
+
+            <p className="mt-3 text-sm leading-6 text-slate-600">
+              {confirmHostel.isDeleted
+                ? "This hostel will become active again."
+                : "This hides the hostel from new assignments. Existing students, Wardens and open complaints are checked first. Historical records are preserved."}
+            </p>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setConfirmHostel(null)}
+                className="rounded-xl bg-slate-100 px-4 py-2 font-semibold"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={saving}
+                onClick={archiveOrRestore}
+                className="rounded-xl bg-[#102D56] px-4 py-2 font-bold text-white disabled:opacity-50"
+              >
+                {saving ? "Saving..." : "Confirm"}
               </button>
             </div>
-          </div>
+          </section>
         </div>
       )}
     </div>
   );
-};
-
-export default ManageHostels;
+}
