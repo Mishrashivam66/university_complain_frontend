@@ -1,129 +1,88 @@
 import { Route } from "react-router-dom";
 
 // ==========================================
-// LAYOUT
+// AMIMAINTAIN ADMIN LAYOUT
 // ==========================================
 
 import AdminLayout from "../layouts/admin/AdminLayout";
 
-import Notifications from "../modules/common/Notifications";
 // ==========================================
-// ADMIN PAGES
+// DASHBOARD
 // ==========================================
 
 import AdminDashboard from "../modules/admin/AdminDashboard";
 
-import Announcements from "../modules/admin/Announcements";
+// ==========================================
+// USERS & ACCESS
+// ==========================================
 
-import AuditLogs from "../modules/admin/AuditLogs";
+import CreateUser from "../modules/admin/CreateUser";
+import ManageUsers from "../modules/admin/ManageUsers";
+import ManageStudents from "../modules/admin/ManageStudents";
+
+// ==========================================
+// CAMPUS SETUP
+// ==========================================
+
+import ManageBuildings from "../modules/admin/ManageBuildings";
+import ManageHostels from "../modules/admin/ManageHostels";
+import LocationsManagement from "../modules/admin/LocationsManagement";
+
+// ==========================================
+// CATEGORIES & PRIORITIES
+// ==========================================
 
 import Categories from "../modules/admin/Categories";
 
+// ==========================================
+// COMPLAINT MONITORING
+// ==========================================
+
 import ComplaintMonitor from "../modules/admin/ComplaintMonitor";
-
-import CreateUser from "../modules/admin/CreateUser";
-
-import InventoryManagement from "../modules/admin/InventoryManagement";
-
-import LocationsManagement from "../modules/admin/LocationsManagement";
-
-import ManageComplaints from "../modules/admin/ManageComplaints";
-
-import ManageStudents from "../modules/admin/ManageStudents";
-
-import ManageUsers from "../modules/admin/ManageUsers";
-
-import ManageWardens from "../modules/admin/ManageWardens";
-
 import OverdueComplaints from "../modules/admin/OverdueComplaints";
+
+// ==========================================
+// REPORTS & ANALYTICS
+// ==========================================
 
 import Reports from "../modules/admin/Reports";
 
-import RolesPermissions from "../modules/admin/RolesPermissions";
-
-import ManageBuildings from "../modules/admin/ManageBuildings";
-
-import ManageHostels from "../modules/admin/ManageHostels";
-
 // ==========================================
-// ROUTES
+// FINAL ADMIN ROUTES
 // ==========================================
 
 const Adminroutes = (
   <Route element={<AdminLayout />}>
     {/* DASHBOARD */}
-
     <Route path="/admin/dashboard" element={<AdminDashboard />} />
 
-    {/* CREATE USER */}
-
+    {/* USERS & ACCESS */}
     <Route path="/admin/create-user" element={<CreateUser />} />
-
-    {/* MANAGE STUDENTS */}
-
-    <Route path="/admin/manage-students" element={<ManageStudents />} />
-
-    {/* MANAGE USERS */}
 
     <Route path="/admin/manage-users" element={<ManageUsers />} />
 
-    {/* MANAGE WARDENS */}
+    <Route path="/admin/manage-students" element={<ManageStudents />} />
 
-    <Route path="/admin/manage-wardens" element={<ManageWardens />} />
-
-    <Route path="/admin/manage-hostels" element={<ManageHostels />} />
-
+    {/* CAMPUS SETUP */}
     <Route path="/admin/manage-buildings" element={<ManageBuildings />} />
 
-    {/* MANAGE COMPLAINTS */}
-
-    <Route path="/admin/manage-complaints" element={<ManageComplaints />} />
-
-    {/* COMPLAINT MONITOR */}
-
-    <Route path="/admin/complaint-monitor" element={<ComplaintMonitor />} />
-
-    {/* OVERDUE COMPLAINTS */}
-
-    <Route path="/admin/overdue-complaints" element={<OverdueComplaints />} />
-
-    {/* INVENTORY */}
-
-    <Route
-      path="/admin/inventory-management"
-      element={<InventoryManagement />}
-    />
-
-    {/* LOCATIONS */}
+    <Route path="/admin/manage-hostels" element={<ManageHostels />} />
 
     <Route
       path="/admin/locations-management"
       element={<LocationsManagement />}
     />
 
-    {/* REPORTS */}
-
-    <Route path="/admin/reports" element={<Reports />} />
-
-    {/* ANNOUNCEMENTS */}
-
-    <Route path="/admin/announcements" element={<Announcements />} />
-
-    {/* ADMIN NOTIFICATIONS */}
-
-    <Route path="/admin/notifications" element={<Notifications />} />
-
-    {/* CATEGORIES */}
-
+    {/* CATEGORIES & PRIORITIES */}
     <Route path="/admin/categories" element={<Categories />} />
 
-    {/* AUDIT LOGS */}
+    {/* COMPLAINT MONITORING */}
+    <Route path="/admin/complaint-monitor" element={<ComplaintMonitor />} />
 
-    <Route path="/admin/audit-logs" element={<AuditLogs />} />
+    <Route path="/admin/overdue-complaints" element={<OverdueComplaints />} />
 
-    {/* ROLES & PERMISSIONS */}
-
-    <Route path="/admin/roles-permissions" element={<RolesPermissions />} />
+    {/* REPORTS & ANALYTICS */}
+    <Route path="/admin/reports" element={<Reports />} />
   </Route>
 );
 

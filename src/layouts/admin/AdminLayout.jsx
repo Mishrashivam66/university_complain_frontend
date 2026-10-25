@@ -1,27 +1,21 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import {
-  Bell,
   Building2,
   ChartNoAxesCombined,
   ChevronDown,
   ChevronRight,
   ClipboardList,
   ClockAlert,
-  FileText,
   GraduationCap,
   LayoutDashboard,
   LogOut,
   MapPinned,
   Menu,
-  Megaphone,
-  Package,
   PanelLeftClose,
   PanelLeftOpen,
-  Settings2,
-  ShieldCheck,
   Tags,
   UserRoundPlus,
   UsersRound,
@@ -29,14 +23,10 @@ import {
   X,
 } from "lucide-react";
 
-import NotificationBell from "../../modules/notifications/components/NotificationBell";
-
 // ==========================================
-// AMIMAINTAIN ADMIN MENU
+// AMIMAINTAIN ADMIN NAVIGATION
+// Only essential administration modules
 // ==========================================
-
-// Existing route paths have been preserved.
-// Related pages are organized into 7 groups.
 
 const ADMIN_MENU = [
   {
@@ -50,6 +40,7 @@ const ADMIN_MENU = [
     id: "users",
     label: "Users & Access",
     icon: UsersRound,
+
     items: [
       {
         label: "Create User",
@@ -73,6 +64,7 @@ const ADMIN_MENU = [
     id: "campus",
     label: "Campus Setup",
     icon: Building2,
+
     items: [
       {
         label: "Buildings",
@@ -91,10 +83,12 @@ const ADMIN_MENU = [
       },
     ],
   },
+
   {
     id: "categories",
     label: "Categories & Priorities",
     icon: Tags,
+
     items: [
       {
         label: "Categories",
@@ -103,20 +97,17 @@ const ADMIN_MENU = [
       },
     ],
   },
+
   {
     id: "complaints",
     label: "Complaint Monitoring",
     icon: ClipboardList,
+
     items: [
       {
         label: "Complaint Monitor",
         path: "/admin/complaint-monitor",
         icon: ClipboardList,
-      },
-      {
-        label: "Manage Complaints",
-        path: "/admin/manage-complaints",
-        icon: FileText,
       },
       {
         label: "Overdue Complaints",
@@ -125,55 +116,30 @@ const ADMIN_MENU = [
       },
     ],
   },
+
   {
     id: "reports",
-    label: "Reports & Audit",
+    label: "Reports & Analytics",
     icon: ChartNoAxesCombined,
+
     items: [
       {
         label: "Reports",
         path: "/admin/reports",
         icon: ChartNoAxesCombined,
       },
-      {
-        label: "Audit Logs",
-        path: "/admin/audit-logs",
-        icon: ShieldCheck,
-      },
-      {
-        label: "Inventory Overview",
-        path: "/admin/inventory-management",
-        icon: Package,
-      },
-    ],
-  },
-  {
-    id: "settings",
-    label: "Settings & Announcements",
-    icon: Settings2,
-    items: [
-      {
-        label: "Announcements",
-        path: "/admin/announcements",
-        icon: Megaphone,
-      },
-      {
-        label: "Notifications",
-        path: "/admin/notifications",
-        icon: Bell,
-      },
     ],
   },
 ];
 
 // ==========================================
-// ACTIVE ROUTE HELPERS
+// ROUTE HELPERS
 // ==========================================
 
 const routeMatches = (pathname, path) =>
   pathname === path || pathname.startsWith(`${path}/`);
 
-const findActiveMenu = (pathname) => {
+function findActiveMenu(pathname) {
   for (const group of ADMIN_MENU) {
     if (group.path && routeMatches(pathname, group.path)) {
       return {
@@ -194,55 +160,62 @@ const findActiveMenu = (pathname) => {
 
   return {
     group: ADMIN_MENU[0],
-    page: ADMIN_MENU[0],
+    page: {
+      label: "Administration",
+    },
   };
-};
+}
 
 // ==========================================
-// SAFE STORED USER
+// SAFE USER INFORMATION
 // ==========================================
 
-const getStoredUser = () => {
+function getStoredUser() {
   try {
     const stored = localStorage.getItem("user");
 
-    return stored ? JSON.parse(stored) : {};
+    if (!stored) {
+      return {};
+    }
+
+    const parsed = JSON.parse(stored);
+
+    return parsed && typeof parsed === "object" ? parsed : {};
   } catch {
     return {};
   }
-};
+}
 
 // ==========================================
-// ADMIN LAYOUT
+// MAIN ADMIN LAYOUT
 // ==========================================
 
 export default function AdminLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // ======================================
-  // SIDEBAR STATES
-  // ======================================
+  // ========================================
+  // STATE
+  // ========================================
 
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const [collapsed, setCollapsed] = useState(false);
 
-  const [openGroup, setOpenGroup] = useState(null);
+  const [menuOverride, setMenuOverride] = useState(null);
 
-  // ======================================
-  // USER
-  // ======================================
+  const [user] = useState(getStoredUser);
 
-  const user = useMemo(() => getStoredUser(), []);
-
-  const username = user?.name?.trim() || "Administrator";
+  const username =
+    typeof user?.name === "string" && user.name.trim()
+      ? user.name.trim()
+      : "Administrator";
 
   const initial = username.charAt(0).toUpperCase();
 
-  // ======================================
-  // CURRENT PAGE
-  // ======================================
+  // ========================================
+  // ACTIVE ROUTE
+  // ========================================
 
   const { group: activeGroup, page: activePage } = findActiveMenu(
     location.pathname,
@@ -250,58 +223,73 @@ export default function AdminLayout() {
 
   const showLabels = !collapsed || mobileOpen;
 
-  // ======================================
-  // EXPAND CURRENT MENU AUTOMATICALLY
-  // ======================================
+  // Automatically expand the active group.
+  // Manual expand/collapse applies to the
+  // current route without a setState effect.
 
-  useEffect(() => {
-    setMobileOpen(false);
+  const openGroup =
+    menuOverride?.pathname === location.pathname
+      ? menuOverride.groupId
+      : activeGroup.id === "dashboard"
+        ? null
+        : activeGroup.id;
 
-    setOpenGroup(activeGroup.id === "dashboard" ? null : activeGroup.id);
-  }, [location.pathname, activeGroup.id]);
-
-  // ======================================
-  // MOBILE ESCAPE KEY
-  // ======================================
+  // ========================================
+  // CLOSE MOBILE SIDEBAR USING ESCAPE
+  // ========================================
 
   useEffect(() => {
     if (!mobileOpen) {
       return undefined;
     }
 
-    const onKeyDown = (event) => {
+    const handleEscape = (event) => {
       if (event.key === "Escape") {
         setMobileOpen(false);
       }
     };
 
-    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", handleEscape);
 
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keydown", handleEscape);
     };
   }, [mobileOpen]);
 
-  // ======================================
-  // TOGGLE MENU GROUP
-  // ======================================
+  // ========================================
+  // GROUP TOGGLE
+  // ========================================
 
-  const handleGroupClick = (id) => {
+  function toggleGroup(groupId) {
     if (collapsed) {
       setCollapsed(false);
-      setOpenGroup(id);
-      return;
     }
 
-    setOpenGroup((current) => (current === id ? null : id));
-  };
+    setMenuOverride({
+      pathname: location.pathname,
 
-  // ======================================
+      groupId: openGroup === groupId ? null : groupId,
+    });
+  }
+
+  // ========================================
+  // NAVIGATION CLICK
+  // ========================================
+
+  function handleNavigation() {
+    setMobileOpen(false);
+    setMenuOverride(null);
+  }
+
+  // ========================================
   // LOGOUT
-  // ======================================
+  // ========================================
 
-  const handleLogout = () => {
+  function handleLogout() {
     localStorage.removeItem("token");
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("role");
+    localStorage.removeItem("activeRole");
     localStorage.removeItem("user");
 
     setMobileOpen(false);
@@ -309,54 +297,50 @@ export default function AdminLayout() {
     navigate("/login", {
       replace: true,
     });
-  };
+  }
 
-  // ======================================
-  // UI
-  // ======================================
+  // ========================================
+  // MAIN UI
+  // ========================================
 
   return (
     <div className="flex h-screen h-[100dvh] min-w-0 overflow-hidden bg-[#F4F7FC] text-[#132744]">
-      {/* =====================================
-          MOBILE BACKDROP
-      ===================================== */}
+      {/* MOBILE BACKDROP */}
 
       {mobileOpen && (
         <button
           type="button"
           aria-label="Close navigation menu"
-          className="fixed inset-0 z-40 bg-[#020C1E]/70 backdrop-blur-[2px] md:hidden"
           onClick={() => setMobileOpen(false)}
+          className="fixed inset-0 z-40 bg-[#020C1E]/70 backdrop-blur-[2px] md:hidden"
         />
       )}
 
-      {/* =====================================
+      {/* ====================================
           SIDEBAR
-      ===================================== */}
+      ==================================== */}
 
       <aside
         id="admin-navigation"
         aria-label="Admin navigation"
         className={`
           fixed inset-y-0 left-0 z-50
-          flex h-full
+          flex h-full shrink-0 flex-col
           w-[min(88vw,320px)]
-          shrink-0 flex-col
           border-r border-white/10
           bg-[#061B38]
           text-white shadow-2xl
           transition-[width,transform]
           duration-300
           md:static md:z-auto
-          md:translate-x-0
-          md:shadow-none
+          md:translate-x-0 md:shadow-none
           ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
           ${collapsed ? "md:w-[86px]" : "md:w-[290px]"}
         `}
       >
-        {/* =================================
+        {/* ==================================
             BRAND
-        ================================= */}
+        ================================== */}
 
         <div
           className={`
@@ -366,18 +350,7 @@ export default function AdminLayout() {
           `}
         >
           <div className="flex min-w-0 items-center gap-3">
-            <div
-              className="
-                flex h-11 w-11 shrink-0
-                items-center justify-center
-                rounded-2xl
-                bg-gradient-to-br
-                from-[#F7D385]
-                to-[#D9A441]
-                text-[#081D3E]
-                shadow-lg
-              "
-            >
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#F7D385] to-[#D9A441] text-[#081D3E] shadow-lg">
               <Wrench size={23} strokeWidth={2.5} />
             </div>
 
@@ -388,9 +361,9 @@ export default function AdminLayout() {
                   <span className="text-[#F1C76E]">Maintain</span>
                 </div>
 
-                <div className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.17em] text-slate-400">
+                <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-[0.17em] text-slate-400">
                   Admin Control Center
-                </div>
+                </p>
               </div>
             )}
           </div>
@@ -405,65 +378,58 @@ export default function AdminLayout() {
           </button>
         </div>
 
-        {/* =================================
+        {/* ==================================
             WORKSPACE INDICATOR
-        ================================= */}
+        ================================== */}
 
         {showLabels && (
           <div className="mx-4 mb-2 mt-5 rounded-xl border border-[#DDAE56]/20 bg-[#DDAE56]/10 px-3 py-2.5">
             <p className="text-[10px] font-bold uppercase tracking-[0.19em] text-[#E9C67B]">
-              Maintenance Operations
+              Maintenance Administration
             </p>
 
             <p className="mt-1 text-xs text-slate-300">
-              University Administration
+              University Control Center
             </p>
           </div>
         )}
 
-        {/* =================================
-            NAVIGATION
-        ================================= */}
+        {/* ==================================
+            MAIN NAVIGATION
+        ================================== */}
 
         <nav
-          className="
-            min-h-0 flex-1
-            space-y-1.5
-            overflow-y-auto
-            overflow-x-hidden
-            px-3 py-4
-          "
           aria-label="Admin pages"
+          className="min-h-0 flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden px-3 py-4"
         >
           {ADMIN_MENU.map((group) => {
             const Icon = group.icon;
 
             const groupActive = group.id === activeGroup.id;
 
-            // =================================
+            // ============================
             // DIRECT LINK: DASHBOARD
-            // =================================
+            // ============================
 
             if (group.path) {
               return (
                 <NavLink
                   key={group.id}
                   to={group.path}
+                  end
                   title={!showLabels ? group.label : undefined}
-                  onClick={() => setMobileOpen(false)}
-                  className={({ isActive }) =>
-                    `
-                      flex min-h-12 items-center
-                      rounded-xl px-3 py-3
-                      transition-colors
-                      ${showLabels ? "gap-3.5" : "justify-center"}
-                      ${
-                        isActive
-                          ? "bg-[#F2C86C] font-bold text-[#071C3A] shadow-lg"
-                          : "text-slate-200 hover:bg-white/10"
-                      }
-                    `
-                  }
+                  onClick={handleNavigation}
+                  className={({ isActive }) => `
+                    flex min-h-12 items-center
+                    rounded-xl px-3 py-3
+                    transition-colors
+                    ${showLabels ? "gap-3.5" : "justify-center"}
+                    ${
+                      isActive
+                        ? "bg-[#F2C86C] font-bold text-[#071C3A] shadow-lg"
+                        : "text-slate-200 hover:bg-white/10"
+                    }
+                  `}
                 >
                   <Icon size={20} className="shrink-0" />
 
@@ -476,9 +442,9 @@ export default function AdminLayout() {
               );
             }
 
-            // =================================
-            // EXPANDABLE GROUP
-            // =================================
+            // ============================
+            // EXPANDABLE MENU GROUP
+            // ============================
 
             const expanded = openGroup === group.id && showLabels;
 
@@ -490,7 +456,7 @@ export default function AdminLayout() {
                   type="button"
                   title={!showLabels ? group.label : undefined}
                   aria-expanded={expanded}
-                  onClick={() => handleGroupClick(group.id)}
+                  onClick={() => toggleGroup(group.id)}
                   className={`
                     flex min-h-12 w-full
                     items-center rounded-xl
@@ -515,8 +481,7 @@ export default function AdminLayout() {
                       <ChevronDown
                         size={16}
                         className={`
-                          shrink-0
-                          transition-transform
+                          shrink-0 transition-transform
                           ${expanded ? "rotate-180" : ""}
                         `}
                       />
@@ -535,21 +500,19 @@ export default function AdminLayout() {
                         <NavLink
                           key={item.path}
                           to={item.path}
-                          onClick={() => setMobileOpen(false)}
-                          className={({ isActive }) =>
-                            `
-                              flex min-h-10 items-center
-                              gap-2.5 rounded-lg
-                              px-3 py-2
-                              text-[12.5px]
-                              transition-colors
-                              ${
-                                isActive
-                                  ? "bg-[#F2C86C] font-bold text-[#071C3A]"
-                                  : "text-slate-300 hover:bg-white/10 hover:text-white"
-                              }
-                            `
-                          }
+                          onClick={handleNavigation}
+                          className={({ isActive }) => `
+                            flex min-h-10 items-center
+                            gap-2.5 rounded-lg
+                            px-3 py-2
+                            text-[12.5px]
+                            transition-colors
+                            ${
+                              isActive
+                                ? "bg-[#F2C86C] font-bold text-[#071C3A]"
+                                : "text-slate-300 hover:bg-white/10 hover:text-white"
+                            }
+                          `}
                         >
                           <ChildIcon size={16} className="shrink-0" />
 
@@ -570,21 +533,20 @@ export default function AdminLayout() {
           })}
         </nav>
 
-        {/* =================================
-            DESKTOP COLLAPSE BUTTON
-        ================================= */}
+        {/* ==================================
+            DESKTOP COLLAPSE / EXPAND
+        ================================== */}
 
         <div className="hidden border-t border-white/10 px-3 py-2 md:block">
           <button
             type="button"
-            onClick={() => setCollapsed((old) => !old)}
+            onClick={() => setCollapsed((previous) => !previous)}
             title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             className={`
               flex w-full items-center
               rounded-xl px-3 py-2.5
-              text-slate-300
-              transition-colors
+              text-slate-300 transition-colors
               hover:bg-white/10
               ${showLabels ? "gap-3" : "justify-center"}
             `}
@@ -601,18 +563,16 @@ export default function AdminLayout() {
           </button>
         </div>
 
-        {/* =================================
-            USER PROFILE
-        ================================= */}
+        {/* ==================================
+            USER PROFILE AND LOGOUT
+        ================================== */}
 
         <div className="border-t border-white/10 p-3">
           <div
             className={`
-              flex items-center
-              rounded-xl
+              flex items-center rounded-xl
               border border-white/10
-              bg-white/[0.06]
-              p-2.5
+              bg-white/[0.06] p-2.5
               ${showLabels ? "gap-3" : "justify-center"}
             `}
           >
@@ -633,18 +593,14 @@ export default function AdminLayout() {
             )}
           </div>
 
-          {/* LOGOUT */}
-
           <button
             type="button"
             onClick={handleLogout}
             title={!showLabels ? "Logout" : undefined}
             className={`
-              mt-2 flex w-full
-              items-center rounded-xl
-              px-3 py-2.5
-              text-rose-200
-              transition-colors
+              mt-2 flex w-full items-center
+              rounded-xl px-3 py-2.5
+              text-rose-200 transition-colors
               hover:bg-rose-500/15
               ${showLabels ? "gap-3" : "justify-center"}
             `}
@@ -658,19 +614,19 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      {/* =====================================
-          MAIN PANEL
-      ===================================== */}
+      {/* ====================================
+          MAIN APPLICATION
+      ==================================== */}
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* =================================
-            TOP NAVBAR
-        ================================= */}
+        {/* TOP NAVBAR */}
 
         <header className="z-20 flex min-h-[76px] shrink-0 items-center justify-between gap-3 border-b border-[#E3E9F2] bg-white px-4 shadow-sm sm:px-6 lg:px-8">
           {/* LEFT SIDE */}
 
           <div className="flex min-w-0 items-center gap-3">
+            {/* MOBILE MENU BUTTON */}
+
             <button
               type="button"
               aria-controls="admin-navigation"
@@ -681,6 +637,8 @@ export default function AdminLayout() {
             >
               <Menu size={21} />
             </button>
+
+            {/* PAGE HEADING */}
 
             <div className="min-w-0">
               <p className="hidden truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 sm:block">
@@ -703,20 +661,19 @@ export default function AdminLayout() {
               ADMIN PORTAL
             </span>
 
-            <NotificationBell />
+            {/* No notification bell in Admin */}
 
             <div
               className="flex h-9 w-9 items-center justify-center rounded-full bg-[#102D56] text-sm font-bold text-white"
               title={username}
+              aria-label={username}
             >
               {initial}
             </div>
           </div>
         </header>
 
-        {/* =================================
-            ROUTED CONTENT
-        ================================= */}
+        {/* ROUTED PAGE CONTENT */}
 
         <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#F4F7FC]">
           <Outlet />

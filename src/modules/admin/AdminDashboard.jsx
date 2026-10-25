@@ -1,825 +1,960 @@
-import { useEffect, useState } from "react";
-
-import {
-  Users,
-  UserCheck,
-  ClipboardList,
-  Building2,
-  AlertTriangle,
-  Clock3,
-  CheckCircle2,
-  Bell,
-  UserPlus,
-  FileBarChart2,
-  ShieldAlert,
-  Loader2,
-  Activity,
-  TrendingUp,
-} from "lucide-react";
-
-import axios from "axios";
-
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
-import { useNavigate } from "react-router-dom";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  ClipboardCheck,
+  ClipboardList,
+  Clock3,
+  GraduationCap,
+  Loader2,
+  MapPinned,
+  Package,
+  RefreshCcw,
+  Tags,
+  TrendingUp,
+  UsersRound,
+  Wrench,
+} from "lucide-react";
 
-const AdminDashboard = () => {
+import api from "../../services/api";
+
+// ==========================================
+// CONSTANTS
+// ==========================================
+
+const VERIFIED = ["RESOLVED", "CLOSED"];
+const WORKING = ["ASSIGNED", "IN_PROGRESS"];
+const WAITING = ["WAITING_MATERIAL", "WAITING_FOR_MATERIAL"];
+const PAGE_SIZE = 10;
+
+// ==========================================
+// QUICK ACCESS - CURRENT ADMIN SIDEBAR ONLY
+// ==========================================
+
+const QUICK_ACCESS = [
+  {
+    label: "Manage Users",
+    path: "/admin/manage-users",
+    icon: UsersRound,
+  },
+  {
+    label: "Manage Students",
+    path: "/admin/manage-students",
+    icon: GraduationCap,
+  },
+  {
+    label: "Academic Blocks",
+    path: "/admin/manage-buildings",
+    icon: Building2,
+  },
+  {
+    label: "Hostels",
+    path: "/admin/manage-hostels",
+    icon: Building2,
+  },
+  {
+    label: "Campus Locations",
+    path: "/admin/locations-management",
+    icon: MapPinned,
+  },
+  {
+    label: "Categories & Priorities",
+    path: "/admin/categories",
+    icon: Tags,
+  },
+  {
+    label: "Complaint Monitor",
+    path: "/admin/complaint-monitor",
+    icon: ClipboardList,
+  },
+  {
+    label: "Overdue Complaints",
+    path: "/admin/overdue-complaints",
+    icon: AlertTriangle,
+  },
+  {
+    label: "Reports & Analytics",
+    path: "/admin/reports",
+    icon: TrendingUp,
+  },
+];
+
+// ==========================================
+// HELPERS
+// ==========================================
+
+const humanize = (value) => String(value || "—").replaceAll("_", " ");
+
+const normalize = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase();
+
+function formatIST(value) {
+  if (!value || Number.isNaN(new Date(value).getTime())) {
+    return "—";
+  }
+
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+// ==========================================
+// OVERDUE DETECTION
+// ==========================================
+
+function isOverdue(complaint, now) {
+  if (!complaint.deadline || !now) {
+    return false;
+  }
+
+  const deadline = new Date(complaint.deadline).getTime();
+
+  return (
+    Number.isFinite(deadline) &&
+    deadline < now &&
+    !["COMPLETED", "RESOLVED", "CLOSED"].includes(complaint.status)
+  );
+}
+
+// ==========================================
+// LOCATION FORMAT
+// ==========================================
+
+function locationOf(complaint) {
+  return (
+    [
+      complaint.hostel || complaint.block || complaint.complaintArea,
+
+      complaint.issueLocation,
+
+      complaint.roomNumber ? `Room ${complaint.roomNumber}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ") || "—"
+  );
+}
+
+// ==========================================
+// KPI STATUS MATCHING
+// ==========================================
+
+function matchesStatus(complaint, filter, now) {
+  switch (filter) {
+    case "ALL":
+      return true;
+
+    case "PENDING":
+      return ["PENDING", "REOPENED"].includes(complaint.status);
+
+    case "WORKING":
+      return WORKING.includes(complaint.status);
+
+    case "WAITING":
+      return WAITING.includes(complaint.status);
+
+    case "TO_VERIFY":
+      return complaint.status === "COMPLETED";
+
+    case "VERIFIED":
+      return VERIFIED.includes(complaint.status);
+
+    case "OVERDUE":
+      return isOverdue(complaint, now);
+
+    case "URGENT":
+      return complaint.priority === "URGENT" || complaint.isEscalated === true;
+
+    default:
+      return complaint.status === filter;
+  }
+}
+
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
+
+export default function AdminDashboard() {
   const navigate = useNavigate();
 
-  // ======================================
-  // STATES
-  // ======================================
+  const [complaints, setComplaints] = useState([]);
+  const [hostels, setHostels] = useState(null);
+  const [blocks, setBlocks] = useState(null);
+
+  // Categories must come from Admin Category Master.
+  const [categories, setCategories] = useState([]);
+  const [categoryError, setCategoryError] = useState("");
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [updatedAt, setUpdatedAt] = useState(null);
 
-  const [dashboardData, setDashboardData] = useState(null);
+  const [selectedFilter, setSelectedFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
 
-  const user = JSON.parse(localStorage.getItem("user"));
+  // ========================================
+  // FETCH LIVE DATABASE DATA
+  // ========================================
 
-  // ======================================
-  // FETCH DASHBOARD
-  // ======================================
+  const fetchDashboard = useCallback(async (silent = false) => {
+    if (silent) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      const [cases, hostelResult, blockResult, categoryResult] =
+        await Promise.allSettled([
+          api.get("/complaints/all"),
+
+          api.get("/admin/hostels/all", {
+            params: {
+              includeArchived: "true",
+            },
+          }),
+
+          api.get("/admin/blocks", {
+            params: {
+              includeArchived: "true",
+            },
+          }),
+
+          // Admin Category Master
+          api.get("/admin/categories/all"),
+        ]);
+
+      // ======================================
+      // COMPLAINTS
+      // ======================================
+
+      if (cases.status !== "fulfilled") {
+        throw cases.reason;
+      }
+
+      const list = cases.value.data?.complaints;
+
+      if (!Array.isArray(list)) {
+        throw new Error("Invalid complaints response");
+      }
+
+      setComplaints(list);
+
+      // ======================================
+      // HOSTELS
+      // ======================================
+
+      if (
+        hostelResult.status === "fulfilled" &&
+        Array.isArray(hostelResult.value.data?.hostels)
+      ) {
+        setHostels(hostelResult.value.data.hostels);
+      }
+
+      // ======================================
+      // ACADEMIC BLOCKS
+      // ======================================
+
+      if (
+        blockResult.status === "fulfilled" &&
+        Array.isArray(blockResult.value.data?.blocks)
+      ) {
+        setBlocks(blockResult.value.data.blocks);
+      }
+
+      // ======================================
+      // ACTIVE MAINTENANCE CATEGORIES ONLY
+      // ======================================
+
+      if (
+        categoryResult.status === "fulfilled" &&
+        Array.isArray(categoryResult.value.data?.categories)
+      ) {
+        const activeCategories = categoryResult.value.data.categories.filter(
+          (category) =>
+            category.department === "MAINTENANCE" &&
+            category.isActive !== false &&
+            category.isDeleted !== true,
+        );
+
+        setCategories(activeCategories);
+        setCategoryError("");
+      } else {
+        // Do not substitute historical category names.
+        setCategories([]);
+
+        setCategoryError("Active category list could not be loaded.");
+      }
+
+      setUpdatedAt(new Date().toISOString());
+      setLoadError("");
+    } catch (error) {
+      const message =
+        error?.response?.data?.message ||
+        error?.message ||
+        "Unable to load Admin Dashboard";
+
+      setLoadError(message);
+
+      if (!silent) {
+        toast.error(message);
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  // ========================================
+  // AUTO REFRESH
+  // ========================================
 
   useEffect(() => {
     fetchDashboard();
-  }, []);
 
-  const fetchDashboard = async () => {
-    try {
-      setLoading(true);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        fetchDashboard(true);
+      }
+    }, 30000);
 
-      const response = await axios.get(
-        "https://complaine-backend.vercel.app/api/dashboard/stats",
-      );
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [fetchDashboard]);
 
-      setDashboardData(response.data);
-    } catch (error) {
-      console.log(error);
+  // ========================================
+  // SNAPSHOT TIME
+  // ========================================
 
-      toast.error("Failed to load dashboard");
-    } finally {
-      setLoading(false);
+  const now = updatedAt ? new Date(updatedAt).getTime() : 0;
+
+  // ========================================
+  // COMPLAINT STATISTICS
+  // ========================================
+
+  const stats = useMemo(() => {
+    const count = (predicate) => complaints.filter(predicate).length;
+
+    return {
+      total: complaints.length,
+
+      pending: count((c) => ["PENDING", "REOPENED"].includes(c.status)),
+
+      working: count((c) => WORKING.includes(c.status)),
+
+      waiting: count((c) => WAITING.includes(c.status)),
+
+      toVerify: count((c) => c.status === "COMPLETED"),
+
+      verified: count((c) => VERIFIED.includes(c.status)),
+
+      overdue: count((c) => isOverdue(c, now)),
+
+      urgent: count((c) => c.priority === "URGENT" || c.isEscalated === true),
+    };
+  }, [complaints, now]);
+
+  // ========================================
+  // ACTIVE HOSTEL COUNT
+  // ========================================
+
+  const activeHostels = useMemo(
+    () =>
+      hostels === null
+        ? null
+        : hostels.filter((h) => h.isDeleted !== true && h.isActive !== false)
+            .length,
+    [hostels],
+  );
+
+  // ========================================
+  // ACTIVE BLOCK COUNT
+  // ========================================
+
+  const activeBlocks = useMemo(
+    () =>
+      blocks === null
+        ? null
+        : blocks.filter((b) => b.isDeleted !== true && b.isActive !== false)
+            .length,
+    [blocks],
+  );
+
+  // ========================================
+  // VERIFIED RESOLUTION RATE
+  // ========================================
+
+  const verifiedPercent = stats.total
+    ? (stats.verified / stats.total) * 100
+    : 0;
+
+  // ========================================
+  // CATEGORY WORKLOAD
+  // ONLY ADMIN-CREATED ACTIVE CATEGORIES
+  // ========================================
+
+  const categoryStats = useMemo(() => {
+    const counts = new Map();
+
+    // Count real complaint records.
+    for (const complaint of complaints) {
+      const key = normalize(complaint.category);
+
+      counts.set(key, (counts.get(key) || 0) + 1);
     }
-  };
 
-  // ======================================
-  // LOADING
-  // ======================================
+    const distinct = new Map();
 
-  if (loading) {
-    return (
-      <div
-        className="
-          flex
-          items-center
-          justify-center
-          min-h-screen
-        "
-      >
-        <Loader2
-          size={60}
-          className="
-            animate-spin
-            text-[#0B1F4D]
-          "
-        />
-      </div>
+    // Create rows ONLY from active Category Master.
+    for (const category of categories) {
+      const name = String(category.categoryName || "").trim();
+
+      if (!name) continue;
+
+      const key = normalize(name);
+
+      if (!distinct.has(key)) {
+        distinct.set(key, {
+          name,
+          count: counts.get(key) || 0,
+        });
+      }
+    }
+
+    return [...distinct.values()].sort(
+      (a, b) => b.count - a.count || a.name.localeCompare(b.name),
     );
+  }, [categories, complaints]);
+
+  const categoryMax = Math.max(1, ...categoryStats.map((c) => c.count));
+
+  // ========================================
+  // COMPLAINT RECORD FILTERING
+  // ========================================
+
+  const filteredComplaints = useMemo(
+    () =>
+      [...complaints]
+        .filter((c) => matchesStatus(c, selectedFilter, now))
+        .sort(
+          (a, b) =>
+            new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+        ),
+    [complaints, selectedFilter, now],
+  );
+
+  // ========================================
+  // TABLE PAGINATION
+  // ========================================
+
+  const pages = Math.max(1, Math.ceil(filteredComplaints.length / PAGE_SIZE));
+
+  const safePage = Math.min(page, pages);
+
+  const visibleComplaints = filteredComplaints.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
+
+  // ========================================
+  // CLICKABLE KPI DRILLDOWN
+  // ========================================
+
+  function openRecords(filter) {
+    setSelectedFilter(filter);
+    setPage(1);
+
+    window.requestAnimationFrame(() => {
+      document.getElementById("admin-complaint-records")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
   }
 
-  // ======================================
-  // MAIN STATS
-  // ======================================
+  // ========================================
+  // KPI CARDS
+  // ========================================
 
   const cards = [
     {
-      title: "Total Wardens",
-
-      value: dashboardData?.stats?.totalWardens || 0,
-
-      icon: <UserCheck size={30} />,
-
-      color: "bg-blue-100 text-blue-700",
-
-      path: "/admin/manage-wardens",
+      title: "Total Complaints",
+      value: stats.total,
+      icon: ClipboardList,
+      filter: "ALL",
     },
-
-    {
-      title: "Total Students",
-
-      value: dashboardData?.stats?.totalStudents || 0,
-
-      icon: <Users size={30} />,
-
-      color: "bg-green-100 text-green-700",
-
-      path: "/admin/manage-students",
-    },
-
-    {
-      title: "Complaints",
-
-      value: dashboardData?.stats?.totalComplaints || 0,
-
-      icon: <ClipboardList size={30} />,
-
-      color: "bg-red-100 text-red-700",
-
-      path: "/admin/complaint-monitor",
-    },
-
-    {
-      title: "Hostels",
-
-      value: dashboardData?.stats?.totalHostels || 0,
-
-      icon: <Building2 size={30} />,
-
-      color: "bg-purple-100 text-purple-700",
-
-      path: "/admin/manage-hostels",
-    },
-  ];
-
-  // ======================================
-  // COMPLAINT STATUS
-  // ======================================
-
-  const complaintStats = [
     {
       title: "Pending",
-
-      value: dashboardData?.stats?.pendingComplaints || 0,
-
-      icon: <Clock3 size={26} />,
-
-      color: "bg-yellow-100 text-yellow-700",
+      value: stats.pending,
+      icon: Clock3,
+      filter: "PENDING",
     },
-
     {
       title: "In Progress",
-
-      value: dashboardData?.stats?.inProgressComplaints || 0,
-
-      icon: <AlertTriangle size={26} />,
-
-      color: "bg-blue-100 text-blue-700",
+      value: stats.working,
+      icon: Wrench,
+      filter: "WORKING",
     },
-
     {
-      title: "Resolved",
-
-      value: dashboardData?.stats?.resolvedComplaints || 0,
-
-      icon: <CheckCircle2 size={26} />,
-
-      color: "bg-green-100 text-green-700",
+      title: "Waiting Material",
+      value: stats.waiting,
+      icon: Package,
+      filter: "WAITING",
     },
-
+    {
+      title: "Awaiting Verification",
+      value: stats.toVerify,
+      icon: ClipboardCheck,
+      filter: "TO_VERIFY",
+    },
+    {
+      title: "Verified / Closed",
+      value: stats.verified,
+      icon: CheckCircle2,
+      filter: "VERIFIED",
+    },
     {
       title: "Overdue",
-
-      value: dashboardData?.stats?.overdueComplaints || 0,
-
-      icon: <Bell size={26} />,
-
-      color: "bg-red-100 text-red-700",
+      value: stats.overdue,
+      icon: AlertTriangle,
+      filter: "OVERDUE",
+    },
+    {
+      title: "Urgent / Escalated",
+      value: stats.urgent,
+      icon: AlertTriangle,
+      filter: "URGENT",
     },
   ];
 
+  // ========================================
+  // MAIN UI
+  // ========================================
+
   return (
-    <div
-      className="
-        space-y-7
-        pb-10
-        overflow-hidden
-      "
-    >
-      {/* HERO HEADER */}
+    <main className="min-h-full bg-[#F5F7FB] px-3 py-5 text-[#102B52] sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-5">
+        {/* HEADER */}
 
-      <div
-        className="
-          relative
-          overflow-hidden
-
-          bg-gradient-to-br
-          from-[#0B1F4D]
-          via-[#142E6E]
-          to-[#5B0E2D]
-
-          text-white
-
-          rounded-[28px]
-
-          shadow-[0_18px_50px_rgba(0,0,0,0.18)]
-
-          p-5
-          md:p-8
-        "
-      >
-        {/* GLOW */}
-
-        <div
-          className="
-            absolute
-            top-0
-            right-0
-
-            h-52
-            w-52
-
-            bg-pink-400/10
-
-            blur-3xl
-
-            rounded-full
-          "
-        />
-
-        <div className="relative z-10">
-          <div
-            className="
-              flex
-              flex-col
-              lg:flex-row
-
-              lg:items-center
-              lg:justify-between
-
-              gap-8
-            "
-          >
-            {/* LEFT */}
-
+        <header className="rounded-3xl bg-gradient-to-r from-[#071C3C] via-[#113362] to-[#204B80] p-6 text-white shadow-xl sm:p-8">
+          <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h1
-                className="
-                  text-4xl
-                  md:text-5xl
+              <p className="text-xs font-extrabold uppercase tracking-[.2em] text-amber-300">
+                AMIMAINTAIN · ADMIN CONTROL CENTER
+              </p>
 
-                  font-extrabold
-
-                  tracking-tight
-                "
-              >
+              <h1 className="mt-2 text-2xl font-black sm:text-3xl">
                 Admin Dashboard
               </h1>
 
-              <p
-                className="
-                  text-blue-100
-                  mt-4
-                  text-base
-                  md:text-lg
-                "
-              >
-                Welcome back,
-                <span className="font-bold ml-2">{user?.name}</span>
-              </p>
-
-              <p
-                className="
-                  text-yellow-300
-                  mt-2
-                  font-medium
-                "
-              >
-                Smart Campus ERP Management System
+              <p className="mt-2 text-sm text-slate-200">
+                University maintenance overview, complaint performance and
+                campus operations.
               </p>
             </div>
 
-            {/* RIGHT STATUS */}
-
-            <div
-              className="
-                bg-white/8
-
-                backdrop-blur-2xl
-
-                border
-                border-white/10
-
-                rounded-3xl
-
-                p-5
-
-                min-w-[270px]
-              "
+            <button
+              type="button"
+              disabled={refreshing}
+              onClick={() => fetchDashboard(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/30 bg-white/10 px-4 py-3 text-sm font-bold disabled:opacity-50"
             >
-              <div className="flex items-center gap-3">
-                <Activity size={26} />
-
-                <h3 className="text-xl font-bold">System Status</h3>
-              </div>
-
-              <div className="mt-5 space-y-4">
-                <div className="flex items-center justify-between">
-                  <span className="text-blue-100">Active Complaints</span>
-
-                  <span className="font-bold">
-                    {dashboardData?.stats?.totalComplaints || 0}
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-blue-100">Resolution Rate</span>
-
-                  <span className="font-bold text-green-300">89%</span>
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-blue-100">ERP Performance</span>
-
-                  <span className="font-bold text-green-300">Excellent</span>
-                </div>
-              </div>
-            </div>
+              <RefreshCcw
+                size={17}
+                className={refreshing ? "animate-spin" : ""}
+              />
+              Refresh
+            </button>
           </div>
-        </div>
-      </div>
 
-      {/* OVERDUE ALERT */}
-
-      <div
-        className="
-          bg-gradient-to-r
-          from-[#E53935]
-          to-[#8E1737]
-
-          text-white
-
-          rounded-[28px]
-
-          shadow-xl
-
-          p-6
-
-          flex
-          flex-col
-          xl:flex-row
-
-          xl:items-center
-          justify-between
-
-          gap-6
-        "
-      >
-        <div>
-          <h2
-            className="
-              text-2xl
-              md:text-3xl
-
-              font-bold
-            "
-          >
-            {dashboardData?.stats?.overdueComplaints || 0} Complaints Overdue
-          </h2>
-
-          <p className="text-red-100 mt-3">
-            Complaints pending for more than 24 hours require immediate action.
+          <p className="mt-5 text-xs text-slate-300">
+            Last updated: {formatIST(updatedAt)} IST
           </p>
-        </div>
+        </header>
 
-        <button
-          onClick={() => navigate("/admin/overdue-complaints")}
-          className="
-            bg-white
+        {/* ERROR */}
 
-            text-[#8E1737]
-
-            px-7
-            py-4
-
-            rounded-2xl
-
-            font-bold
-
-            hover:scale-[1.02]
-
-            transition-all
-          "
-        >
-          Take Action
-        </button>
-      </div>
-
-      {/* MAIN STATS */}
-
-      <div
-        className="
-          grid
-          grid-cols-1
-          md:grid-cols-2
-          2xl:grid-cols-4
-
-          gap-6
-        "
-      >
-        {cards.map((card) => (
+        {loadError && (
           <div
-            key={card.title}
-            onClick={() => navigate(card.path)}
-            className="
-              relative
-
-              overflow-hidden
-
-              bg-white/95
-
-              backdrop-blur-xl
-
-              rounded-[26px]
-
-              border
-              border-white/40
-
-              shadow-[0_10px_35px_rgba(0,0,0,0.06)]
-
-              p-6
-
-              cursor-pointer
-
-              hover:-translate-y-1
-
-              hover:shadow-[0_18px_45px_rgba(0,0,0,0.10)]
-
-              transition-all
-              duration-300
-            "
+            role="alert"
+            className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800"
           >
-            <div
-              className="
-                absolute
-                top-0
-                right-0
-
-                h-28
-                w-28
-
-                bg-indigo-100/20
-
-                blur-3xl
-
-                rounded-full
-              "
-            />
-
-            <div className="relative z-10">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-500 text-sm">{card.title}</p>
-
-                  <h2
-                    className="
-                      text-4xl
-
-                      font-extrabold
-
-                      mt-5
-
-                      text-[#0B1F4D]
-                    "
-                  >
-                    {card.value}
-                  </h2>
-                </div>
-
-                <div
-                  className={`
-                    ${card.color}
-
-                    p-5
-
-                    rounded-3xl
-                  `}
-                >
-                  {card.icon}
-                </div>
-              </div>
-            </div>
+            {loadError}. Showing last available complaint data.
+            <button
+              type="button"
+              onClick={() => fetchDashboard()}
+              className="ml-3 font-bold underline"
+            >
+              Retry
+            </button>
           </div>
-        ))}
-      </div>
+        )}
 
-      {/* COMPLAINT STATUS */}
+        {/* LOADING */}
 
-      <div>
-        <div
-          className="
-            flex
-            items-center
-            gap-3
+        {loading ? (
+          <div className="flex min-h-60 items-center justify-center gap-2 rounded-2xl bg-white text-slate-500">
+            <Loader2 size={20} className="animate-spin" />
+            Loading dashboard...
+          </div>
+        ) : (
+          <>
+            {/* KPI CARDS */}
 
-            mb-6
-          "
-        >
-          <TrendingUp size={30} className="text-[#0B1F4D]" />
-
-          <h2
-            className="
-              text-3xl
-              md:text-4xl
-
-              font-bold
-
-              text-[#0B1F4D]
-            "
-          >
-            Complaint Status Overview
-          </h2>
-        </div>
-
-        <div
-          className="
-            grid
-            grid-cols-1
-            md:grid-cols-2
-            2xl:grid-cols-4
-
-            gap-6
-          "
-        >
-          {complaintStats.map((item) => (
-            <div
-              key={item.title}
-              className="
-                bg-white
-
-                rounded-[28px]
-
-                shadow-lg
-
-                border
-                border-gray-100
-
-                p-6
-
-                hover:-translate-y-1
-
-                hover:shadow-xl
-
-                transition-all
-              "
+            <section
+              className="grid grid-cols-2 gap-3 md:grid-cols-4"
+              aria-label="Complaint overview"
             >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-500">{item.title}</p>
+              {cards.map((card) => {
+                const Icon = card.icon;
 
-                  <h3
-                    className="
-                      text-4xl
-
-                      font-bold
-
-                      mt-4
-                    "
+                return (
+                  <button
+                    key={card.title}
+                    type="button"
+                    onClick={() => openRecords(card.filter)}
+                    className={`rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:border-amber-400 hover:shadow-md ${
+                      selectedFilter === card.filter
+                        ? "border-amber-400"
+                        : "border-slate-200"
+                    }`}
                   >
-                    {item.value}
-                  </h3>
-                </div>
+                    <Icon size={22} className="text-[#B48632]" />
 
-                <div
-                  className={`
-                    ${item.color}
+                    <span className="mt-3 block text-2xl font-black">
+                      {card.value}
+                    </span>
 
-                    p-5
+                    <span className="mt-1 block text-xs font-semibold text-slate-500">
+                      {card.title}
+                    </span>
+                  </button>
+                );
+              })}
+            </section>
 
-                    rounded-3xl
-                  `}
+            {/* CAMPUS OVERVIEW */}
+
+            <section className="grid gap-4 lg:grid-cols-3">
+              {/* HOSTELS */}
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <Building2 className="text-[#B48632]" size={24} />
+
+                <h2 className="mt-3 text-sm font-bold text-slate-500">
+                  Active Hostels
+                </h2>
+
+                <p className="mt-2 text-3xl font-black">
+                  {activeHostels ?? "—"}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin/manage-hostels")}
+                  className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-blue-700"
                 >
-                  {item.icon}
+                  Manage Hostels
+                  <ArrowRight size={14} />
+                </button>
+              </div>
+
+              {/* BLOCKS */}
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <Building2 className="text-[#B48632]" size={24} />
+
+                <h2 className="mt-3 text-sm font-bold text-slate-500">
+                  Active Academic Blocks
+                </h2>
+
+                <p className="mt-2 text-3xl font-black">
+                  {activeBlocks ?? "—"}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin/manage-buildings")}
+                  className="mt-4 inline-flex items-center gap-1 text-xs font-bold text-blue-700"
+                >
+                  Manage Blocks
+                  <ArrowRight size={14} />
+                </button>
+              </div>
+
+              {/* VERIFIED RATE */}
+
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <TrendingUp className="text-[#B48632]" size={24} />
+
+                <h2 className="mt-3 text-sm font-bold text-slate-500">
+                  Verified Resolution Rate
+                </h2>
+
+                <p className="mt-2 text-3xl font-black">
+                  {verifiedPercent.toFixed(1)}%
+                </p>
+
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-[#D4A245]"
+                    style={{
+                      width: `${verifiedPercent}%`,
+                    }}
+                  />
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
+            </section>
 
-      {/* QUICK ACTIONS */}
+            {/* CATEGORY WORKLOAD + QUICK ACCESS */}
 
-      <div
-        className="
-          bg-white/95
+            <section className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
+              {/* ACTIVE CATEGORY WORKLOAD */}
 
-          backdrop-blur-xl
+              <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <h2 className="flex items-center gap-2 text-base font-black">
+                    <Activity size={19} />
+                    Category Workload
+                  </h2>
 
-          rounded-[30px]
+                  <button
+                    type="button"
+                    onClick={() => navigate("/admin/categories")}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-blue-700"
+                  >
+                    Manage Categories
+                    <ArrowRight size={14} />
+                  </button>
+                </div>
 
-          shadow-lg
+                <p className="mt-1 text-xs text-slate-500">
+                  Only active Maintenance Categories created in Admin. Archived
+                  and old category names are excluded.
+                </p>
 
-          p-6
-          md:p-8
-        "
-      >
-        <h2
-          className="
-            text-3xl
-            md:text-4xl
+                {categoryError ? (
+                  <div
+                    role="alert"
+                    className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800"
+                  >
+                    {categoryError} Please check the Category Master API.
+                  </div>
+                ) : categoryStats.length === 0 ? (
+                  <div className="mt-5 rounded-xl bg-slate-50 p-5 text-sm text-slate-500">
+                    No active maintenance categories found. Use Categories &
+                    Priorities to create one.
+                  </div>
+                ) : (
+                  <div className="mt-5 max-h-[370px] space-y-4 overflow-y-auto pr-1">
+                    {categoryStats.map((item) => (
+                      <div key={normalize(item.name)}>
+                        <div className="mb-1 flex items-center justify-between gap-2 text-xs">
+                          <span className="break-words font-bold">
+                            {item.name}
+                          </span>
 
-            font-bold
+                          <span className="shrink-0 font-bold">
+                            {item.count}
+                          </span>
+                        </div>
 
-            text-[#0B1F4D]
+                        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className="h-full rounded-full bg-[#D4A245]"
+                            style={{
+                              width: `${(item.count / categoryMax) * 100}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
-            mb-8
-          "
-        >
-          Quick Actions
-        </h2>
+                <p className="mt-4 text-xs text-slate-400">
+                  Counts include existing complaints matching each active
+                  category. Historical complaints are preserved in Complaint
+                  Monitor.
+                </p>
+              </div>
 
-        <div
-          className="
-            grid
-            grid-cols-1
-            md:grid-cols-2
-            2xl:grid-cols-4
+              {/* QUICK ACCESS */}
 
-            gap-5
-          "
-        >
-          <button
-            onClick={() => navigate("/admin/create-user")}
-            className="
-              bg-gradient-to-r
-              from-[#0B1F4D]
-              to-[#5B0E2D]
+              <div className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 className="text-base font-black">Quick Access</h2>
 
-              text-white
+                <p className="mt-1 text-xs text-slate-500">
+                  Matches the current Admin sidebar.
+                </p>
 
-              py-5
+                <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-1">
+                  {QUICK_ACCESS.map((item) => {
+                    const Icon = item.icon;
 
-              rounded-2xl
+                    return (
+                      <button
+                        key={item.path}
+                        type="button"
+                        onClick={() => navigate(item.path)}
+                        className="flex min-w-0 items-center justify-between gap-3 rounded-xl border border-slate-100 px-4 py-3 text-left text-sm font-semibold hover:border-amber-300 hover:bg-amber-50/40"
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          <Icon size={16} className="shrink-0 text-[#B48632]" />
 
-              font-semibold
+                          <span className="truncate">{item.label}</span>
+                        </span>
 
-              shadow-lg
+                        <ArrowRight size={15} className="shrink-0" />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </section>
 
-              flex
-              items-center
-              justify-center
-              gap-3
+            {/* COMPLAINT RECORDS */}
 
-              hover:scale-[1.02]
-
-              transition-all
-            "
-          >
-            <UserPlus size={22} />
-            Create User
-          </button>
-
-          <button
-            onClick={() => navigate("/admin/manage-users")}
-            className="
-              bg-white
-
-              border
-              border-gray-200
-
-              py-5
-
-              rounded-2xl
-
-              font-semibold
-
-              flex
-              items-center
-              justify-center
-              gap-3
-
-              hover:bg-[#0B1F4D]
-              hover:text-white
-
-              transition-all
-            "
-          >
-            <Users size={22} />
-            Manage Users
-          </button>
-
-          <button
-            onClick={() => navigate("/admin/complaint-monitor")}
-            className="
-              bg-white
-
-              border
-              border-gray-200
-
-              py-5
-
-              rounded-2xl
-
-              font-semibold
-
-              flex
-              items-center
-              justify-center
-              gap-3
-
-              hover:bg-[#0B1F4D]
-              hover:text-white
-
-              transition-all
-            "
-          >
-            <ShieldAlert size={22} />
-            Complaint Monitor
-          </button>
-
-          <button
-            onClick={() => navigate("/admin/reports")}
-            className="
-              bg-white
-
-              border
-              border-gray-200
-
-              py-5
-
-              rounded-2xl
-
-              font-semibold
-
-              flex
-              items-center
-              justify-center
-              gap-3
-
-              hover:bg-[#0B1F4D]
-              hover:text-white
-
-              transition-all
-            "
-          >
-            <FileBarChart2 size={22} />
-            Reports
-          </button>
-        </div>
-      </div>
-
-      {/* RECENT ACTIVITIES */}
-
-      <div
-        className="
-          bg-white/95
-
-          backdrop-blur-xl
-
-          rounded-[30px]
-
-          shadow-lg
-
-          p-6
-          md:p-8
-        "
-      >
-        <h2
-          className="
-            text-3xl
-            md:text-4xl
-
-            font-bold
-
-            text-[#0B1F4D]
-
-            mb-8
-          "
-        >
-          Recent Activities
-        </h2>
-
-        <div className="space-y-5">
-          {dashboardData?.recentActivities?.map((item) => (
-            <div
-              key={item._id}
-              className="
-                bg-gradient-to-r
-                from-white
-                to-blue-50
-
-                rounded-3xl
-
-                p-5
-
-                shadow-md
-
-                border-l-4
-                border-blue-500
-
-                hover:shadow-xl
-
-                transition-all
-              "
+            <section
+              id="admin-complaint-records"
+              className="scroll-mt-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
             >
-              <p className="font-semibold text-lg">{item.action}</p>
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
+                <div>
+                  <h2 className="font-black">Complaint Records</h2>
 
-              <p className="text-sm text-gray-500 mt-2">{item.time}</p>
-            </div>
-          ))}
-        </div>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {filteredComplaints.length} matching
+                    {" · "}
+                    {humanize(selectedFilter)}
+                    {" · "}
+                    Admin monitoring only
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin/complaint-monitor")}
+                  className="inline-flex items-center gap-1 text-sm font-bold text-blue-700"
+                >
+                  Open Complaint Monitor
+                  <ArrowRight size={15} />
+                </button>
+              </div>
+
+              {filteredComplaints.length === 0 ? (
+                <p className="py-12 text-center text-sm text-slate-500">
+                  No matching complaints.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[840px] text-left text-sm">
+                    <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                      <tr>
+                        {[
+                          "Complaint",
+                          "Location",
+                          "Category",
+                          "Priority",
+                          "Status",
+                          "Created (IST)",
+                        ].map((label) => (
+                          <th key={label} className="px-4 py-3">
+                            {label}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+
+                    <tbody className="divide-y divide-slate-100">
+                      {visibleComplaints.map((complaint) => (
+                        <tr key={complaint._id} className="hover:bg-slate-50">
+                          <td className="px-4 py-3">
+                            <strong>{complaint.complaintId || "—"}</strong>
+
+                            <p className="mt-1 max-w-[250px] truncate text-xs text-slate-500">
+                              {complaint.title}
+                            </p>
+                          </td>
+
+                          <td className="px-4 py-3 text-xs">
+                            {locationOf(complaint)}
+                          </td>
+
+                          <td className="px-4 py-3 text-xs">
+                            {complaint.category || "—"}
+                          </td>
+
+                          <td className="px-4 py-3 text-xs font-bold">
+                            {complaint.priority || "—"}
+                          </td>
+
+                          <td className="px-4 py-3 text-xs">
+                            {complaint.status === "COMPLETED"
+                              ? "Awaiting Verification"
+                              : humanize(complaint.status)}
+                          </td>
+
+                          <td className="whitespace-nowrap px-4 py-3 text-xs">
+                            {formatIST(complaint.createdAt)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* PAGINATION */}
+
+              {filteredComplaints.length > PAGE_SIZE && (
+                <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 p-4 text-sm">
+                  <button
+                    type="button"
+                    disabled={safePage <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="rounded-lg border px-3 py-2 disabled:opacity-40"
+                  >
+                    Previous
+                  </button>
+
+                  <span>
+                    Page {safePage} of {pages}
+                  </span>
+
+                  <button
+                    type="button"
+                    disabled={safePage >= pages}
+                    onClick={() => setPage((p) => Math.min(pages, p + 1))}
+                    className="rounded-lg border px-3 py-2 disabled:opacity-40"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </section>
+
+            <p className="text-xs text-slate-500">
+              Live counts are based on complaints returned by the API. Category
+              names come from the active Maintenance Category Master only.
+            </p>
+          </>
+        )}
       </div>
-    </div>
+    </main>
   );
-};
-
-export default AdminDashboard;
+}

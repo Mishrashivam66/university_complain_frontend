@@ -464,7 +464,7 @@ export default function ManageUsers() {
             </p>
 
             <h1 className="mt-2 text-3xl font-extrabold">
-              Staff Account Management
+              Account Management
             </h1>
 
             <p className="mt-2 text-sm text-slate-200">

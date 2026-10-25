@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
   AlertTriangle,
@@ -382,7 +382,6 @@ export default function ComplaintMonitor() {
 
   // DETAILS
   const [selectedId, setSelectedId] = useState("");
-  const recordsRef = useRef(null);
 
   // ========================================
   // LOAD COMPLAINTS AND MASTER DATA
@@ -692,12 +691,16 @@ export default function ComplaintMonitor() {
   // KPI CARD NAVIGATION
   // ========================================
 
+  // ========================================
+  // KPI CARD NAVIGATION
+  // ========================================
+
   function drilldown(statusValue = "ALL", priorityValue = "ALL") {
     setStatus(statusValue);
     setPriority(priorityValue);
 
     window.requestAnimationFrame(() => {
-      recordsRef.current?.scrollIntoView({
+      document.getElementById("complaint-records")?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
@@ -1232,7 +1235,7 @@ export default function ComplaintMonitor() {
         {/* COMPLAINT RECORDS */}
 
         <section
-          ref={recordsRef}
+          id="complaint-records"
           className="scroll-mt-24 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
         >
           <div className="border-b border-slate-100 px-4 py-4 sm:px-5">
