@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-
 import toast from "react-hot-toast";
-
 import {
   Archive,
   Building2,
@@ -13,6 +11,7 @@ import {
   RefreshCcw,
   RotateCcw,
   Search,
+  ShieldAlert,
   Trash2,
   X,
 } from "lucide-react";
@@ -31,7 +30,7 @@ const FLOORS = [
   "Eighth",
 ];
 
-const empty = () => ({
+const initialForm = () => ({
   code: "",
   name: "",
   buildingType: "",
@@ -42,11 +41,63 @@ const empty = () => ({
   departments: [""],
 });
 
-const getError = (error, fallback) =>
+const fieldClass =
+  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100";
+
+const errorText = (error, fallback) =>
   error?.response?.data?.message || fallback;
 
-const inputClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100";
+const isArchived = (block) => block.isDeleted === true;
+
+const isActive = (block) => !isArchived(block) && block.isActive !== false;
+
+// ==========================================
+// DEPENDENCY VALIDATION
+// ==========================================
+
+function reportBlockers(report, permanent = false) {
+  if (!report) {
+    return ["Dependency check has not completed."];
+  }
+
+  const messages = [];
+
+  if (report.activeBlockAdminCount > 0) {
+    messages.push(
+      `${report.activeBlockAdminCount} active Block Admin account(s) assigned`,
+    );
+  }
+
+  if (report.currentUserCount > 0) {
+    messages.push(`${report.currentUserCount} current user(s) linked`);
+  }
+
+  if (report.openComplaintCount > 0) {
+    messages.push(`${report.openComplaintCount} open complaint(s) linked`);
+  }
+
+  if (permanent) {
+    if (report.linkedUserCount > 0) {
+      messages.push(
+        `${report.linkedUserCount} user account/history reference(s)`,
+      );
+    }
+
+    if (report.complaintCount > 0) {
+      messages.push(`${report.complaintCount} complaint history reference(s)`);
+    }
+
+    if ((report.otherReferences || []).length) {
+      messages.push(`Other collections: ${report.otherReferences.join(", ")}`);
+    }
+  }
+
+  return [...new Set(messages)];
+}
+
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
 
 export default function ManageBuildings() {
   const [blocks, setBlocks] = useState([]);
@@ -54,32 +105,38 @@ export default function ManageBuildings() {
   const [saving, setSaving] = useState(false);
 
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("all");
+  const [filter, setFilter] = useState("all");
   const [expanded, setExpanded] = useState("");
+
+  const [reports, setReports] = useState({});
+  const [checkingId, setCheckingId] = useState("");
 
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState(null);
-  const [form, setForm] = useState(empty());
+  const [form, setForm] = useState(initialForm());
 
-  const [confirm, setConfirm] = useState(null);
+  const [action, setAction] = useState(null);
+  const [typedCode, setTypedCode] = useState("");
 
-  // ======================================
-  // LOAD ACADEMIC BLOCKS
-  // ======================================
+  // ========================================
+  // LOAD ALL BLOCKS
+  // ========================================
 
   const loadBlocks = useCallback(async () => {
     try {
       setLoading(true);
 
-      const result = await api.get("/admin/blocks", {
+      const response = await api.get("/admin/blocks", {
         params: {
           includeArchived: "true",
         },
       });
 
-      setBlocks(Array.isArray(result.data?.blocks) ? result.data.blocks : []);
+      setBlocks(
+        Array.isArray(response.data?.blocks) ? response.data.blocks : [],
+      );
     } catch (error) {
-      toast.error(getError(error, "Academic Blocks could not be loaded"));
+      toast.error(errorText(error, "Unable to load Academic Blocks"));
     } finally {
       setLoading(false);
     }
@@ -89,52 +146,54 @@ export default function ManageBuildings() {
     loadBlocks();
   }, [loadBlocks]);
 
-  // ======================================
+  // ========================================
   // SEARCH AND FILTER
-  // ======================================
+  // ========================================
 
-  const filteredBlocks = useMemo(() => {
+  const visible = useMemo(() => {
     return blocks.filter((block) => {
-      const query = search.toLowerCase().trim();
+      const q = search.trim().toLowerCase();
 
-      const matchesSearch =
-        !query ||
-        [
-          block.code,
-          block.name,
-          block.buildingType,
-          ...(block.departments || []),
-        ].some((value) =>
-          String(value || "")
-            .toLowerCase()
-            .includes(query),
-        );
+      const text = [
+        block.code,
+        block.name,
+        block.buildingType,
+        ...(block.departments || []),
+      ]
+        .join(" ")
+        .toLowerCase();
 
-      const matchesStatus =
-        status === "all" ||
-        (status === "active" && block.isActive && !block.isDeleted) ||
-        (status === "inactive" && !block.isActive && !block.isDeleted) ||
-        (status === "archived" && block.isDeleted);
+      const statusMatch =
+        filter === "all" ||
+        (filter === "active" && isActive(block)) ||
+        (filter === "inactive" && !isArchived(block) && !isActive(block)) ||
+        (filter === "archived" && isArchived(block));
 
-      return matchesSearch && matchesStatus;
+      return statusMatch && (!q || text.includes(q));
     });
-  }, [blocks, search, status]);
+  }, [blocks, search, filter]);
 
-  const counts = {
-    total: blocks.filter((block) => !block.isDeleted).length,
+  // ========================================
+  // LIVE SUMMARY COUNTS
+  // ========================================
 
-    active: blocks.filter((block) => block.isActive && !block.isDeleted).length,
+  const counts = useMemo(
+    () => ({
+      total: blocks.filter((block) => !isArchived(block)).length,
 
-    departments: blocks
-      .filter((block) => !block.isDeleted)
-      .reduce((count, block) => count + (block.departments?.length || 0), 0),
+      active: blocks.filter(isActive).length,
 
-    archived: blocks.filter((block) => block.isDeleted).length,
-  };
+      inactive: blocks.filter((block) => !isArchived(block) && !isActive(block))
+        .length,
 
-  // ======================================
-  // FORM CONTROLS
-  // ======================================
+      archived: blocks.filter(isArchived).length,
+    }),
+    [blocks],
+  );
+
+  // ========================================
+  // FORM MANAGEMENT
+  // ========================================
 
   const updateField = (key, value) => {
     setForm((previous) => ({
@@ -145,7 +204,7 @@ export default function ManageBuildings() {
 
   const openNew = () => {
     setEditing(null);
-    setForm(empty());
+    setForm(initialForm());
     setFormOpen(true);
   };
 
@@ -153,7 +212,7 @@ export default function ManageBuildings() {
     setEditing(block);
 
     setForm({
-      code: block.code,
+      code: block.code || "",
       name: block.name || "",
       buildingType: block.buildingType || "",
       startFloor: block.startFloor || "Ground",
@@ -166,32 +225,11 @@ export default function ManageBuildings() {
     setFormOpen(true);
   };
 
-  const changeDepartment = (index, value) => {
-    setForm((previous) => ({
-      ...previous,
+  // ========================================
+  // CREATE / UPDATE BLOCK
+  // ========================================
 
-      departments: previous.departments.map((department, i) =>
-        i === index ? value : department,
-      ),
-    }));
-  };
-
-  const removeDepartment = (index) => {
-    setForm((previous) => {
-      const departments = previous.departments.filter((_, i) => i !== index);
-
-      return {
-        ...previous,
-        departments: departments.length ? departments : [""],
-      };
-    });
-  };
-
-  // ======================================
-  // SAVE ACADEMIC BLOCK
-  // ======================================
-
-  const submit = async (event) => {
+  const saveBlock = async (event) => {
     event.preventDefault();
 
     if (saving) return;
@@ -202,7 +240,7 @@ export default function ManageBuildings() {
       name: form.name.trim(),
 
       departments: form.departments
-        .map((value) => value.trim())
+        .map((department) => department.trim())
         .filter(Boolean),
     };
 
@@ -210,16 +248,20 @@ export default function ManageBuildings() {
       return toast.error("Enter a valid Block Code");
     }
 
-    if (FLOORS.indexOf(payload.startFloor) > FLOORS.indexOf(payload.endFloor)) {
-      return toast.error("End floor must not be before start floor");
+    if (!payload.name) {
+      return toast.error("Block name is required");
     }
 
-    const departmentNames = payload.departments.map((name) =>
-      name.toLowerCase(),
+    if (FLOORS.indexOf(payload.startFloor) > FLOORS.indexOf(payload.endFloor)) {
+      return toast.error("End floor cannot be before start floor");
+    }
+
+    const uniqueDepartments = new Set(
+      payload.departments.map((name) => name.toLowerCase()),
     );
 
-    if (new Set(departmentNames).size !== departmentNames.length) {
-      return toast.error("Duplicate departments are not allowed");
+    if (uniqueDepartments.size !== payload.departments.length) {
+      return toast.error("Duplicate department names are not allowed");
     }
 
     try {
@@ -231,75 +273,160 @@ export default function ManageBuildings() {
         await api.post("/admin/blocks", payload);
       }
 
-      toast.success(
-        editing ? "Academic Block updated" : "Academic Block created",
-      );
+      toast.success(editing ? "Block updated" : "Block created");
 
       setFormOpen(false);
       await loadBlocks();
     } catch (error) {
-      toast.error(getError(error, "Unable to save Academic Block"));
+      toast.error(errorText(error, "Unable to save Block"));
     } finally {
       setSaving(false);
     }
   };
 
-  // ======================================
+  // ========================================
   // ACTIVATE / DEACTIVATE
-  // ======================================
+  // ========================================
 
-  const toggleStatus = async (block) => {
+  const toggleActive = async (block) => {
+    if (saving) return;
+
     try {
       setSaving(true);
 
       await api.put(`/admin/blocks/${block._id}`, {
-        isActive: !block.isActive,
+        isActive: !isActive(block),
       });
 
-      toast.success(block.isActive ? "Block deactivated" : "Block activated");
+      toast.success(isActive(block) ? "Block deactivated" : "Block activated");
 
       await loadBlocks();
     } catch (error) {
-      toast.error(getError(error, "Unable to update block status"));
+      toast.error(errorText(error, "Unable to change status"));
     } finally {
       setSaving(false);
     }
   };
 
-  // ======================================
-  // ARCHIVE / RESTORE
-  // ======================================
+  // ========================================
+  // CHECK DEPENDENCIES
+  // ========================================
 
-  const performAction = async () => {
-    if (!confirm || saving) return;
+  const getDependencies = async (block) => {
+    setCheckingId(block._id);
+
+    try {
+      const response = await api.get(`/admin/blocks/${block._id}/dependencies`);
+
+      const report = response.data?.dependencies;
+
+      if (!report) {
+        throw new Error("Empty dependency report");
+      }
+
+      setReports((previous) => ({
+        ...previous,
+        [block._id]: report,
+      }));
+
+      return report;
+    } catch (error) {
+      toast.error(errorText(error, "Could not check linked records"));
+
+      return null;
+    } finally {
+      setCheckingId("");
+    }
+  };
+
+  // ========================================
+  // OPEN ACTION DIALOG
+  // ========================================
+
+  const openAction = async (block, mode) => {
+    if (saving || checkingId) return;
+
+    setTypedCode("");
+
+    if (mode === "restore") {
+      setAction({
+        block,
+        mode,
+        report: null,
+      });
+
+      return;
+    }
+
+    const report = await getDependencies(block);
+
+    if (report) {
+      setAction({
+        block,
+        mode,
+        report,
+      });
+    }
+  };
+
+  // ========================================
+  // EXECUTE ARCHIVE / RESTORE / DELETE
+  // ========================================
+
+  const executeAction = async () => {
+    if (!action || saving) return;
+
+    const { block, mode, report } = action;
+
+    if (mode === "permanent" && typedCode.trim().toUpperCase() !== block.code) {
+      return toast.error("Type the Block Code to confirm deletion");
+    }
+
+    if (
+      mode !== "restore" &&
+      reportBlockers(report, mode === "permanent").length
+    ) {
+      return toast.error("Reassign or clear linked records first");
+    }
 
     try {
       setSaving(true);
 
-      if (confirm.isDeleted) {
-        await api.patch(`/admin/blocks/${confirm._id}/restore`);
+      if (mode === "archive") {
+        await api.delete(`/admin/blocks/${block._id}`);
+      } else if (mode === "restore") {
+        await api.patch(`/admin/blocks/${block._id}/restore`);
       } else {
-        await api.delete(`/admin/blocks/${confirm._id}`);
+        await api.delete(`/admin/blocks/${block._id}/permanent`);
       }
 
       toast.success(
-        confirm.isDeleted
-          ? "Academic Block restored"
-          : "Academic Block archived",
+        mode === "archive"
+          ? "Block archived"
+          : mode === "restore"
+            ? "Block restored"
+            : "Block permanently deleted",
       );
 
-      setConfirm(null);
+      setAction(null);
+      setExpanded("");
+      setReports({});
+
       await loadBlocks();
     } catch (error) {
-      toast.error(getError(error, "Operation failed"));
+      toast.error(errorText(error, "Operation failed"));
     } finally {
       setSaving(false);
     }
   };
 
-  // ======================================
-  // UI
-  // ======================================
+  const actionBlockers = action
+    ? reportBlockers(action.report, action.mode === "permanent")
+    : [];
+
+  // ========================================
+  // USER INTERFACE
+  // ========================================
 
   return (
     <main className="min-h-full bg-[#F5F7FB] px-3 py-5 text-[#0B234B] sm:px-6 lg:px-8">
@@ -308,7 +435,7 @@ export default function ManageBuildings() {
 
         <header className="flex flex-col justify-between gap-4 rounded-3xl bg-gradient-to-r from-[#071C3C] via-[#0C2F66] to-[#173F76] p-6 text-white shadow-xl sm:flex-row sm:items-center sm:p-8">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[.22em] text-amber-300">
+            <p className="text-xs font-bold uppercase tracking-[.2em] text-amber-300">
               AmiMaintain · Campus Setup
             </p>
 
@@ -317,288 +444,392 @@ export default function ManageBuildings() {
             </h1>
 
             <p className="mt-2 text-sm text-slate-200">
-              Manage Academic Blocks, Departments and maintenance locations.
+              Create, manage, archive and safely remove campus blocks.
             </p>
           </div>
 
           <button
             type="button"
             onClick={openNew}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#F0C56A] px-5 py-3 text-sm font-bold text-[#071C3C]"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#F0C56A] px-5 py-3 text-sm font-bold text-[#071C3C]"
           >
             <Plus size={18} />
             Add Academic Block
           </button>
         </header>
 
-        {/* CLICKABLE SUMMARY */}
+        {/* CLICKABLE SUMMARY CARDS */}
 
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section
+          className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+          aria-label="Academic Block overview"
+        >
           {[
             {
-              title: "Total Blocks",
-              number: counts.total,
+              label: "Total Blocks",
+              value: counts.total,
               filter: "all",
             },
             {
-              title: "Active Blocks",
-              number: counts.active,
+              label: "Active",
+              value: counts.active,
               filter: "active",
             },
             {
-              title: "Departments",
-              number: counts.departments,
-              filter: "all",
+              label: "Inactive",
+              value: counts.inactive,
+              filter: "inactive",
             },
             {
-              title: "Archived",
-              number: counts.archived,
+              label: "Archived",
+              value: counts.archived,
               filter: "archived",
             },
-          ].map((item) => (
+          ].map((stat) => (
             <button
+              key={stat.label}
               type="button"
-              key={item.title}
-              onClick={() => setStatus(item.filter)}
-              className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-amber-400"
+              onClick={() => setFilter(stat.filter)}
+              className={`rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:border-amber-400 ${
+                filter === stat.filter
+                  ? "border-amber-400 ring-1 ring-amber-200"
+                  : "border-slate-200"
+              }`}
             >
-              <span className="text-2xl font-extrabold">{item.number}</span>
+              <span className="text-3xl font-black">{stat.value}</span>
 
               <span className="mt-1 block text-xs font-semibold text-slate-500">
-                {item.title}
+                {stat.label}
               </span>
             </button>
           ))}
         </section>
 
-        {/* MANAGEMENT LIST */}
+        {/* BLOCK MANAGEMENT */}
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4">
+        <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm sm:p-5">
+          {/* SEARCH */}
+
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 px-3">
+            <label className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 px-3">
               <Search size={18} className="text-slate-400" />
 
               <input
                 type="search"
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={(e) => setSearch(e.target.value)}
                 className="w-full bg-transparent py-3 text-sm outline-none"
-                placeholder="Search block, code or department..."
+                placeholder="Search blocks, codes, departments..."
               />
             </label>
 
             <select
               aria-label="Filter blocks"
-              value={status}
-              onChange={(event) => setStatus(event.target.value)}
-              className={`${inputClass} sm:w-44`}
+              className={`${fieldClass} sm:w-44`}
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
             >
               <option value="all">All Blocks</option>
+
               <option value="active">Active</option>
+
               <option value="inactive">Inactive</option>
+
               <option value="archived">Archived</option>
             </select>
 
             <button
               type="button"
               onClick={loadBlocks}
-              className="flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold"
             >
               <RefreshCcw size={16} />
               Refresh
             </button>
           </div>
 
-          <div className="mt-4 space-y-2">
+          {/* BLOCK LIST */}
+
+          <div className="mt-4 space-y-3">
             {loading ? (
               <p className="py-12 text-center text-slate-500">
                 Loading Academic Blocks...
               </p>
-            ) : filteredBlocks.length === 0 ? (
+            ) : !visible.length ? (
               <p className="py-12 text-center text-slate-500">
                 No Academic Blocks found.
               </p>
             ) : (
-              filteredBlocks.map((block) => (
-                <div
-                  key={block._id}
-                  className="overflow-hidden rounded-xl border border-slate-200"
-                >
-                  {/* ONE LINE BLOCK ROW */}
+              visible.map((block) => {
+                const open = expanded === block._id;
 
-                  <div className="flex flex-wrap items-center gap-3 px-3 py-3 sm:flex-nowrap sm:px-4">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-800">
-                      <Building2 size={19} />
-                    </span>
+                const report = reports[block._id];
 
-                    <div className="min-w-[130px] flex-1">
-                      <p className="truncate text-sm font-bold">{block.name}</p>
+                return (
+                  <article
+                    key={block._id}
+                    className="overflow-hidden rounded-xl border border-slate-200"
+                  >
+                    {/* BLOCK ROW */}
 
-                      <p className="text-xs text-slate-500">
-                        Code: {block.code} · {block.departments?.length || 0}{" "}
-                        Departments
-                      </p>
-                    </div>
+                    <div className="flex flex-wrap items-center gap-3 p-3 sm:p-4">
+                      <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-800">
+                        <Building2 size={20} />
+                      </span>
 
-                    <span
-                      className={`rounded-full px-3 py-1 text-xs font-bold ${
-                        block.isDeleted
-                          ? "bg-slate-100 text-slate-600"
-                          : block.isActive
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-amber-50 text-amber-700"
-                      }`}
-                    >
-                      {block.isDeleted
-                        ? "Archived"
-                        : block.isActive
-                          ? "Active"
-                          : "Inactive"}
-                    </span>
+                      <div className="min-w-36 flex-1">
+                        <p className="text-sm font-extrabold">{block.name}</p>
 
-                    <div className="ml-auto flex items-center gap-1.5">
-                      {/* VIEW DETAILS */}
-
-                      <button
-                        type="button"
-                        aria-expanded={expanded === block._id}
-                        onClick={() =>
-                          setExpanded(expanded === block._id ? "" : block._id)
-                        }
-                        className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold"
-                      >
-                        <Eye size={15} />
-                        View
-                        {expanded === block._id ? (
-                          <ChevronUp size={13} />
-                        ) : (
-                          <ChevronDown size={13} />
-                        )}
-                      </button>
-
-                      {/* EDIT */}
-
-                      {!block.isDeleted && (
-                        <button
-                          type="button"
-                          title="Edit Block"
-                          aria-label={`Edit ${block.name}`}
-                          onClick={() => openEdit(block)}
-                          className="rounded-lg bg-blue-50 p-2 text-blue-700"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                      )}
+                        <p className="text-xs text-slate-500">
+                          Code: {block.code} · {block.departments?.length || 0}{" "}
+                          departments
+                        </p>
+                      </div>
 
                       {/* STATUS */}
 
-                      {!block.isDeleted && (
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-bold ${
+                          isArchived(block)
+                            ? "bg-slate-100 text-slate-600"
+                            : isActive(block)
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-amber-50 text-amber-800"
+                        }`}
+                      >
+                        {isArchived(block)
+                          ? "Archived"
+                          : isActive(block)
+                            ? "Active"
+                            : "Inactive"}
+                      </span>
+
+                      {/* ACTIONS */}
+
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <button
                           type="button"
-                          disabled={saving}
-                          onClick={() => toggleStatus(block)}
-                          className="rounded-lg bg-amber-50 px-2 py-2 text-xs font-bold text-amber-700"
+                          onClick={() => setExpanded(open ? "" : block._id)}
+                          aria-expanded={open}
+                          className="inline-flex items-center gap-1 rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold"
                         >
-                          {block.isActive ? "Off" : "On"}
+                          <Eye size={15} />
+                          View
+                          {open ? (
+                            <ChevronUp size={13} />
+                          ) : (
+                            <ChevronDown size={13} />
+                          )}
                         </button>
-                      )}
 
-                      {/* ARCHIVE / RESTORE */}
+                        {!isArchived(block) ? (
+                          <>
+                            {/* EDIT */}
 
-                      <button
-                        type="button"
-                        disabled={saving}
-                        title={
-                          block.isDeleted ? "Restore Block" : "Archive Block"
-                        }
-                        onClick={() => setConfirm(block)}
-                        className="rounded-lg bg-red-50 p-2 text-red-700"
-                      >
-                        {block.isDeleted ? (
-                          <RotateCcw size={16} />
+                            <button
+                              type="button"
+                              title="Edit Block"
+                              aria-label={`Edit ${block.name}`}
+                              onClick={() => openEdit(block)}
+                              className="rounded-lg bg-blue-50 p-2 text-blue-700"
+                            >
+                              <Pencil size={16} />
+                            </button>
+
+                            {/* STATUS TOGGLE */}
+
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => toggleActive(block)}
+                              className="rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800"
+                            >
+                              {isActive(block) ? "Deactivate" : "Activate"}
+                            </button>
+
+                            {/* ARCHIVE */}
+
+                            <button
+                              type="button"
+                              disabled={saving || Boolean(checkingId)}
+                              onClick={() => openAction(block, "archive")}
+                              title="Archive Block"
+                              className="rounded-lg bg-slate-100 p-2 text-slate-700"
+                            >
+                              <Archive size={16} />
+                            </button>
+                          </>
                         ) : (
-                          <Archive size={16} />
+                          <>
+                            {/* RESTORE */}
+
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => openAction(block, "restore")}
+                              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700"
+                            >
+                              <RotateCcw size={15} />
+                              Restore
+                            </button>
+
+                            {/* PERMANENT DELETE */}
+
+                            <button
+                              type="button"
+                              disabled={saving || Boolean(checkingId)}
+                              onClick={() => openAction(block, "permanent")}
+                              title="Permanently Delete Block"
+                              className="inline-flex items-center gap-1 rounded-lg bg-red-50 px-3 py-2 text-xs font-bold text-red-700"
+                            >
+                              <Trash2 size={15} />
+                              Delete
+                            </button>
+                          </>
                         )}
-                      </button>
+                      </div>
                     </div>
-                  </div>
 
-                  {/* VIEW DETAILS */}
+                    {/* EXPANDED DETAILS */}
 
-                  {expanded === block._id && (
-                    <div className="grid gap-3 border-t border-slate-200 bg-[#FBFCFF] p-4 sm:grid-cols-2 lg:grid-cols-3">
-                      <div>
-                        <p className="text-xs font-bold text-slate-500">
-                          Building Type
-                        </p>
+                    {open && (
+                      <div className="space-y-4 border-t border-slate-200 bg-[#FBFCFF] p-4">
+                        <div className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+                          <div>
+                            <p className="text-xs font-bold text-slate-500">
+                              Building Type
+                            </p>
 
-                        <p className="mt-1 text-sm">
-                          {block.buildingType || "Not specified"}
-                        </p>
+                            <p>{block.buildingType || "Not specified"}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-bold text-slate-500">
+                              Floors
+                            </p>
+
+                            <p>
+                              {block.startFloor || "Ground"}
+                              {" → "}
+                              {block.endFloor || "Fourth"}
+                            </p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-bold text-slate-500">
+                              Room Range
+                            </p>
+
+                            <p>{block.roomRange || "Not specified"}</p>
+                          </div>
+
+                          <div className="sm:col-span-2 lg:col-span-3">
+                            <p className="text-xs font-bold text-slate-500">
+                              Departments
+                            </p>
+
+                            <p>
+                              {block.departments?.length
+                                ? block.departments.join(" · ")
+                                : "None configured"}
+                            </p>
+                          </div>
+
+                          {block.description && (
+                            <p className="text-slate-600 sm:col-span-2 lg:col-span-3">
+                              {block.description}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* DEPENDENCIES */}
+
+                        <div className="rounded-xl border border-blue-100 bg-white p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h3 className="text-sm font-bold">
+                              Linked Records & Dependencies
+                            </h3>
+
+                            <button
+                              type="button"
+                              disabled={checkingId === block._id}
+                              onClick={() => getDependencies(block)}
+                              className="inline-flex items-center gap-1 rounded-lg bg-[#102D56] px-3 py-2 text-xs font-bold text-white"
+                            >
+                              <RefreshCcw size={14} />
+
+                              {checkingId === block._id
+                                ? "Checking..."
+                                : "Check Dependencies"}
+                            </button>
+                          </div>
+
+                          {report ? (
+                            <div className="mt-3 space-y-2 text-sm">
+                              <p>
+                                Active Block Admins:{" "}
+                                <strong>
+                                  {report.activeBlockAdminCount || 0}
+                                </strong>
+                                {" · "}
+                                Current Users:{" "}
+                                <strong>{report.currentUserCount || 0}</strong>
+                                {" · "}
+                                Open Complaints:{" "}
+                                <strong>
+                                  {report.openComplaintCount || 0}
+                                </strong>
+                              </p>
+
+                              <p>
+                                Historical User References:{" "}
+                                <strong>{report.linkedUserCount || 0}</strong>
+                                {" · "}
+                                All Complaints:{" "}
+                                <strong>{report.complaintCount || 0}</strong>
+                              </p>
+
+                              {(report.activeBlockAdmins || []).map((admin) => (
+                                <p
+                                  key={admin._id}
+                                  className="rounded-lg bg-amber-50 p-2 text-amber-900"
+                                >
+                                  Assigned Block Admin:{" "}
+                                  {admin.name || admin.email}
+                                  {" ("}
+                                  {admin.assignedBlock}
+                                  {")"}
+                                </p>
+                              ))}
+
+                              {!!report.otherReferences?.length && (
+                                <p className="text-amber-800">
+                                  Other linked collections:{" "}
+                                  {report.otherReferences.join(", ")}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="mt-2 text-xs text-slate-500">
+                              Check to find exactly which records prevent
+                              archival or deletion.
+                            </p>
+                          )}
+                        </div>
                       </div>
-
-                      <div>
-                        <p className="text-xs font-bold text-slate-500">
-                          Floors
-                        </p>
-
-                        <p className="mt-1 text-sm">
-                          {block.startFloor || "Ground"}
-                          {" → "}
-                          {block.endFloor || "Fourth"}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p className="text-xs font-bold text-slate-500">
-                          Room Range
-                        </p>
-
-                        <p className="mt-1 text-sm">
-                          {block.roomRange || "Not specified"}
-                        </p>
-                      </div>
-
-                      <div className="sm:col-span-2 lg:col-span-3">
-                        <p className="text-xs font-bold text-slate-500">
-                          Departments
-                        </p>
-
-                        <p className="mt-1 text-sm">
-                          {block.departments?.length
-                            ? block.departments.join(" · ")
-                            : "No departments added"}
-                        </p>
-                      </div>
-
-                      {block.description && (
-                        <p className="text-sm text-slate-600 sm:col-span-2 lg:col-span-3">
-                          {block.description}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))
+                    )}
+                  </article>
+                );
+              })
             )}
           </div>
         </section>
       </div>
 
-      {/* =====================================
-          ADD / EDIT MODAL
-      ===================================== */}
+      {/* ADD / EDIT MODAL */}
 
       {formOpen && (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-[#041126]/75 p-3 sm:p-6"
-          role="presentation"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget && !saving) {
-              setFormOpen(false);
-            }
-          }}
-        >
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#041126]/75 p-3 sm:p-6">
           <section
             role="dialog"
             aria-modal="true"
@@ -607,12 +838,12 @@ export default function ManageBuildings() {
           >
             <header className="flex items-center justify-between border-b border-slate-100 p-5">
               <div>
-                <h2 id="block-form-title" className="text-xl font-bold">
+                <h2 id="block-form-title" className="text-xl font-extrabold">
                   {editing ? "Edit Academic Block" : "Add Academic Block"}
                 </h2>
 
                 <p className="text-xs text-slate-500">
-                  Add Departments one by one.
+                  Blocks and departments are stored in MongoDB.
                 </p>
               </div>
 
@@ -627,65 +858,65 @@ export default function ManageBuildings() {
             </header>
 
             <form
-              id="academic-block-form"
-              onSubmit={submit}
+              id="block-form"
+              onSubmit={saveBlock}
               className="min-h-0 space-y-4 overflow-y-auto p-5"
             >
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-sm font-semibold">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-bold">
                   Block Code *
                   <input
                     required
-                    maxLength={12}
                     disabled={Boolean(editing)}
+                    maxLength={12}
                     value={form.code}
                     onChange={(e) =>
                       updateField("code", e.target.value.toUpperCase())
                     }
-                    placeholder="A / B / C"
-                    className={`${inputClass} mt-2 disabled:bg-slate-100`}
+                    placeholder="A, B, C ..."
+                    className={`${fieldClass} mt-2 disabled:bg-slate-100`}
                   />
                 </label>
 
-                <label className="text-sm font-semibold">
-                  Academic Block Name *
+                <label className="text-sm font-bold">
+                  Block Name *
                   <input
                     required
                     value={form.name}
                     onChange={(e) => updateField("name", e.target.value)}
                     placeholder="Academic Block A"
-                    className={`${inputClass} mt-2`}
+                    className={`${fieldClass} mt-2`}
                   />
                 </label>
 
-                <label className="text-sm font-semibold">
+                <label className="text-sm font-bold">
                   Building Type
                   <input
                     value={form.buildingType}
                     onChange={(e) =>
                       updateField("buildingType", e.target.value)
                     }
-                    placeholder="e.g. Engineering"
-                    className={`${inputClass} mt-2`}
+                    placeholder="Engineering"
+                    className={`${fieldClass} mt-2`}
                   />
                 </label>
 
-                <label className="text-sm font-semibold">
+                <label className="text-sm font-bold">
                   Room Range
                   <input
                     value={form.roomRange}
                     onChange={(e) => updateField("roomRange", e.target.value)}
-                    placeholder="e.g. A101–A516"
-                    className={`${inputClass} mt-2`}
+                    placeholder="A101–A516"
+                    className={`${fieldClass} mt-2`}
                   />
                 </label>
 
-                <label className="text-sm font-semibold">
+                <label className="text-sm font-bold">
                   From Floor
                   <select
                     value={form.startFloor}
                     onChange={(e) => updateField("startFloor", e.target.value)}
-                    className={`${inputClass} mt-2`}
+                    className={`${fieldClass} mt-2`}
                   >
                     {FLOORS.map((floor) => (
                       <option key={floor}>{floor}</option>
@@ -693,12 +924,12 @@ export default function ManageBuildings() {
                   </select>
                 </label>
 
-                <label className="text-sm font-semibold">
+                <label className="text-sm font-bold">
                   To Floor
                   <select
                     value={form.endFloor}
                     onChange={(e) => updateField("endFloor", e.target.value)}
-                    className={`${inputClass} mt-2`}
+                    className={`${fieldClass} mt-2`}
                   >
                     {FLOORS.map((floor) => (
                       <option key={floor}>{floor}</option>
@@ -707,19 +938,11 @@ export default function ManageBuildings() {
                 </label>
               </div>
 
-              {/* MULTIPLE DEPARTMENT INPUTS */}
+              {/* DEPARTMENTS */}
 
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <h3 className="text-sm font-bold">
-                      Departments Inside This Block
-                    </h3>
-
-                    <p className="text-xs text-slate-500">
-                      Add as many Departments as needed.
-                    </p>
-                  </div>
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/50 p-4">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-bold">Departments</h3>
 
                   <button
                     type="button"
@@ -743,17 +966,32 @@ export default function ManageBuildings() {
                         aria-label={`Department ${index + 1}`}
                         value={department}
                         onChange={(e) =>
-                          changeDepartment(index, e.target.value)
+                          setForm((previous) => ({
+                            ...previous,
+                            departments: previous.departments.map((name, i) =>
+                              i === index ? e.target.value : name,
+                            ),
+                          }))
                         }
+                        className={fieldClass}
                         placeholder={`Department ${index + 1}`}
-                        className={inputClass}
                       />
 
                       <button
                         type="button"
-                        title="Remove Department Input"
-                        onClick={() => removeDepartment(index)}
-                        className="rounded-lg bg-red-50 p-2 text-red-600"
+                        aria-label={`Remove department ${index + 1}`}
+                        onClick={() =>
+                          setForm((previous) => ({
+                            ...previous,
+                            departments:
+                              previous.departments.length > 1
+                                ? previous.departments.filter(
+                                    (_, i) => i !== index,
+                                  )
+                                : [""],
+                          }))
+                        }
+                        className="rounded-lg bg-red-50 p-2 text-red-700"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -762,20 +1000,20 @@ export default function ManageBuildings() {
                 </div>
               </div>
 
-              <label className="block text-sm font-semibold">
+              <label className="block text-sm font-bold">
                 Description
                 <textarea
-                  rows={2}
+                  rows={3}
                   value={form.description}
                   onChange={(e) => updateField("description", e.target.value)}
-                  className={`${inputClass} mt-2`}
-                  placeholder="Maintenance location details..."
+                  className={`${fieldClass} mt-2`}
+                  placeholder="Maintenance location description..."
                 />
               </label>
 
               <p className="text-xs text-slate-500">
-                Room Range sirf maintenance location identify karta hai. Room
-                Allocation nahi.
+                Room Range is for maintenance location identification, not Room
+                Allocation.
               </p>
             </form>
 
@@ -784,16 +1022,16 @@ export default function ManageBuildings() {
                 type="button"
                 disabled={saving}
                 onClick={() => setFormOpen(false)}
-                className="rounded-xl bg-slate-100 px-5 py-2.5 font-semibold"
+                className="rounded-xl bg-slate-100 px-5 py-2.5 font-bold"
               >
                 Cancel
               </button>
 
               <button
-                form="academic-block-form"
                 type="submit"
+                form="block-form"
                 disabled={saving}
-                className="rounded-xl bg-[#EAC16A] px-5 py-2.5 font-bold text-[#071C3C] disabled:opacity-50"
+                className="rounded-xl bg-[#EAC16A] px-5 py-2.5 font-extrabold text-[#071C3C] disabled:opacity-50"
               >
                 {saving
                   ? "Saving..."
@@ -806,46 +1044,104 @@ export default function ManageBuildings() {
         </div>
       )}
 
-      {/* ARCHIVE / RESTORE CONFIRMATION */}
+      {/* CONFIRMATION MODAL */}
 
-      {confirm && (
+      {action && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#041126]/75 p-4">
-          <div
+          <section
             role="dialog"
             aria-modal="true"
-            aria-labelledby="block-confirm-title"
-            className="w-full max-w-md rounded-2xl bg-white p-6"
+            aria-labelledby="block-action-title"
+            className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-6 shadow-2xl"
           >
-            <h2 id="block-confirm-title" className="text-lg font-bold">
-              {confirm.isDeleted ? "Restore" : "Archive"} {confirm.name}?
-            </h2>
+            <div className="flex items-start gap-3">
+              <ShieldAlert
+                className={
+                  action.mode === "permanent"
+                    ? "text-red-600"
+                    : "text-amber-600"
+                }
+                size={22}
+              />
 
-            <p className="mt-3 text-sm text-slate-600">
-              {confirm.isDeleted
-                ? "This Block will become active again."
-                : "Block will be hidden from new assignments. Historical complaints will remain."}
-            </p>
+              <div>
+                <h2 id="block-action-title" className="text-lg font-extrabold">
+                  {action.mode === "permanent"
+                    ? "Permanently Delete"
+                    : action.mode === "archive"
+                      ? "Archive"
+                      : "Restore"}{" "}
+                  {action.block.name}?
+                </h2>
 
-            <div className="mt-6 flex justify-end gap-2">
+                <p className="mt-1 text-sm text-slate-600">
+                  {action.mode === "permanent"
+                    ? "This permanently removes an unreferenced Block from MongoDB."
+                    : action.mode === "archive"
+                      ? "The Block will be hidden from new assignments; existing history remains."
+                      : "The Block will be available again."}
+                </p>
+              </div>
+            </div>
+
+            {/* LINKED RECORD WARNINGS */}
+
+            {actionBlockers.length > 0 && action.mode !== "restore" && (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <p className="text-sm font-bold text-amber-900">
+                  Action blocked by linked records:
+                </p>
+
+                <ul className="mt-2 list-inside list-disc text-sm text-amber-900">
+                  {actionBlockers.map((message) => (
+                    <li key={message}>{message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* CONFIRM BLOCK CODE */}
+
+            {action.mode === "permanent" && (
+              <label className="block text-sm font-semibold">
+                Type Block Code <strong>{action.block.code}</strong> to confirm
+                <input
+                  value={typedCode}
+                  onChange={(e) => setTypedCode(e.target.value)}
+                  className={`${fieldClass} mt-2`}
+                  placeholder={action.block.code}
+                  autoComplete="off"
+                />
+              </label>
+            )}
+
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 disabled={saving}
-                onClick={() => setConfirm(null)}
-                className="rounded-lg bg-slate-100 px-4 py-2 font-semibold"
+                onClick={() => setAction(null)}
+                className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold"
               >
                 Cancel
               </button>
 
               <button
                 type="button"
-                disabled={saving}
-                onClick={performAction}
-                className="rounded-lg bg-[#112F5C] px-4 py-2 font-bold text-white"
+                disabled={
+                  saving ||
+                  (action.mode !== "restore" && actionBlockers.length > 0) ||
+                  (action.mode === "permanent" &&
+                    typedCode.trim().toUpperCase() !== action.block.code)
+                }
+                onClick={executeAction}
+                className={`rounded-lg px-4 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 ${
+                  action.mode === "permanent" ? "bg-red-700" : "bg-[#112F5C]"
+                }`}
               >
-                {saving ? "Saving..." : "Confirm"}
+                {saving ? "Processing..." : "Confirm"}
               </button>
             </div>
-          </div>
+          </section>
         </div>
       )}
     </main>
