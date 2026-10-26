@@ -1,735 +1,612 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import {
-  LayoutDashboard,
-  Users,
+  ChevronDown,
   ClipboardList,
-  AlertTriangle,
-  BarChart3,
-  Menu,
-  X,
-  Package,
-  RotateCcw,
   FileText,
-  UserCog,
+  LayoutDashboard,
   LogOut,
-  ShieldCheck,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Printer,
+  UserCog,
+  Users,
+  Wrench,
+  X,
 } from "lucide-react";
-
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
-
-// ==========================================
-// NOTIFICATION BELL
-// ==========================================
 
 import NotificationBell from "../../modules/notifications/components/NotificationBell";
 
 // ==========================================
-// SAFE USER FETCH
+// AMIMAINTAIN NAVIGATION
 // ==========================================
 
-const getStoredUser = () => {
-  try {
-    const storedUser = localStorage.getItem("user");
+const MAIN_MENU = [
+  {
+    label: "Dashboard",
+    path: "/maintenance/dashboard",
+    icon: LayoutDashboard,
+  },
+  {
+    label: "Complaints",
+    path: "/maintenance/complaints",
+    icon: ClipboardList,
+  },
+  {
+    label: "Emergency Job Cards",
+    path: "/maintenance/job-cards",
+    icon: Printer,
+  },
+  {
+    label: "Reports",
+    path: "/maintenance/reports",
+    icon: FileText,
+  },
+];
 
-    return storedUser ? JSON.parse(storedUser) : {};
-  } catch (error) {
-    console.log("USER PARSE ERROR:", error);
+const TECHNICIAN_PAGES = [
+  {
+    label: "Manage Technicians",
+    path: "/maintenance/workers",
+  },
+  {
+    label: "Technician Performance",
+    path: "/maintenance/worker-performance",
+  },
+];
 
-    return {};
-  }
+// Old operational routes remain valid.
+// They are no longer separate sidebar items.
+const COMPLAINT_RELATED_PATHS = new Set([
+  "/maintenance/complaints",
+  "/maintenance/assign-worker",
+  "/maintenance/assigned-jobs",
+  "/maintenance/material-requests",
+  "/maintenance/reopen-complaints",
+  "/maintenance/overdue-complaints",
+]);
+
+const PAGE_TITLES = {
+  "/maintenance/dashboard": "Dashboard",
+  "/maintenance/complaints": "Complaints",
+  "/maintenance/assign-worker": "Assign Technician",
+  "/maintenance/assigned-jobs": "Assigned Jobs",
+  "/maintenance/material-requests": "Material Requests",
+  "/maintenance/reopen-complaints": "Reopened Complaints",
+  "/maintenance/overdue-complaints": "Overdue Complaints",
+  "/maintenance/workers": "Manage Technicians",
+  "/maintenance/worker-performance": "Technician Performance",
+  "/maintenance/job-cards": "Emergency Job Cards",
+  "/maintenance/reports": "Reports",
+  "/maintenance/notifications": "Notifications",
 };
 
 // ==========================================
-// MAINTENANCE MANAGER LAYOUT
+// USER DATA
 // ==========================================
 
-const MaintenanceManagerLayout = () => {
-  // ======================================
-  // STATE
-  // ======================================
+function getStoredUser() {
+  try {
+    const raw = localStorage.getItem("user");
 
-  const [open, setOpen] = useState(false);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
 
+// ==========================================
+// MAIN LAYOUT
+// ==========================================
+
+export default function MaintenanceManagerLayout() {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // ======================================
-  // USER
-  // ======================================
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+  const [techniciansExpanded, setTechniciansExpanded] = useState(false);
 
-  const user = getStoredUser();
+  const [user] = useState(getStoredUser);
 
-  const userInitial = user?.name?.trim()?.charAt(0)?.toUpperCase() || "M";
+  const userName = user?.name || "Maintenance Manager";
 
-  // ======================================
-  // MENU ITEMS
-  // ======================================
+  const userInitial = userName.trim().charAt(0).toUpperCase() || "M";
 
-  const navItems = [
-    {
-      name: "Dashboard",
+  const pathname = location.pathname;
 
-      path: "/maintenance/dashboard",
+  const complaintActive = COMPLAINT_RELATED_PATHS.has(pathname);
 
-      icon: LayoutDashboard,
-    },
+  const technicianActive =
+    pathname === "/maintenance/workers" ||
+    pathname === "/maintenance/worker-performance";
 
-    {
-      name: "Complaints",
+  const showTechnicianSubmenu = techniciansExpanded || technicianActive;
 
-      path: "/maintenance/complaints",
+  const currentPage = PAGE_TITLES[pathname] || "Maintenance Manager";
 
-      icon: ClipboardList,
-    },
+  // ========================================
+  // MOBILE ESCAPE HANDLER
+  // ========================================
 
-    {
-      name: "Assign Worker",
+  useEffect(() => {
+    if (!mobileOpen) {
+      return undefined;
+    }
 
-      path: "/maintenance/assign-worker",
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+      }
+    };
 
-      icon: Users,
-    },
+    window.addEventListener("keydown", handleEscape);
 
-    {
-      name: "Assigned Jobs",
+    return () => {
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [mobileOpen]);
 
-      path: "/maintenance/assigned-jobs",
+  // ========================================
+  // NAVIGATION
+  // ========================================
 
-      icon: ClipboardList,
-    },
+  const closeMobileMenu = () => {
+    setMobileOpen(false);
+  };
 
-    {
-      name: "Workers",
-
-      path: "/maintenance/workers",
-
-      icon: UserCog,
-    },
-
-    {
-      name: "Job Cards",
-
-      path: "/maintenance/job-cards",
-
-      icon: ClipboardList,
-    },
-
-    {
-      name: "Material Requests",
-
-      path: "/maintenance/material-requests",
-
-      icon: Package,
-    },
-
-    {
-      name: "Verification",
-
-      path: "/maintenance/verification",
-
-      icon: ShieldCheck,
-    },
-
-    {
-      name: "Reopen Complaints",
-
-      path: "/maintenance/reopen-complaints",
-
-      icon: RotateCcw,
-    },
-
-    {
-      name: "Overdue Complaints",
-
-      path: "/maintenance/overdue-complaints",
-
-      icon: AlertTriangle,
-    },
-
-    {
-      name: "Performance",
-
-      path: "/maintenance/worker-performance",
-
-      icon: BarChart3,
-    },
-
-    {
-      name: "Reports",
-
-      path: "/maintenance/reports",
-
-      icon: FileText,
-    },
-  ];
-
-  // ======================================
+  // ========================================
   // LOGOUT
-  // ======================================
+  // ========================================
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("role");
+    localStorage.removeItem("activeRole");
     localStorage.removeItem("user");
+
+    setMobileOpen(false);
 
     navigate("/", {
       replace: true,
     });
   };
 
+  // ========================================
+  // COMMON MENU CLASSES
+  // ========================================
+
+  const getMenuClasses = (active) => `
+    flex min-h-[43px] items-center gap-3
+    rounded-xl px-3 py-2.5
+    text-[13px] font-semibold
+    transition-colors duration-200
+    ${collapsed ? "lg:justify-center lg:px-2" : ""}
+    ${
+      active
+        ? "bg-[#E7B957] text-[#071C3C] shadow-sm"
+        : "text-slate-200 hover:bg-white/10 hover:text-white"
+    }
+  `;
+
+  const getMainActive = (item) => {
+    if (item.label === "Complaints") {
+      return complaintActive;
+    }
+
+    return pathname === item.path;
+  };
+
+  // ========================================
+  // MAIN JSX
+  // ========================================
+
   return (
-    <div
-      className="
-        flex
+    <div className="flex h-screen overflow-hidden bg-[#F5F7FB] text-[#102B52]">
+      {/* MOBILE OVERLAY */}
 
-        h-screen
-
-        bg-[#EEF3FF]
-
-        overflow-hidden
-      "
-    >
-      {/* ======================================
-          MOBILE OVERLAY
-      ====================================== */}
-
-      {open && (
-        <div
-          className="
-            fixed
-            inset-0
-
-            bg-black/40
-
-            z-40
-
-            lg:hidden
-          "
-          onClick={() => setOpen(false)}
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label="Close navigation"
+          onClick={closeMobileMenu}
+          className="fixed inset-0 z-40 bg-slate-950/60 lg:hidden"
         />
       )}
 
-      {/* ======================================
+      {/* ====================================
           SIDEBAR
-      ====================================== */}
+      ==================================== */}
 
       <aside
         className={`
-          fixed
-          top-0
-          left-0
-
-          z-50
-
-          h-screen
-
-          w-[320px]
-
-          flex
-          flex-col
-
+          fixed inset-y-0 left-0 z-50
+          flex flex-col overflow-hidden
+          w-[min(85vw,260px)]
           bg-gradient-to-b
-          from-[#001B54]
-          via-[#002B7F]
-          to-[#7A0019]
-
-          text-white
-
-          shadow-2xl
-
-          transition-transform
-          duration-300
-
+          from-[#071C3C]
+          via-[#102E58]
+          to-[#091C36]
+          text-white shadow-2xl
+          transition-[transform,width] duration-300
           lg:translate-x-0
-
-          ${open ? "translate-x-0" : "-translate-x-full"}
+          ${collapsed ? "lg:w-[72px]" : "lg:w-[240px]"}
+          ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        {/* ==================================
-            LOGO
-        ================================== */}
+        {/* BRAND */}
 
-        <div
-          className="
-            px-6
-            pt-7
-            pb-5
+        <div className="flex min-h-[75px] shrink-0 items-center gap-3 border-b border-white/10 px-3 py-4">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#E7B957] text-[#071C3C] shadow-md">
+            <Wrench size={23} strokeWidth={2.4} />
+          </div>
 
-            border-b
-            border-white/10
-
-            flex
-            items-start
-            justify-between
-
-            shrink-0
-          "
-        >
-          <div>
-            <h1
-              className="
-                text-[34px]
-
-                font-extrabold
-
-                tracking-tight
-
-                leading-none
-
-                whitespace-nowrap
-              "
-            >
-              CAMPUSPULSE
+          <div
+            className={`
+              min-w-0 flex-1
+              ${collapsed ? "lg:hidden" : ""}
+            `}
+          >
+            <h1 className="truncate text-[20px] font-black tracking-tight">
+              AmiMaintain
             </h1>
 
-            <p
-              className="
-                text-yellow-300
-
-                text-sm
-
-                mt-2
-              "
-            >
-              Maintenance ERP
+            <p className="mt-0.5 truncate text-[9px] font-bold uppercase tracking-wider text-amber-300">
+              Maintenance Operations
             </p>
           </div>
 
           <button
             type="button"
-            onClick={() => setOpen(false)}
-            className="
-              lg:hidden
-
-              mt-1
-            "
+            onClick={closeMobileMenu}
             aria-label="Close sidebar"
+            className="ml-auto rounded-lg p-1.5 hover:bg-white/10 lg:hidden"
           >
-            <X size={28} />
+            <X size={20} />
           </button>
         </div>
 
-        {/* ==================================
-            NAVIGATION
-        ================================== */}
+        {/* COMPACT ROLE CARD */}
 
         <div
-          className="
-            flex-1
-
-            overflow-y-auto
-
-            px-4
-            py-5
-
-            scrollbar-thin
-            scrollbar-thumb-white/20
-            scrollbar-track-transparent
-          "
+          className={`
+            px-3 pt-4
+            ${collapsed ? "lg:hidden" : ""}
+          `}
         >
-          <nav
-            className="
-              space-y-2
-            "
-          >
-            {navItems.map((item) => (
+          <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2.5">
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-amber-300">
+              Operations Portal
+            </p>
+
+            <p className="mt-1 text-xs font-semibold text-white">
+              Maintenance Manager
+            </p>
+          </div>
+        </div>
+
+        {/* ====================================
+            NAVIGATION
+        ==================================== */}
+
+        <nav
+          aria-label="Maintenance Manager navigation"
+          className="min-h-0 flex-1 space-y-1 overflow-y-auto overflow-x-hidden px-2.5 py-5"
+        >
+          {/* DASHBOARD AND COMPLAINTS */}
+
+          {MAIN_MENU.slice(0, 2).map((item) => {
+            const Icon = item.icon;
+            const active = getMainActive(item);
+
+            return (
               <NavLink
                 key={item.path}
                 to={item.path}
-                onClick={() => setOpen(false)}
-                className={({ isActive }) => `
-                    flex
-                    items-center
-
-                    gap-4
-
-                    px-4
-                    py-3.5
-
-                    rounded-2xl
-
-                    text-[15px]
-
-                    font-medium
-
-                    transition-all
-                    duration-300
-
-                    ${
-                      isActive
-                        ? `
-                          bg-yellow-400
-                          text-[#001B54]
-                          shadow-xl
-                        `
-                        : `
-                          text-white
-                          hover:bg-white/10
-                        `
-                    }
-                  `}
+                end
+                title={item.label}
+                onClick={closeMobileMenu}
+                className={getMenuClasses(active)}
               >
-                <item.icon
-                  size={21}
-                  className="
-                      shrink-0
-                    "
+                <Icon
+                  size={19}
+                  strokeWidth={active ? 2.4 : 2}
+                  className="shrink-0"
                 />
 
                 <span
-                  className="
-                      leading-5
-                    "
+                  className={`
+                    min-w-0 flex-1 truncate
+                    ${collapsed ? "lg:hidden" : ""}
+                  `}
                 >
-                  {item.name}
+                  {item.label}
                 </span>
               </NavLink>
-            ))}
-          </nav>
-        </div>
+            );
+          })}
 
-        {/* ==================================
-            MANAGER CARD
-        ================================== */}
+          {/* ==================================
+              TECHNICIANS - ONE MAIN ITEM
+          ================================== */}
 
-        <div
-          className="
-            px-4
-            pb-3
-          "
-        >
-          <div
-            className="
-              rounded-2xl
-
-              border
-              border-white/10
-
-              bg-white/10
-
-              p-4
-
-              flex
-              items-center
-
-              gap-3
-            "
-          >
+          <div className="space-y-1">
             <div
-              className="
-                h-12
-                w-12
-
-                rounded-full
-
-                bg-yellow-400
-
-                text-[#001B54]
-
-                flex
-                items-center
-                justify-center
-
-                font-extrabold
-
-                text-lg
-
-                shrink-0
-              "
+              className={`
+                flex min-h-[43px] items-center
+                rounded-xl transition-colors
+                ${
+                  technicianActive
+                    ? "bg-[#E7B957] text-[#071C3C]"
+                    : "text-slate-200 hover:bg-white/10"
+                }
+              `}
             >
+              <NavLink
+                to="/maintenance/workers"
+                title="Manage Technicians"
+                onClick={closeMobileMenu}
+                className={`
+                  flex min-w-0 flex-1 items-center
+                  gap-3 px-3 py-2.5
+                  text-[13px] font-semibold
+                  ${collapsed ? "lg:justify-center lg:px-2" : ""}
+                `}
+              >
+                <Users size={19} className="shrink-0" />
+
+                <span
+                  className={`
+                    min-w-0 flex-1 truncate
+                    ${collapsed ? "lg:hidden" : ""}
+                  `}
+                >
+                  Technicians
+                </span>
+              </NavLink>
+
+              {/* EXPAND PERFORMANCE SUBMENU */}
+
+              <button
+                type="button"
+                onClick={() => setTechniciansExpanded((value) => !value)}
+                aria-label="Toggle Technician pages"
+                aria-expanded={showTechnicianSubmenu}
+                title="Technician pages"
+                className={`
+                  mr-2 rounded-lg p-1.5
+                  transition hover:bg-black/10
+                  ${collapsed ? "lg:hidden" : ""}
+                `}
+              >
+                <ChevronDown
+                  size={17}
+                  className={`
+                    transition-transform duration-200
+                    ${showTechnicianSubmenu ? "rotate-180" : ""}
+                  `}
+                />
+              </button>
+            </div>
+
+            {/* TECHNICIAN SUBMENU */}
+
+            {showTechnicianSubmenu && (
+              <div
+                className={`
+                  ml-4 space-y-1 border-l border-white/15
+                  pl-3 pb-1
+                  ${collapsed ? "lg:hidden" : ""}
+                `}
+              >
+                {TECHNICIAN_PAGES.map((item) => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    end
+                    onClick={closeMobileMenu}
+                    className={({ isActive }) => `
+                      flex items-center gap-2
+                      rounded-lg px-3 py-2
+                      text-[12px] font-semibold
+                      transition-colors
+                      ${
+                        isActive
+                          ? "bg-white/15 text-amber-300"
+                          : "text-slate-300 hover:bg-white/10 hover:text-white"
+                      }
+                    `}
+                  >
+                    <UserCog size={15} className="shrink-0" />
+
+                    <span className="truncate">{item.label}</span>
+                  </NavLink>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* EMERGENCY JOB CARDS AND REPORTS */}
+
+          {MAIN_MENU.slice(2).map((item) => {
+            const Icon = item.icon;
+            const active = getMainActive(item);
+
+            return (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end
+                title={item.label}
+                onClick={closeMobileMenu}
+                className={getMenuClasses(active)}
+              >
+                <Icon
+                  size={19}
+                  strokeWidth={active ? 2.4 : 2}
+                  className="shrink-0"
+                />
+
+                <span
+                  className={`
+                    min-w-0 flex-1 truncate
+                    ${collapsed ? "lg:hidden" : ""}
+                  `}
+                >
+                  {item.label}
+                </span>
+              </NavLink>
+            );
+          })}
+        </nav>
+
+        {/* ====================================
+            PROFILE
+        ==================================== */}
+
+        <div className="shrink-0 border-t border-white/10 p-3">
+          <div className="flex items-center gap-3 rounded-xl bg-white/5 p-2.5">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E7B957] text-sm font-black text-[#071C3C]">
               {userInitial}
             </div>
 
             <div
-              className="
-                min-w-0
-              "
+              className={`
+                min-w-0 flex-1
+                ${collapsed ? "lg:hidden" : ""}
+              `}
             >
-              <p
-                className="
-                  font-bold
+              <p className="truncate text-sm font-bold">{userName}</p>
 
-                  text-white
-
-                  truncate
-                "
-              >
-                {user?.name || "Maintenance Manager"}
-              </p>
-
-              <p
-                className="
-                  text-xs
-
-                  text-white/70
-                "
-              >
+              <p className="truncate text-[10px] text-slate-300">
                 Maintenance Department
               </p>
             </div>
           </div>
-        </div>
 
-        {/* ==================================
-            LOGOUT
-        ================================== */}
+          {/* LOGOUT */}
 
-        <div
-          className="
-            p-4
-
-            border-t
-            border-white/10
-
-            shrink-0
-          "
-        >
           <button
             type="button"
             onClick={handleLogout}
-            className="
-              w-full
-
-              flex
-              items-center
-              justify-center
-
-              gap-3
-
-              py-3.5
-
-              rounded-2xl
-
-              bg-red-500/20
-
-              hover:bg-red-500
-
-              transition-all
-              duration-300
-
-              font-semibold
-            "
+            title="Logout"
+            className={`
+              mt-2 flex w-full items-center
+              gap-3 rounded-xl
+              border border-rose-400/20
+              bg-rose-500/10 px-3 py-2.5
+              text-sm font-bold text-rose-200
+              transition hover:bg-rose-500/25
+              ${collapsed ? "lg:justify-center" : ""}
+            `}
           >
-            <LogOut size={20} />
-            Logout
+            <LogOut size={18} className="shrink-0" />
+
+            <span className={collapsed ? "lg:hidden" : ""}>Logout</span>
           </button>
         </div>
       </aside>
 
-      {/* ======================================
+      {/* ====================================
           MAIN CONTENT
-      ====================================== */}
+      ==================================== */}
 
       <div
-        className="
-          flex-1
-
-          flex
-          flex-col
-
-          lg:ml-[320px]
-
-          h-screen
-
-          min-w-0
-
-          overflow-hidden
-        "
+        className={`
+          flex min-w-0 flex-1 flex-col
+          transition-[margin] duration-300
+          ${collapsed ? "lg:ml-[72px]" : "lg:ml-[240px]"}
+        `}
       >
-        {/* ==================================
-            TOPBAR
-        ================================== */}
+        {/* TOP NAVBAR */}
 
-        <header
-          className="
-            bg-white/95
-
-            backdrop-blur-md
-
-            border-b
-            border-gray-200
-
-            shadow-sm
-
-            px-4
-            md:px-6
-
-            py-4
-
-            flex
-            items-center
-            justify-between
-
-            shrink-0
-          "
-        >
+        <header className="z-30 flex min-h-[72px] shrink-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 shadow-sm sm:px-5 lg:px-6">
           {/* LEFT */}
 
-          <div
-            className="
-              flex
-              items-center
+          <div className="flex min-w-0 items-center gap-3">
+            {/* MOBILE MENU */}
 
-              gap-4
-
-              min-w-0
-            "
-          >
             <button
               type="button"
-              onClick={() => setOpen(true)}
-              className="
-                lg:hidden
-
-                shrink-0
-              "
+              onClick={() => setMobileOpen(true)}
               aria-label="Open sidebar"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 hover:bg-slate-50 lg:hidden"
             >
-              <Menu size={28} />
+              <Menu size={21} />
             </button>
 
-            <div
-              className="
-                min-w-0
-              "
+            {/* DESKTOP COLLAPSE */}
+
+            <button
+              type="button"
+              onClick={() => setCollapsed((value) => !value)}
+              aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+              className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 transition hover:bg-slate-50 lg:flex"
             >
-              <h2
-                className="
-                  text-xl
-                  sm:text-2xl
-                  md:text-3xl
+              {collapsed ? (
+                <PanelLeftOpen size={19} />
+              ) : (
+                <PanelLeftClose size={19} />
+              )}
+            </button>
 
-                  font-bold
+            {/* PAGE TITLE */}
 
-                  text-[#001B54]
+            <div className="min-w-0">
+              <p className="hidden text-[10px] font-bold uppercase tracking-[0.13em] text-[#B48632] sm:block">
+                AMIMAINTAIN · MAINTENANCE PORTAL
+              </p>
 
-                  truncate
-                "
-              >
-                Maintenance Manager Panel
+              <h2 className="truncate text-base font-black text-[#102B52] sm:text-lg">
+                {currentPage}
               </h2>
 
-              <p
-                className="
-                  text-sm
-                  text-gray-500
-
-                  mt-1
-
-                  hidden
-                  sm:block
-                "
-              >
-                Smart Campus ERP System
+              <p className="hidden text-[11px] text-slate-500 md:block">
+                Maintenance Operations
               </p>
             </div>
           </div>
 
-          {/* ==================================
-              RIGHT
-          ================================== */}
+          {/* RIGHT */}
 
-          <div
-            className="
-              flex
-              items-center
-
-              gap-3
-              md:gap-5
-            "
-          >
-            {/* ================================
-                NOTIFICATION BELL
-            ================================ */}
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            {/* NOTIFICATIONS */}
 
             <NotificationBell />
 
-            {/* ================================
-                PROFILE
-            ================================ */}
+            <div className="hidden h-7 w-px bg-slate-200 sm:block" />
 
-            <div
-              className="
-                hidden
-                md:flex
+            {/* PROFILE */}
 
-                items-center
-
-                gap-3
-              "
-            >
-              <div
-                className="
-                  h-11
-                  w-11
-
-                  rounded-full
-
-                  bg-[#001B54]
-
-                  text-white
-
-                  flex
-                  items-center
-                  justify-center
-
-                  font-bold
-                "
-              >
+            <div className="flex items-center gap-2">
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#102B52] text-sm font-bold text-white">
                 {userInitial}
               </div>
 
-              <div
-                className="
-                  min-w-0
-                "
-              >
-                <p
-                  className="
-                    font-semibold
+              <div className="hidden max-w-[145px] sm:block">
+                <p className="truncate text-xs font-bold">{userName}</p>
 
-                    text-[#001B54]
-
-                    truncate
-
-                    max-w-[180px]
-                  "
-                >
-                  {user?.name || "Maintenance Manager"}
-                </p>
-
-                <p
-                  className="
-                    text-xs
-                    text-gray-500
-                  "
-                >
-                  ERP Department
+                <p className="text-[10px] text-slate-500">
+                  Maintenance Manager
                 </p>
               </div>
             </div>
           </div>
         </header>
 
-        {/* ==================================
-            PAGE CONTENT
-        ================================== */}
+        {/* MAIN PAGE */}
 
-        <main
-          className="
-            flex-1
-
-            overflow-y-auto
-
-            p-4
-            md:p-6
-          "
-        >
-          <Outlet />
+        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto bg-[#F5F7FB] p-3 sm:p-5 lg:p-6">
+          <div className="mx-auto w-full max-w-[1600px]">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
   );
-};
-
-export default MaintenanceManagerLayout;
+}

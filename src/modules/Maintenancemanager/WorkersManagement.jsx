@@ -1,921 +1,893 @@
-import { useEffect, useState } from "react";
-
+import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../../services/api";
-
 import toast from "react-hot-toast";
 
 import {
-  Users,
-  Phone,
-  Wrench,
-  Zap,
-  Wifi,
-  Hammer,
-  Trash2,
-  Pencil,
-  UserCog,
-  Loader2,
   CheckCircle2,
   Clock3,
+  Eye,
+  EyeOff,
+  Loader2,
+  LockKeyhole,
+  Mail,
+  Pencil,
+  Phone,
   Power,
+  RefreshCw,
+  ShieldCheck,
+  Trash2,
+  UserPlus,
+  Users,
   X,
 } from "lucide-react";
 
-const WorkersManagement = () => {
-  // ======================================
-  // CATEGORIES
-  // ======================================
+const emptyForm = {
+  name: "",
+  email: "",
+  phone: "",
+  password: "",
+  category: "",
+  shift: "DAY",
+};
 
-  const [categories, setCategories] = useState([]);
+const inputClass =
+  "w-full rounded-xl border border-slate-200 bg-[#F9FBFF] px-3 py-3 text-sm outline-none focus:border-amber-500";
 
-  // ======================================
-  // STATES
-  // ======================================
+const normalize = (value) =>
+  String(value ?? "")
+    .trim()
+    .toUpperCase();
 
-  const [loading, setLoading] = useState(true);
+function statusColors(status) {
+  switch (normalize(status)) {
+    case "ACTIVE":
+      return "bg-emerald-50 text-emerald-800 border-emerald-200";
+    case "BUSY":
+      return "bg-amber-50 text-amber-800 border-amber-200";
+    case "ON_LEAVE":
+      return "bg-violet-50 text-violet-800 border-violet-200";
+    case "OFFLINE":
+      return "bg-slate-100 text-slate-700 border-slate-200";
+    default:
+      return "bg-slate-100 text-slate-600 border-slate-200";
+  }
+}
 
+function loginAccountConfirmed(response) {
+  const payload = response?.data;
+
+  return (
+    payload?.loginCreated === true ||
+    payload?.accountCreated === true ||
+    ["TECHNICIAN", "WORKER"].includes(normalize(payload?.user?.role))
+  );
+}
+
+export default function WorkersManagement() {
   const [workers, setWorkers] = useState([]);
-
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [categoryError, setCategoryError] = useState("");
+  const [workerError, setWorkerError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(emptyForm);
+  const [showPassword, setShowPassword] = useState(false);
   const [editWorker, setEditWorker] = useState(null);
-
-  const [formData, setFormData] = useState({
-    name: "",
-
-    phone: "",
-
-    category: " ",
-
-    otherCategory: "",
-
-    shift: "DAY",
-
-    status: "ACTIVE",
-  });
 
   const [editData, setEditData] = useState({
     name: "",
-
     phone: "",
-
     category: "",
-
     shift: "DAY",
   });
 
-  // ======================================
-  // FETCH WORKERS
-  // ======================================
+  const [confirmDelete, setConfirmDelete] = useState(null);
+  const [actionId, setActionId] = useState("");
+  const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    fetchWorkers();
-    fetchCategories();
-  }, []);
+  // ========================================
+  // FETCH TECHNICIANS
+  // ========================================
 
-  const fetchWorkers = async () => {
+  const loadWorkers = useCallback(async () => {
     try {
-      setLoading(true);
-
       const response = await api.get("/maintenance/worker/workers");
 
-      setWorkers(response?.data?.workers || []);
-    } catch (error) {
-      console.log(error);
+      setWorkers(
+        Array.isArray(response.data?.workers) ? response.data.workers : [],
+      );
 
-      toast.error(error?.response?.data?.message || "Failed to fetch workers");
-    } finally {
-      setLoading(false);
+      setWorkerError("");
+    } catch (error) {
+      setWorkerError(
+        error?.response?.data?.message || "Unable to load Technicians.",
+      );
     }
-  };
-  const fetchCategories = async () => {
+  }, []);
+
+  // ========================================
+  // ADMIN-MANAGED CATEGORIES
+  // ========================================
+
+  const loadCategories = useCallback(async () => {
     try {
       const response = await api.get("/admin/categories/all");
 
-      console.log("CATEGORY SUCCESS");
-      console.log(response.status);
-      console.log(response.data);
+      const list = Array.isArray(response.data?.categories)
+        ? response.data.categories
+        : [];
 
-      setCategories(response?.data?.categories || []);
-    } catch (error) {
-      console.log("CATEGORY FAILED");
-      console.log(error?.response?.status);
-      console.log(error?.response?.data);
-
-      toast.error(error?.response?.data?.message || "Category fetch failed");
-    }
-  };
-
-  // ======================================
-  // HANDLE CHANGE
-  // ======================================
-
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-
-      [e.target.name]: e.target.value,
-    });
-  };
-
-  // ======================================
-  // ADD WORKER
-  // ======================================
-
-  const handleAddWorker = async () => {
-    try {
-      if (!formData.name || !formData.phone) {
-        return toast.error("Please fill all fields");
-      }
-
-      const finalCategory =
-        formData.category === "OTHER" && formData.otherCategory
-          ? formData.otherCategory.toUpperCase()
-          : formData.category;
-
-      const response = await api.post(
-        "/maintenance/worker/create-worker",
-
-        {
-          name: formData.name,
-
-          phone: formData.phone,
-
-          category: finalCategory,
-
-          shift: formData.shift,
-
-          status: formData.status,
-        },
+      setCategories(
+        list.filter(
+          (category) =>
+            category.isActive !== false &&
+            category.isDeleted !== true &&
+            (!category.department ||
+              normalize(category.department) === "MAINTENANCE"),
+        ),
       );
 
-      toast.success(response.data.message);
+      setCategoryError("");
+    } catch (error) {
+      setCategoryError(
+        error?.response?.data?.message || "Category list unavailable.",
+      );
+    }
+  }, []);
 
-      setFormData({
-        name: "",
+  useEffect(() => {
+    let active = true;
 
-        phone: "",
+    Promise.allSettled([loadWorkers(), loadCategories()]).finally(() => {
+      if (active) setLoading(false);
+    });
 
-        category: "PLUMBING",
+    return () => {
+      active = false;
+    };
+  }, [loadWorkers, loadCategories]);
 
-        otherCategory: "",
+  // ========================================
+  // FILTERS / STATISTICS
+  // ========================================
 
-        shift: "DAY",
+  const filteredWorkers = useMemo(() => {
+    const needle = search.trim().toLowerCase();
 
+    if (!needle) return workers;
+
+    return workers.filter((worker) =>
+      [
+        worker.name,
+        worker.email,
+        worker.phone,
+        worker.department,
+        worker.category,
+        worker.shift,
+      ].some((value) =>
+        String(value ?? "")
+          .toLowerCase()
+          .includes(needle),
+      ),
+    );
+  }, [workers, search]);
+
+  const counts = useMemo(
+    () => ({
+      total: workers.length,
+
+      active: workers.filter((worker) => normalize(worker.status) === "ACTIVE")
+        .length,
+
+      busy: workers.filter((worker) => normalize(worker.status) === "BUSY")
+        .length,
+
+      off: workers.filter((worker) => normalize(worker.status) === "OFFLINE")
+        .length,
+    }),
+    [workers],
+  );
+
+  const categoryOptions = useMemo(() => {
+    const items = categories.map((item) => item.categoryName).filter(Boolean);
+
+    return [...new Set(items)];
+  }, [categories]);
+
+  const changeForm = (key, value) => {
+    setForm((current) => ({
+      ...current,
+      [key]: value,
+    }));
+  };
+
+  // ========================================
+  // CREATE TECHNICIAN
+  // BACKEND MUST CREATE LOGIN USER TOO
+  // ========================================
+
+  async function createTechnician(event) {
+    event.preventDefault();
+
+    if (saving) return;
+
+    if (
+      !form.name.trim() ||
+      !form.email.trim() ||
+      !form.phone.trim() ||
+      !form.category
+    ) {
+      toast.error("Name, email, phone and category are required.");
+      return;
+    }
+
+    if (form.password.length < 8) {
+      toast.error("Password must contain at least 8 characters.");
+      return;
+    }
+
+    if (!/^\S+@\S+\.\S+$/.test(form.email.trim())) {
+      toast.error("Enter a valid email address.");
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const response = await api.post("/maintenance/worker/create-worker", {
+        name: form.name.trim(),
+        email: form.email.trim().toLowerCase(),
+        phone: form.phone.trim(),
+        password: form.password,
+        category: form.category,
+        shift: form.shift,
         status: "ACTIVE",
       });
 
-      fetchWorkers();
+      setForm({ ...emptyForm });
+      setShowPassword(false);
+
+      await loadWorkers();
+
+      if (loginAccountConfirmed(response)) {
+        toast.success(
+          "Technician record saved; backend reports a linked login account.",
+        );
+      } else {
+        toast.error(
+          "Technician record saved, but login creation was NOT confirmed. Backend must create a linked User account.",
+        );
+      }
     } catch (error) {
-      console.log(error);
-
-      toast.error(error?.response?.data?.message || "Failed to add worker");
+      toast.error(
+        error?.response?.data?.message || "Technician creation failed.",
+      );
+    } finally {
+      setSaving(false);
     }
-  };
+  }
 
-  // ======================================
-  // EDIT OPEN
-  // ======================================
+  // ========================================
+  // EDIT TECHNICIAN
+  // ========================================
 
-  const handleEditOpen = (worker) => {
+  function startEdit(worker) {
     setEditWorker(worker);
 
     setEditData({
-      name: worker.name,
-
-      phone: worker.phone,
-
-      category: worker.department,
-
+      name: worker.name || "",
+      phone: worker.phone || "",
+      category: worker.department || worker.category || "",
       shift: worker.shift || "DAY",
     });
-  };
+  }
 
-  // ======================================
-  // UPDATE WORKER
-  // ======================================
+  async function updateTechnician(event) {
+    event.preventDefault();
 
-  const handleUpdateWorker = async () => {
+    if (!editWorker || actionId) return;
+
     try {
-      const response = await api.put(
-        `/maintenance/worker/update-worker/${editWorker._id}`,
+      setActionId(String(editWorker._id));
 
-        editData,
-      );
+      await api.put(`/maintenance/worker/update-worker/${editWorker._id}`, {
+        ...editData,
+        name: editData.name.trim(),
+        phone: editData.phone.trim(),
+      });
 
-      toast.success(response.data.message);
-
+      toast.success("Technician updated.");
       setEditWorker(null);
 
-      fetchWorkers();
+      await loadWorkers();
     } catch (error) {
-      console.log(error);
-
-      toast.error(error?.response?.data?.message || "Failed to update worker");
+      toast.error(error?.response?.data?.message || "Update failed.");
+    } finally {
+      setActionId("");
     }
-  };
+  }
 
-  // ======================================
-  // TOGGLE STATUS
-  // ======================================
+  // ========================================
+  // ACTIVE / OFFLINE STATUS
+  // ========================================
 
-  const handleToggleStatus = async (id, currentStatus) => {
+  async function toggleTechnician(worker) {
+    if (actionId) return;
+
     try {
-      const newStatus = currentStatus === "OFFLINE" ? "ACTIVE" : "OFFLINE";
+      setActionId(String(worker._id));
 
-      const response = await api.put(
-        `/maintenance/worker/update-status/${id}`,
+      const nextStatus =
+        normalize(worker.status) === "OFFLINE" ? "ACTIVE" : "OFFLINE";
 
-        {
-          status: newStatus,
-        },
-      );
+      await api.put(`/maintenance/worker/update-status/${worker._id}`, {
+        status: nextStatus,
+      });
 
-      toast.success(response.data.message);
+      toast.success(`Technician marked ${nextStatus.toLowerCase()}.`);
 
-      fetchWorkers();
+      await loadWorkers();
     } catch (error) {
-      console.log(error);
-
-      toast.error(error?.response?.data?.message || "Status update failed");
+      toast.error(error?.response?.data?.message || "Status update failed.");
+    } finally {
+      setActionId("");
     }
-  };
+  }
 
-  // ======================================
-  // DELETE
-  // ======================================
+  // ========================================
+  // REMOVE TECHNICIAN
+  // ========================================
 
-  const handleDelete = async (id) => {
+  async function removeTechnician() {
+    if (!confirmDelete || actionId) return;
+
+    const target = confirmDelete;
+
     try {
-      const response = await api.delete(
-        `/maintenance/worker/delete-worker/${id}`,
-      );
+      setActionId(String(target._id));
 
-      toast.success(response.data.message);
+      await api.delete(`/maintenance/worker/delete-worker/${target._id}`);
 
-      fetchWorkers();
+      toast.success("Technician removal request completed.");
+
+      setConfirmDelete(null);
+      await loadWorkers();
     } catch (error) {
-      console.log(error);
-
-      toast.error(error?.response?.data?.message || "Delete failed");
+      toast.error(error?.response?.data?.message || "Removal failed.");
+    } finally {
+      setActionId("");
     }
-  };
+  }
 
-  // ======================================
-  // ICONS
-  // ======================================
-
-  const getCategoryIcon = (category) => {
-    switch (category) {
-      case "PLUMBING":
-        return <Wrench size={24} />;
-
-      case "ELECTRICAL":
-
-      case "ELECTRICITY":
-        return <Zap size={24} />;
-
-      case "WIFI":
-
-      case "NETWORK":
-        return <Wifi size={24} />;
-
-      case "CARPENTRY":
-        return <Hammer size={24} />;
-
-      default:
-        return <UserCog size={24} />;
-    }
-  };
-
-  // ======================================
-  // STATUS COLORS
-  // ======================================
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "ACTIVE":
-        return `
-          bg-green-100
-          text-green-700
-        `;
-
-      case "BUSY":
-        return `
-          bg-yellow-100
-          text-yellow-700
-        `;
-
-      case "OFFLINE":
-        return `
-          bg-red-100
-          text-red-700
-        `;
-
-      default:
-        return `
-          bg-gray-100
-          text-gray-700
-        `;
-    }
-  };
-
-  // ======================================
-  // STATS
-  // ======================================
-
-  const totalWorkers = workers.length;
-
-  const activeWorkers = workers.filter(
-    (worker) => worker.status === "ACTIVE",
-  ).length;
-
-  const busyWorkers = workers.filter(
-    (worker) => worker.status === "BUSY",
-  ).length;
-
-  const offlineWorkers = workers.filter(
-    (worker) => worker.status === "OFFLINE",
-  ).length;
-
-  // ======================================
-  // LOADING
-  // ======================================
+  // ========================================
+  // LOADER
+  // ========================================
 
   if (loading) {
     return (
-      <div
-        className="
-          flex
-          items-center
-          justify-center
-
-          min-h-screen
-        "
-      >
-        <Loader2
-          size={55}
-          className="
-            animate-spin
-            text-[#001B54]
-          "
-        />
+      <div className="flex min-h-[60vh] items-center justify-center gap-3 text-slate-500">
+        <Loader2 className="animate-spin text-amber-600" />
+        Loading Technicians...
       </div>
     );
   }
 
   return (
-    <div className="space-y-8 w-full overflow-hidden">
+    <main className="min-w-0 space-y-5 text-[#102B52]">
       {/* HEADER */}
 
-      <div
-        className="
-          bg-gradient-to-r
-          from-[#001B54]
-          via-[#002B7F]
-          to-[#7A0019]
-
-          text-white
-
-          rounded-3xl
-
-          shadow-2xl
-
-          p-6
-          md:p-8
-        "
-      >
-        <div className="flex items-center gap-4">
-          <Users size={45} />
-
+      <header className="rounded-3xl bg-gradient-to-r from-[#071C3C] to-[#204779] p-5 text-white shadow-lg sm:p-7">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h1
-              className="
-                text-3xl
-                md:text-5xl
+            <p className="text-[11px] font-bold uppercase tracking-[.16em] text-amber-300">
+              AmiMaintain · Team Management
+            </p>
 
-                font-extrabold
-              "
-            >
-              Workers Management
+            <h1 className="mt-2 text-2xl font-black sm:text-3xl">
+              Technicians & Access
             </h1>
 
-            <p className="mt-2 text-blue-100">
-              Smart ERP worker monitoring system.
+            <p className="mt-2 text-sm text-slate-200">
+              Provision Technician credentials, assign duty shifts and manage
+              work availability.
             </p>
           </div>
-        </div>
-      </div>
-
-      {/* STATS */}
-
-      <div
-        className="
-          grid
-          grid-cols-1
-          sm:grid-cols-2
-          xl:grid-cols-4
-
-          gap-6
-        "
-      >
-        {/* TOTAL */}
-
-        <div className="bg-blue-100 rounded-3xl p-6 shadow-lg">
-          <Users size={35} className="text-blue-700" />
-
-          <h2 className="text-4xl font-bold mt-4 text-blue-700">
-            {totalWorkers}
-          </h2>
-
-          <p className="mt-2 text-blue-700 font-medium">Total Workers</p>
-        </div>
-
-        {/* ACTIVE */}
-
-        <div className="bg-green-100 rounded-3xl p-6 shadow-lg">
-          <CheckCircle2 size={35} className="text-green-700" />
-
-          <h2 className="text-4xl font-bold mt-4 text-green-700">
-            {activeWorkers}
-          </h2>
-
-          <p className="mt-2 text-green-700 font-medium">Active Workers</p>
-        </div>
-
-        {/* BUSY */}
-
-        <div className="bg-yellow-100 rounded-3xl p-6 shadow-lg">
-          <Clock3 size={35} className="text-yellow-700" />
-
-          <h2 className="text-4xl font-bold mt-4 text-yellow-700">
-            {busyWorkers}
-          </h2>
-
-          <p className="mt-2 text-yellow-700 font-medium">Busy Workers</p>
-        </div>
-
-        {/* OFFLINE */}
-
-        <div className="bg-red-100 rounded-3xl p-6 shadow-lg">
-          <Power size={35} className="text-red-700" />
-
-          <h2 className="text-4xl font-bold mt-4 text-red-700">
-            {offlineWorkers}
-          </h2>
-
-          <p className="mt-2 text-red-700 font-medium">Offline Workers</p>
-        </div>
-      </div>
-
-      {/* ADD WORKER */}
-
-      <div className="bg-white rounded-3xl shadow-xl p-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <input
-            type="text"
-            name="name"
-            value={formData.name}
-            onChange={handleChange}
-            placeholder="Worker Name"
-            className="border rounded-2xl px-4 py-3"
-          />
-
-          <input
-            type="text"
-            name="phone"
-            value={formData.phone}
-            onChange={handleChange}
-            placeholder="Phone Number"
-            className="border rounded-2xl px-4 py-3"
-          />
-
-          <div className="flex flex-col gap-3">
-            <select
-              name="category"
-              value={formData.category}
-              onChange={handleChange}
-              className="border rounded-2xl px-4 py-3"
-            >
-              <option value="">Select Category</option>
-
-              {categories.map((category) => (
-                <option key={category._id} value={category.categoryName}>
-                  {category.categoryName}
-                </option>
-              ))}
-            </select>
-
-            {formData.category === "OTHER" && (
-              <input
-                type="text"
-                name="otherCategory"
-                value={formData.otherCategory}
-                onChange={handleChange}
-                placeholder="Custom Category"
-                className="border rounded-2xl px-4 py-3"
-              />
-            )}
-          </div>
-
-          <select
-            name="shift"
-            value={formData.shift}
-            onChange={handleChange}
-            className="border rounded-2xl px-4 py-3"
-          >
-            <option value="DAY">DAY</option>
-
-            <option value="NIGHT">NIGHT</option>
-
-            <option value="24x7">24x7</option>
-          </select>
 
           <button
-            onClick={handleAddWorker}
-            className="
-              bg-gradient-to-r
-              from-[#001B54]
-              to-[#7A0019]
-
-              text-white
-
-              rounded-2xl
-
-              px-5
-              py-3
-
-              font-semibold
-            "
+            type="button"
+            onClick={() => {
+              void loadWorkers();
+              void loadCategories();
+            }}
+            className="flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2 text-sm font-bold hover:bg-white/20"
           >
-            Add Worker
+            <RefreshCw size={16} />
+            Refresh
           </button>
         </div>
-      </div>
+      </header>
 
-      {/* WORKERS */}
+      {/* STATISTICS */}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {workers.map((worker) => (
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {[
+          ["Total Technicians", counts.total, Users],
+          ["Active Status", counts.active, CheckCircle2],
+          ["Busy", counts.busy, Clock3],
+          ["Offline", counts.off, Power],
+        ].map(([title, value, Icon]) => (
           <div
-            key={worker._id}
-            className="
-              bg-white
-
-              rounded-3xl
-
-              shadow-xl
-
-              p-6
-
-              hover:shadow-2xl
-
-              transition-all
-            "
+            key={title}
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
           >
-            <div className="flex justify-between items-center">
-              <div className="flex items-center gap-4">
-                <div
-                  className="
-                    h-14
-                    w-14
+            <Icon size={20} className="text-amber-600" />
 
-                    rounded-full
+            <p className="mt-2 text-2xl font-black">{value}</p>
 
-                    bg-blue-100
-
-                    flex
-                    items-center
-                    justify-center
-                  "
-                >
-                  {getCategoryIcon(worker.department)}
-                </div>
-
-                <div>
-                  <h2 className="text-xl font-bold text-[#001B54]">
-                    {worker.name}
-                  </h2>
-
-                  <p className="text-gray-500 font-medium">
-                    {worker.department}
-                  </p>
-
-                  <p className="text-gray-400 text-sm flex items-center gap-2 mt-1">
-                    <Phone size={14} />
-
-                    {worker.phone}
-                  </p>
-
-                  <p className="text-xs text-gray-400 mt-1">
-                    Shift : {worker.shift || "DAY"}
-                  </p>
-                </div>
-              </div>
-
-              <div
-                className={`
-                  px-4
-                  py-2
-
-                  rounded-full
-
-                  text-sm
-                  font-semibold
-
-                  ${getStatusColor(worker.status)}
-                `}
-              >
-                {worker.status}
-              </div>
-            </div>
-
-            {/* ACTIONS */}
-
-            <div className="mt-6 grid grid-cols-3 gap-3">
-              {/* EDIT */}
-
-              <button
-                onClick={() => handleEditOpen(worker)}
-                className="
-                  bg-blue-100
-                  text-blue-700
-
-                  py-3
-
-                  rounded-2xl
-
-                  flex
-                  items-center
-                  justify-center
-                "
-              >
-                <Pencil size={18} />
-              </button>
-
-              {/* STATUS */}
-
-              <button
-                onClick={() => handleToggleStatus(worker._id, worker.status)}
-                className={`
-                  py-3
-
-                  rounded-2xl
-
-                  font-semibold
-
-                  ${
-                    worker.status === "OFFLINE"
-                      ? `
-                        bg-green-100
-                        text-green-700
-                      `
-                      : `
-                        bg-yellow-100
-                        text-yellow-700
-                      `
-                  }
-                `}
-              >
-                {worker.status === "OFFLINE" ? "Activate" : "Inactive"}
-              </button>
-
-              {/* DELETE */}
-
-              <button
-                onClick={() => handleDelete(worker._id)}
-                className="
-                  bg-red-100
-                  text-red-700
-
-                  py-3
-
-                  rounded-2xl
-
-                  flex
-                  items-center
-                  justify-center
-                "
-              >
-                <Trash2 size={18} />
-              </button>
-            </div>
+            <p className="mt-1 text-xs font-semibold text-slate-500">{title}</p>
           </div>
         ))}
-      </div>
+      </section>
+
+      {/* CREATE TECHNICIAN */}
+
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_290px]">
+        <form
+          onSubmit={createTechnician}
+          className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+        >
+          <div className="flex items-center gap-3">
+            <div className="rounded-xl bg-amber-100 p-3 text-amber-900">
+              <UserPlus size={21} />
+            </div>
+
+            <div>
+              <h2 className="font-black">Create Technician Account</h2>
+
+              <p className="text-xs text-slate-500">
+                Same account-creation pattern as Admin Create User
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            {/* NAME */}
+
+            <label className="space-y-1 text-xs font-bold">
+              Full Name *
+              <input
+                required
+                maxLength={120}
+                value={form.name}
+                onChange={(e) => changeForm("name", e.target.value)}
+                className={inputClass}
+                placeholder="Technician name"
+              />
+            </label>
+
+            {/* EMAIL */}
+
+            <label className="space-y-1 text-xs font-bold">
+              Email / Login ID *
+              <div className="relative">
+                <Mail
+                  size={16}
+                  className="absolute left-3 top-3.5 text-slate-400"
+                />
+
+                <input
+                  type="email"
+                  required
+                  value={form.email}
+                  onChange={(e) => changeForm("email", e.target.value)}
+                  className={`${inputClass} pl-10`}
+                  placeholder="technician@example.com"
+                />
+              </div>
+            </label>
+
+            {/* PHONE */}
+
+            <label className="space-y-1 text-xs font-bold">
+              Mobile Number *
+              <div className="relative">
+                <Phone
+                  size={16}
+                  className="absolute left-3 top-3.5 text-slate-400"
+                />
+
+                <input
+                  type="tel"
+                  required
+                  maxLength={15}
+                  value={form.phone}
+                  onChange={(e) => changeForm("phone", e.target.value)}
+                  className={`${inputClass} pl-10`}
+                  placeholder="Mobile number"
+                />
+              </div>
+            </label>
+
+            {/* CATEGORY */}
+
+            <label className="space-y-1 text-xs font-bold">
+              Maintenance Category *
+              <select
+                required
+                value={form.category}
+                onChange={(e) => changeForm("category", e.target.value)}
+                className={inputClass}
+              >
+                <option value="">Select Admin-managed category</option>
+
+                {categoryOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* SHIFT */}
+
+            <label className="space-y-1 text-xs font-bold">
+              Duty Shift *
+              <select
+                value={form.shift}
+                onChange={(e) => changeForm("shift", e.target.value)}
+                className={inputClass}
+              >
+                <option value="DAY">Day Shift</option>
+
+                <option value="NIGHT">Night Shift</option>
+
+                <option value="24x7">Legacy 24x7 / Emergency Roster</option>
+              </select>
+            </label>
+
+            {/* PASSWORD */}
+
+            <label className="space-y-1 text-xs font-bold">
+              Initial Password *
+              <div className="relative">
+                <LockKeyhole
+                  size={16}
+                  className="absolute left-3 top-3.5 text-slate-400"
+                />
+
+                <input
+                  required
+                  minLength={8}
+                  type={showPassword ? "text" : "password"}
+                  value={form.password}
+                  onChange={(e) => changeForm("password", e.target.value)}
+                  autoComplete="new-password"
+                  className={`${inputClass} pl-10 pr-10`}
+                  placeholder="Minimum 8 characters"
+                />
+
+                <button
+                  type="button"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((value) => !value)}
+                  className="absolute right-3 top-3 text-slate-500"
+                >
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </div>
+            </label>
+          </div>
+
+          {categoryError && (
+            <p role="alert" className="text-xs text-rose-700">
+              Categories unavailable: {categoryError}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={
+              saving || Boolean(categoryError) || categoryOptions.length === 0
+            }
+            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#E7B957] px-4 py-3 font-black text-[#071C3C] disabled:opacity-50"
+          >
+            {saving ? (
+              <Loader2 size={17} className="animate-spin" />
+            ) : (
+              <UserPlus size={17} />
+            )}
+
+            {saving ? "Creating..." : "Create Technician"}
+          </button>
+        </form>
+
+        {/* INFORMATION PANEL */}
+
+        <aside className="space-y-3">
+          <div className="rounded-2xl bg-[#102B52] p-5 text-white">
+            <ShieldCheck size={23} className="text-amber-300" />
+
+            <h3 className="mt-3 font-black">Secure Login</h3>
+
+            <p className="mt-2 text-sm leading-6 text-slate-200">
+              Backend must create a linked User account, hash passwords, enforce
+              the Technician role and verify login access. Creating a Worker
+              record alone is not enough.
+            </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5">
+            <h3 className="font-black">Duty vs Availability</h3>
+
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              DAY/NIGHT is the duty roster. ACTIVE/BUSY/OFFLINE is the existing
+              account status. Automatic rest, approved leave and emergency
+              on-call assignment require backend scheduling rules.
+            </p>
+          </div>
+        </aside>
+      </section>
+
+      {/* TECHNICIAN DIRECTORY */}
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-black">Technician Directory</h2>
+
+            <p className="text-xs text-slate-500">
+              Existing Technician records and duty assignments
+            </p>
+          </div>
+
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search name, category, shift..."
+            className={`${inputClass} max-w-xs`}
+          />
+        </div>
+
+        {workerError && (
+          <p
+            role="alert"
+            className="mt-3 rounded-lg bg-rose-50 p-3 text-sm text-rose-700"
+          >
+            {workerError}
+          </p>
+        )}
+
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {filteredWorkers.map((worker) => (
+            <article
+              key={worker._id}
+              className="min-w-0 rounded-xl border border-slate-200 p-4"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h3 className="truncate font-black">{worker.name}</h3>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    {worker.department || worker.category || "No category"} ·{" "}
+                    {worker.shift || "DAY"} shift
+                  </p>
+
+                  <p className="mt-1 break-all text-xs text-slate-500">
+                    {worker.email || "Email / login not returned by API"}
+                  </p>
+
+                  <p className="text-xs text-slate-500">
+                    {worker.phone || "—"}
+                  </p>
+                </div>
+
+                <span
+                  className={`rounded-full border px-2 py-1 text-[11px] font-bold ${statusColors(
+                    worker.status,
+                  )}`}
+                >
+                  {normalize(worker.status) || "UNKNOWN"}
+                </span>
+              </div>
+
+              {/* ACTIONS */}
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => startEdit(worker)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800"
+                >
+                  <Pencil size={14} />
+                  Edit
+                </button>
+
+                <button
+                  type="button"
+                  disabled={Boolean(actionId)}
+                  onClick={() => toggleTechnician(worker)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 disabled:opacity-50"
+                >
+                  <Power size={14} />
+
+                  {normalize(worker.status) === "OFFLINE"
+                    ? "Activate"
+                    : "Offline"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setConfirmDelete(worker)}
+                  className="inline-flex items-center gap-1 rounded-lg bg-rose-50 px-3 py-2 text-xs font-bold text-rose-700"
+                >
+                  <Trash2 size={14} />
+                  Remove
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {filteredWorkers.length === 0 && (
+          <p className="py-8 text-center text-sm text-slate-500">
+            No matching Technicians.
+          </p>
+        )}
+      </section>
 
       {/* EDIT MODAL */}
 
       {editWorker && (
         <div
-          className="
-            fixed
-            inset-0
-
-            bg-black/50
-
-            flex
-            items-center
-            justify-center
-
-            z-50
-          "
+          role="dialog"
+          aria-modal="true"
+          aria-label="Edit Technician"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-3"
         >
-          <div
-            className="
-              bg-white
-
-              rounded-3xl
-
-              p-6
-
-              w-full
-              max-w-lg
-
-              space-y-4
-
-              relative
-            "
+          <form
+            onSubmit={updateTechnician}
+            className="w-full max-w-lg space-y-4 rounded-2xl bg-white p-5 shadow-2xl sm:p-6"
           >
-            {/* CLOSE */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-black">Edit Technician</h2>
+
+              <button
+                type="button"
+                onClick={() => setEditWorker(null)}
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <label className="block text-xs font-bold">
+              Name
+              <input
+                required
+                value={editData.name}
+                onChange={(e) =>
+                  setEditData((value) => ({
+                    ...value,
+                    name: e.target.value,
+                  }))
+                }
+                className={`${inputClass} mt-1`}
+              />
+            </label>
+
+            <label className="block text-xs font-bold">
+              Phone
+              <input
+                required
+                value={editData.phone}
+                onChange={(e) =>
+                  setEditData((value) => ({
+                    ...value,
+                    phone: e.target.value,
+                  }))
+                }
+                className={`${inputClass} mt-1`}
+              />
+            </label>
+
+            <label className="block text-xs font-bold">
+              Category
+              <select
+                required
+                value={editData.category}
+                onChange={(e) =>
+                  setEditData((value) => ({
+                    ...value,
+                    category: e.target.value,
+                  }))
+                }
+                className={`${inputClass} mt-1`}
+              >
+                <option value="">Select category</option>
+
+                {editData.category &&
+                  !categoryOptions.includes(editData.category) && (
+                    <option value={editData.category}>
+                      {editData.category} (current)
+                    </option>
+                  )}
+
+                {categoryOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block text-xs font-bold">
+              Shift
+              <select
+                value={editData.shift}
+                onChange={(e) =>
+                  setEditData((value) => ({
+                    ...value,
+                    shift: e.target.value,
+                  }))
+                }
+                className={`${inputClass} mt-1`}
+              >
+                <option value="DAY">Day</option>
+                <option value="NIGHT">Night</option>
+                <option value="24x7">Legacy 24x7 / Emergency</option>
+              </select>
+            </label>
 
             <button
-              onClick={() => setEditWorker(null)}
-              className="
-                absolute
-                top-4
-                right-4
-
-                text-gray-500
-              "
+              type="submit"
+              disabled={Boolean(actionId)}
+              className="w-full rounded-xl bg-[#102B52] px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
             >
-              <X size={22} />
+              Save Changes
             </button>
+          </form>
+        </div>
+      )}
 
-            <h2
-              className="
-                text-2xl
-                font-bold
-                text-[#001B54]
-              "
-            >
-              Edit Worker
-            </h2>
+      {/* REMOVE CONFIRMATION */}
 
-            {/* NAME */}
+      {confirmDelete && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm Technician Removal"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/60 p-3"
+        >
+          <div className="w-full max-w-md space-y-4 rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-black">Remove Technician?</h2>
 
-            <input
-              type="text"
-              value={editData.name}
-              onChange={(e) =>
-                setEditData({
-                  ...editData,
+            <p className="text-sm text-slate-600">
+              Remove <b>{confirmDelete.name}</b>? Existing assignments and audit
+              history must remain intact. Backend should reject deletion when
+              unsafe.
+            </p>
 
-                  name: e.target.value,
-                })
-              }
-              placeholder="Worker Name"
-              className="
-                w-full
-
-                border
-
-                rounded-2xl
-
-                px-4
-                py-3
-              "
-            />
-
-            {/* PHONE */}
-
-            <input
-              type="text"
-              value={editData.phone}
-              onChange={(e) =>
-                setEditData({
-                  ...editData,
-
-                  phone: e.target.value,
-                })
-              }
-              placeholder="Phone Number"
-              className="
-                w-full
-
-                border
-
-                rounded-2xl
-
-                px-4
-                py-3
-              "
-            />
-
-            {/* CATEGORY */}
-
-            <select
-              value={editData.category}
-              onChange={(e) =>
-                setEditData({
-                  ...editData,
-                  category: e.target.value,
-                })
-              }
-              className="
-    w-full
-    border
-    rounded-2xl
-    px-4
-    py-3
-  "
-            >
-              <option value="">Select Category</option>
-
-              {categories.map((category) => (
-                <option key={category._id} value={category.categoryName}>
-                  {category.categoryName}
-                </option>
-              ))}
-            </select>
-
-            {/* SHIFT */}
-
-            <select
-              value={editData.shift}
-              onChange={(e) =>
-                setEditData({
-                  ...editData,
-
-                  shift: e.target.value,
-                })
-              }
-              className="
-                w-full
-
-                border
-
-                rounded-2xl
-
-                px-4
-                py-3
-              "
-            >
-              <option value="DAY">DAY</option>
-
-              <option value="NIGHT">NIGHT</option>
-
-              <option value="24x7">24x7</option>
-            </select>
-
-            {/* BUTTONS */}
-
-            <div className="flex gap-4">
+            <div className="flex gap-2">
               <button
-                onClick={handleUpdateWorker}
-                className="
-                  flex-1
-
-                  bg-gradient-to-r
-                  from-green-600
-                  to-green-800
-
-                  text-white
-
-                  py-3
-
-                  rounded-2xl
-
-                  font-semibold
-                "
+                type="button"
+                onClick={() => setConfirmDelete(null)}
+                className="flex-1 rounded-lg border px-4 py-3 text-sm font-bold"
               >
-                Update
+                Cancel
               </button>
 
               <button
-                onClick={() => setEditWorker(null)}
-                className="
-                  flex-1
-
-                  bg-gradient-to-r
-                  from-red-600
-                  to-red-800
-
-                  text-white
-
-                  py-3
-
-                  rounded-2xl
-
-                  font-semibold
-                "
+                type="button"
+                disabled={Boolean(actionId)}
+                onClick={removeTechnician}
+                className="flex-1 rounded-lg bg-rose-700 px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
               >
-                Cancel
+                Confirm Remove
               </button>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </main>
   );
-};
-
-export default WorkersManagement;
+}

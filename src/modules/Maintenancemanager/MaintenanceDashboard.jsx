@@ -3,7 +3,6 @@ import {
   ClipboardList,
   Clock3,
   AlertTriangle,
-  CheckCircle2,
   Users,
   Wrench,
   TrendingUp,
