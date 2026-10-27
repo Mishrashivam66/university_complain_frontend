@@ -1,11 +1,7 @@
-import { Route } from "react-router-dom";
+import { Navigate, Route } from "react-router-dom";
 
 // =====================================================
-// AMI MAINTENANCE - STUDENT ROUTES
-// =====================================================
-
-// =====================================================
-// LAYOUT
+// STUDENT LAYOUT
 // =====================================================
 
 import StudentLayout from "../layouts/student/StudentLayout";
@@ -22,10 +18,6 @@ import MyComplaints from "../modules/Student/MyComplaints";
 
 import ComplaintDetails from "../modules/Student/ComplaintDetails";
 
-import StudentNotices from "../modules/Student/StudentNotices";
-
-import HostelDetails from "../modules/Student/HostelDetails";
-
 import Profile from "../modules/Student/Profile";
 
 import EditProfile from "../modules/Student/EditProfile";
@@ -37,97 +29,71 @@ import MessComplaints from "../mess/MessComplaints";
 import Notifications from "../modules/common/Notifications";
 
 // =====================================================
-// STUDENT ROUTE CONFIGURATION
+// AMI MAINTENANCE - STUDENT ROUTES
 // =====================================================
 
 const Studentroutes = (
   <Route element={<StudentLayout />}>
-    {/* ================================================
-        STUDENT DASHBOARD
-    ================================================= */}
+    {/* DASHBOARD */}
 
     <Route path="/dashboard" element={<Dashboard />} />
 
-    {/* ================================================
-        CREATE COMPLAINT
-    ================================================= */}
+    {/* CREATE COMPLAINT */}
 
     <Route path="/create-complaint" element={<CreateComplaint />} />
 
-    {/* ================================================
-        MY COMPLAINTS
-    ================================================= */}
+    {/* MY COMPLAINTS */}
 
     <Route path="/complaints" element={<MyComplaints />} />
 
-    {/* ================================================
-        COMPLAINT DETAILS - NEW PREMIUM PAGE
-
-        Example:
-        /complaints/COMPLAINT_MONGODB_ID
-    ================================================= */}
+    {/* PREMIUM COMPLAINT DETAILS */}
 
     <Route path="/complaints/:id" element={<ComplaintDetails />} />
 
-    {/* ================================================
-        COMPLAINT DETAILS - OLD ROUTE
-
-        Kept for backward compatibility.
-    ================================================= */}
+    {/* LEGACY COMPLAINT DETAILS */}
 
     <Route path="/complaint/:id" element={<ComplaintDetails />} />
 
-    {/* ================================================
-        STUDENT NOTICES
-    ================================================= */}
-
-    <Route path="/student/notices" element={<StudentNotices />} />
-
-    {/* ================================================
-        HOSTEL DETAILS
-    ================================================= */}
-
-    <Route path="/hostel-details" element={<HostelDetails />} />
-
-    {/* ================================================
-        STUDENT PROFILE
-    ================================================= */}
+    {/* ========================================
+        COMBINED STUDENT PROFILE
+    ======================================== */}
 
     <Route path="/profile" element={<Profile />} />
 
-    {/* ================================================
-        EDIT STUDENT PROFILE
-    ================================================= */}
+    {/* ========================================
+        OLD HOSTEL PAGE -> PROFILE HOSTEL SECTION
+    ======================================== */}
+
+    <Route
+      path="/hostel-details"
+      element={<Navigate to="/profile#hostel" replace />}
+    />
+
+    {/* ========================================
+        OLD NOTICES PAGE -> PROFILE NOTICES SECTION
+    ======================================== */}
+
+    <Route
+      path="/student/notices"
+      element={<Navigate to="/profile#notices" replace />}
+    />
+
+    {/* EDIT PROFILE */}
 
     <Route path="/edit-profile" element={<EditProfile />} />
 
-    {/* ================================================
-        CHANGE PASSWORD
-
-        Existing route preserved.
-    ================================================= */}
+    {/* CHANGE PASSWORD */}
 
     <Route path="/change-password" element={<ChangePassword />} />
 
-    {/* ================================================
-        STUDENT NOTIFICATIONS
-    ================================================= */}
+    {/* NOTIFICATIONS */}
 
     <Route path="/notifications" element={<Notifications />} />
 
-    {/* ================================================
-        LEGACY MESS COMPLAINTS
-
-        Route preserved for compatibility.
-        It can remain hidden from the sidebar.
-    ================================================= */}
+    {/* MESS COMPLAINTS */}
 
     <Route path="/student/mess-complaints" element={<MessComplaints />} />
   </Route>
 );
-
-// =====================================================
-// EXPORT
-// =====================================================
 
 export default Studentroutes;

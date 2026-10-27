@@ -24,7 +24,12 @@ import api from "../../services/api";
 import { createComplaint } from "../../services/studentService";
 
 // =====================================================
-// TWO-HOUR VISIT WINDOWS
+// AMI MAINTENANCE
+// STUDENT CREATE COMPLAINT
+// =====================================================
+
+// =====================================================
+// PREFERRED VISIT WINDOWS - IST
 // =====================================================
 
 const VISIT_WINDOWS = [
@@ -51,14 +56,11 @@ const VISIT_WINDOWS = [
 ];
 
 // =====================================================
-// STYLES
+// COMMON STYLES
 // =====================================================
 
 const fieldStyle =
-  "w-full min-w-0 rounded-xl border border-slate-200 " +
-  "bg-white px-4 py-3 text-sm text-[#102746] " +
-  "outline-none transition focus:border-[#C49A45] " +
-  "focus:ring-4 focus:ring-[#C49A45]/10";
+  "w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-[#102746] outline-none transition focus:border-[#C49A45] focus:ring-4 focus:ring-[#C49A45]/10";
 
 const labelStyle = "mb-2 block text-sm font-semibold text-[#102746]";
 
@@ -66,64 +68,115 @@ const labelStyle = "mb-2 block text-sm font-semibold text-[#102746]";
 // HELPERS
 // =====================================================
 
-const text = (v) => String(v ?? "").trim();
+const text = (value) => String(value ?? "").trim();
 
-const normalized = (v) =>
-  text(v)
+const normalized = (value) =>
+  text(value)
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "");
 
-const hostelCode = (v) => normalized(v).replace(/^HOSTEL/, "");
+// =====================================================
+// HOSTEL NORMALIZATION
+//
+// Examples:
+// H1
+// Hostel H1
+// Boys Hostel H1
+//
+// All will normalize to H1.
+// =====================================================
 
-const readUser = () => {
+function hostelCode(value) {
+  const raw = text(value).toUpperCase();
+
+  const detected = raw.match(/\bH\d+[A-Z]?\b/);
+
+  if (detected) {
+    return detected[0];
+  }
+
+  return normalized(value).replace(/^(BOYS|GIRLS|FACULTY|STAFF)?HOSTEL/, "");
+}
+
+// =====================================================
+// GET STORED STUDENT
+// =====================================================
+
+function readUser() {
   try {
     return JSON.parse(localStorage.getItem("user") || "{}");
   } catch {
     return {};
   }
-};
+}
+
+// =====================================================
+// REGISTERED STUDENT HOSTEL
+// =====================================================
 
 function studentHostel(user) {
-  const v = user?.hostel;
+  const value = user?.hostel;
 
-  return typeof v === "object" && v !== null
-    ? text(v.hostelCode || v.hostelName || v.name || v._id)
-    : text(v);
+  if (typeof value === "object" && value !== null) {
+    return text(
+      value.hostelCode || value.hostelName || value.name || value._id,
+    );
+  }
+
+  return text(value);
 }
+
+// =====================================================
+// MATCH REGISTERED HOSTEL
+// =====================================================
 
 function matchedHostel(hostel, user) {
   const own = hostelCode(studentHostel(user));
 
-  return (
-    !!own &&
-    [hostel.id, hostel.name, hostel.code].some((v) => hostelCode(v) === own)
+  if (!own) {
+    return false;
+  }
+
+  return [hostel.code, hostel.name].some(
+    (value) => !!value && hostelCode(value) === own,
   );
 }
 
-function departmentName(user) {
-  const v = user?.department || user?.branch;
+// =====================================================
+// GET DEPARTMENT NAME
+// =====================================================
 
-  return typeof v === "object" && v !== null
-    ? text(v.departmentName || v.name)
-    : text(v);
+function departmentName(user) {
+  const value = user?.department || user?.branch;
+
+  if (typeof value === "object" && value !== null) {
+    return text(value.departmentName || value.name);
+  }
+
+  return text(value);
 }
 
 // =====================================================
-// HOSTEL FLOOR AUTO DETECTION
+// DETECT FLOOR FROM ROOM
+//
+// G*  -> Ground Floor
+// F*  -> First Floor
+// S2* -> Second Floor
+// S3* -> Second Floor
 // =====================================================
 
 function detectFloor(roomNumber) {
-  const v = normalized(roomNumber);
+  const value = normalized(roomNumber);
 
-  if (v.startsWith("G")) {
+  if (value.startsWith("G")) {
     return "Ground Floor";
   }
 
-  if (v.startsWith("F")) {
+  if (value.startsWith("F")) {
     return "First Floor";
   }
 
-  if (/^S[23]/.test(v)) {
+  if (/^S[23]/.test(value)) {
     return "Second Floor";
   }
 
@@ -131,7 +184,7 @@ function detectFloor(roomNumber) {
 }
 
 // =====================================================
-// CURRENT INDIA DATE AND TIME
+// INDIA DATE AND TIME
 // =====================================================
 
 function indianNow() {
@@ -157,11 +210,12 @@ function indianNow() {
 }
 
 // =====================================================
-// INITIAL FORM STATE
+// INITIAL FORM
 // =====================================================
 
 const initialForm = () => ({
   locationKey: "",
+
   complaintArea: "",
 
   hostel: "",
@@ -176,11 +230,16 @@ const initialForm = () => ({
 
   issueLocation: "",
   extraLocation: "",
+
   description: "",
 
   visitDate: "",
   slots: [],
 });
+
+// =====================================================
+// INITIAL ADMIN MASTER
+// =====================================================
 
 const emptyMaster = () => ({
   hostels: [],
@@ -190,7 +249,7 @@ const emptyMaster = () => ({
 });
 
 // =====================================================
-// REUSABLE FORM SECTION
+// REUSABLE SECTION
 // =====================================================
 
 function Section({ number, title, help, children }) {
@@ -221,16 +280,23 @@ function Section({ number, title, help, children }) {
 
 export default function CreateComplaint() {
   const navigate = useNavigate();
+
   const inFlight = useRef(false);
+
+  // ===================================================
+  // STATE
+  // ===================================================
 
   const [user, setUser] = useState(readUser);
 
   const [master, setMaster] = useState(emptyMaster);
 
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState("");
 
   const [form, setForm] = useState(initialForm);
+
   const [step, setStep] = useState(1);
 
   const [submitting, setSubmitting] = useState(false);
@@ -240,7 +306,7 @@ export default function CreateComplaint() {
   const isHosteller = user?.isHosteller === true;
 
   // ===================================================
-  // FETCH ADMIN MASTER DATA
+  // LOAD ADMIN CREATED CONFIGURATION
   // ===================================================
 
   const load = useCallback(async () => {
@@ -253,19 +319,48 @@ export default function CreateComplaint() {
       api.get("/auth/profile"),
     ]);
 
+    // ===============================================
+    // ADMIN MASTER DATA
+    // ===============================================
+
     if (config.status === "fulfilled" && config.value.data?.success !== false) {
       const data = config.value.data || {};
 
       const arr = (value) => (Array.isArray(value) ? value : []);
 
+      // ===========================================
+      // SORTING
+      //
+      // Hostels -> By Name
+      // Blocks  -> By Code A, B, C, D...
+      // Other   -> By Name
+      // Categories -> By Name
+      // ===========================================
+
+      const byName = (a, b) =>
+        text(a.name).localeCompare(text(b.name), undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+
+      const byBlockCode = (a, b) =>
+        text(a.code || a.name).localeCompare(
+          text(b.code || b.name),
+          undefined,
+          {
+            numeric: true,
+            sensitivity: "base",
+          },
+        );
+
       setMaster({
-        hostels: arr(data.hostels),
+        hostels: arr(data.hostels).sort(byName),
 
-        academicBlocks: arr(data.academicBlocks),
+        academicBlocks: arr(data.academicBlocks).sort(byBlockCode),
 
-        otherLocations: arr(data.otherLocations),
+        otherLocations: arr(data.otherLocations).sort(byName),
 
-        categories: arr(data.categories),
+        categories: arr(data.categories).sort(byName),
       });
     } else {
       setError(
@@ -275,6 +370,10 @@ export default function CreateComplaint() {
           : "Invalid complaint form configuration",
       );
     }
+
+    // ===============================================
+    // STUDENT PROFILE
+    // ===============================================
 
     if (profile.status === "fulfilled") {
       const current = profile.value.data?.user;
@@ -288,6 +387,10 @@ export default function CreateComplaint() {
 
     setLoading(false);
   }, []);
+
+  // ===================================================
+  // INITIAL FETCH
+  // ===================================================
 
   useEffect(() => {
     load();
@@ -320,16 +423,24 @@ export default function CreateComplaint() {
     [master, form.category],
   );
 
+  // ===================================================
+  // SUBCATEGORIES
+  // ===================================================
+
   const subCategories = Array.isArray(category?.subCategories)
     ? category.subCategories
     : [];
+
+  // ===================================================
+  // CUSTOM ISSUE TITLE
+  // ===================================================
 
   const customTitle = !subCategories.length || form.subCategory === "__OTHER__";
 
   const title = customTitle ? text(form.customTitle) : text(form.subCategory);
 
   // ===================================================
-  // ISSUE LOCATION
+  // EXACT ISSUE LOCATION
   // ===================================================
 
   const location =
@@ -339,6 +450,10 @@ export default function CreateComplaint() {
         : selected.name
       : text(form.issueLocation);
 
+  // ===================================================
+  // UPDATE FIELD
+  // ===================================================
+
   const change = (key, value) => {
     setForm((old) => ({
       ...old,
@@ -347,7 +462,7 @@ export default function CreateComplaint() {
   };
 
   // ===================================================
-  // LOCATION SELECTION
+  // CHOOSE LOCATION
   // ===================================================
 
   const chooseLocation = (value) => {
@@ -355,9 +470,7 @@ export default function CreateComplaint() {
 
     const groups = {
       HOSTEL: master.hostels,
-
       BLOCK: master.academicBlocks,
-
       OTHER: master.otherLocations,
     };
 
@@ -368,6 +481,10 @@ export default function CreateComplaint() {
       return;
     }
 
+    // ===============================================
+    // HOSTEL AUTHORIZATION
+    // ===============================================
+
     if (kind === "HOSTEL" && (!isHosteller || !matchedHostel(place, user))) {
       toast.error(
         "Hostel complaint is permitted only for your registered hostel",
@@ -375,6 +492,10 @@ export default function CreateComplaint() {
 
       return;
     }
+
+    // ===============================================
+    // SET LOCATION
+    // ===============================================
 
     setForm((old) => ({
       ...old,
@@ -404,7 +525,7 @@ export default function CreateComplaint() {
   };
 
   // ===================================================
-  // TIME SLOTS
+  // CHECK UNAVAILABLE SLOT
   // ===================================================
 
   const unavailable = (slot) => {
@@ -419,6 +540,10 @@ export default function CreateComplaint() {
       (form.visitDate === now.date && slot.start <= now.minutes)
     );
   };
+
+  // ===================================================
+  // SELECT EXACTLY 3 SLOTS
+  // ===================================================
 
   const toggleSlot = (index) => {
     if (unavailable(VISIT_WINDOWS[index])) {
@@ -445,6 +570,10 @@ export default function CreateComplaint() {
   // ===================================================
 
   const validate = (number) => {
+    // ===============================================
+    // STEP 1
+    // ===============================================
+
     if (number === 1) {
       if (!selected) {
         return "Select a Hostel, Academic Block or Other Location";
@@ -461,6 +590,10 @@ export default function CreateComplaint() {
         return "Your registered room number is missing";
       }
     }
+
+    // ===============================================
+    // STEP 2
+    // ===============================================
 
     if (number === 2) {
       if (!category) {
@@ -496,6 +629,10 @@ export default function CreateComplaint() {
       }
     }
 
+    // ===============================================
+    // STEP 3
+    // ===============================================
+
     if (number === 3) {
       const now = indianNow();
 
@@ -519,7 +656,7 @@ export default function CreateComplaint() {
   };
 
   // ===================================================
-  // NEXT / BACK
+  // NEXT / PREVIOUS STEP
   // ===================================================
 
   const navigateStep = (delta) => {
@@ -528,6 +665,7 @@ export default function CreateComplaint() {
 
       if (problem) {
         toast.error(problem);
+
         return;
       }
     }
@@ -551,18 +689,28 @@ export default function CreateComplaint() {
       return;
     }
 
+    // ===============================================
+    // VALIDATE ALL STEPS
+    // ===============================================
+
     for (const number of [1, 2, 3]) {
       const problem = validate(number);
 
       if (problem) {
         toast.error(problem);
+
         setStep(number);
+
         return;
       }
     }
 
     inFlight.current = true;
     setSubmitting(true);
+
+    // ===============================================
+    // PREFERRED VISIT SLOTS
+    // ===============================================
 
     const preferredVisitSlots = form.slots.map((index, preference) => ({
       preference: preference + 1,
@@ -574,25 +722,39 @@ export default function CreateComplaint() {
       endTime: VISIT_WINDOWS[index].to,
     }));
 
+    // ===============================================
+    // DESCRIPTION
+    // ===============================================
+
     const description = text(form.extraLocation)
-      ? `${text(form.description)}
-Location detail: ${text(form.extraLocation)}`
+      ? `${text(form.description)}\nLocation detail: ${text(form.extraLocation)}`
       : text(form.description);
+
+    // ===============================================
+    // API PAYLOAD
+    // ===============================================
 
     const payload = {
       locationKey: form.locationKey,
+
       complaintArea: form.complaintArea,
 
       hostel: form.hostel,
+
       block: form.block,
+
       roomNumber: form.roomNumber,
+
       floor: form.floor,
+
       department: form.department,
 
       category: category.name,
 
       subCategory: title,
+
       title,
+
       description,
 
       issueLocation: location,
@@ -605,6 +767,10 @@ Location detail: ${text(form.extraLocation)}`
 
       availableTo: preferredVisitSlots[0].endTime,
     };
+
+    // ===============================================
+    // CREATE COMPLAINT API
+    // ===============================================
 
     try {
       const response = await createComplaint(payload);
@@ -620,6 +786,7 @@ Location detail: ${text(form.extraLocation)}`
       });
 
       setForm(initialForm());
+
       setStep(1);
 
       toast.success("Complaint registered successfully");
@@ -640,7 +807,9 @@ Location detail: ${text(form.extraLocation)}`
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 pb-10 text-[#102746]">
-      {/* HERO */}
+      {/* ============================================
+          PREMIUM HEADER
+      ============================================ */}
 
       <header className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#091F3C] via-[#102F56] to-[#184779] p-6 text-white shadow-lg sm:p-8">
         <div className="relative flex items-center justify-between gap-4">
@@ -667,7 +836,9 @@ Location detail: ${text(form.extraLocation)}`
         </div>
       </header>
 
-      {/* PROGRESS */}
+      {/* ============================================
+          THREE STEP PROGRESS
+      ============================================ */}
 
       <nav
         aria-label="Form progress"
@@ -677,12 +848,12 @@ Location detail: ${text(form.extraLocation)}`
           ["Location", MapPin],
           ["Issue Details", ClipboardList],
           ["Visit Time", Clock3],
-        ].map(([label, Icon], i) => {
-          const number = i + 1;
+        ].map(([stepLabel, Icon], index) => {
+          const number = index + 1;
 
           return (
             <div
-              key={label}
+              key={stepLabel}
               className={`flex items-center gap-2 rounded-xl border p-3 ${
                 step === number
                   ? "border-amber-300 bg-amber-50"
@@ -710,14 +881,18 @@ Location detail: ${text(form.extraLocation)}`
               <div className="min-w-0">
                 <p className="text-[10px] text-slate-500">Step {number}</p>
 
-                <p className="truncate text-xs font-bold sm:text-sm">{label}</p>
+                <p className="truncate text-xs font-bold sm:text-sm">
+                  {stepLabel}
+                </p>
               </div>
             </div>
           );
         })}
       </nav>
 
-      {/* LOADING / ERROR */}
+      {/* ============================================
+          LOADING / ERROR / FORM
+      ============================================ */}
 
       {loading ? (
         <div className="flex min-h-60 flex-col items-center justify-center rounded-3xl bg-white">
@@ -770,13 +945,13 @@ Location detail: ${text(form.extraLocation)}`
                   id="locationKey"
                   className={`${fieldStyle} pl-11`}
                   value={form.locationKey}
-                  onChange={(e) => chooseLocation(e.target.value)}
+                  onChange={(event) => chooseLocation(event.target.value)}
                 >
                   <option value="">
                     Select Hostel / Academic Block / Other Location
                   </option>
 
-                  {/* ADMIN HOSTELS — ALWAYS VISIBLE */}
+                  {/* HOSTELS */}
 
                   {master.hostels.length > 0 && (
                     <optgroup label="HOSTELS — ADMIN CREATED">
@@ -787,6 +962,7 @@ Location detail: ${text(form.extraLocation)}`
                           disabled={!isHosteller || !matchedHostel(item, user)}
                         >
                           {item.name}
+
                           {!isHosteller
                             ? " (Hostellers only)"
                             : !matchedHostel(item, user)
@@ -797,7 +973,7 @@ Location detail: ${text(form.extraLocation)}`
                     </optgroup>
                   )}
 
-                  {/* ADMIN ACADEMIC BLOCKS */}
+                  {/* ACADEMIC BLOCKS */}
 
                   {master.academicBlocks.length > 0 && (
                     <optgroup label="ACADEMIC BLOCKS — ADMIN CREATED">
@@ -809,7 +985,7 @@ Location detail: ${text(form.extraLocation)}`
                     </optgroup>
                   )}
 
-                  {/* ADMIN OTHER LOCATIONS */}
+                  {/* OTHER LOCATIONS */}
 
                   {master.otherLocations.length > 0 && (
                     <optgroup label="OTHER LOCATIONS — ADMIN CREATED">
@@ -823,6 +999,8 @@ Location detail: ${text(form.extraLocation)}`
                 </select>
               </div>
 
+              {/* NO LOCATIONS */}
+
               {master.hostels.length +
                 master.academicBlocks.length +
                 master.otherLocations.length ===
@@ -832,7 +1010,7 @@ Location detail: ${text(form.extraLocation)}`
                 </p>
               )}
 
-              {/* AUTO-FETCHED DETAILS */}
+              {/* SELECTED LOCATION DETAILS */}
 
               {selected && (
                 <div className="mt-6 rounded-2xl border border-amber-200 bg-[#FFFAEF] p-5">
@@ -850,6 +1028,8 @@ Location detail: ${text(form.extraLocation)}`
                       className="ml-auto text-emerald-600"
                     />
                   </div>
+
+                  {/* HOSTEL ROOM DETAILS */}
 
                   {selected.type === "HOSTEL" ? (
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -876,6 +1056,8 @@ Location detail: ${text(form.extraLocation)}`
                       </div>
                     </div>
                   ) : selected.type === "BLOCK" ? (
+                    /* ACADEMIC BLOCK DETAILS */
+
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <label className={labelStyle}>Academic Block</label>
@@ -905,6 +1087,8 @@ Location detail: ${text(form.extraLocation)}`
                 </div>
               )}
 
+              {/* STUDENT LOCATION ACCESS NOTE */}
+
               <p className="mt-4 flex items-start gap-2 text-xs text-slate-500">
                 <ShieldCheck size={16} className="shrink-0 text-amber-700" />
                 Admin manages location records. Hostel options are visible to
@@ -924,7 +1108,7 @@ Location detail: ${text(form.extraLocation)}`
               help="Choose an Admin maintenance category and tell us the repair location."
             >
               <div className="space-y-5">
-                {/* CATEGORY */}
+                {/* MAINTENANCE CATEGORY */}
 
                 <div>
                   <label className={labelStyle}>Maintenance Category *</label>
@@ -932,11 +1116,11 @@ Location detail: ${text(form.extraLocation)}`
                   <select
                     className={fieldStyle}
                     value={form.category}
-                    onChange={(e) =>
+                    onChange={(event) =>
                       setForm((old) => ({
                         ...old,
 
-                        category: e.target.value,
+                        category: event.target.value,
 
                         subCategory: "",
                         customTitle: "",
@@ -954,8 +1138,8 @@ Location detail: ${text(form.extraLocation)}`
 
                   {category && (
                     <p className="mt-2 text-xs text-slate-500">
-                      Default priority (Admin):
-                      <strong> {category.priority}</strong>
+                      Default priority (Admin):{" "}
+                      <strong>{category.priority}</strong>
                     </p>
                   )}
 
@@ -975,7 +1159,9 @@ Location detail: ${text(form.extraLocation)}`
                     <select
                       className={fieldStyle}
                       value={form.subCategory}
-                      onChange={(e) => change("subCategory", e.target.value)}
+                      onChange={(event) =>
+                        change("subCategory", event.target.value)
+                      }
                     >
                       <option value="">Select issue</option>
 
@@ -1001,7 +1187,9 @@ Location detail: ${text(form.extraLocation)}`
                       maxLength={150}
                       placeholder="Describe the problem briefly"
                       value={form.customTitle}
-                      onChange={(e) => change("customTitle", e.target.value)}
+                      onChange={(event) =>
+                        change("customTitle", event.target.value)
+                      }
                     />
                   </div>
                 )}
@@ -1016,8 +1204,8 @@ Location detail: ${text(form.extraLocation)}`
                       <select
                         className={fieldStyle}
                         value={form.issueLocation}
-                        onChange={(e) =>
-                          change("issueLocation", e.target.value)
+                        onChange={(event) =>
+                          change("issueLocation", event.target.value)
                         }
                       >
                         <option value="">Select Admin-created area</option>
@@ -1040,13 +1228,15 @@ Location detail: ${text(form.extraLocation)}`
                       className={fieldStyle}
                       value={form.issueLocation}
                       maxLength={150}
-                      onChange={(e) => change("issueLocation", e.target.value)}
+                      onChange={(event) =>
+                        change("issueLocation", event.target.value)
+                      }
                       placeholder="Room / Lab / Corridor / exact repair point"
                     />
                   )}
                 </div>
 
-                {/* ADDITIONAL LOCATION */}
+                {/* ADDITIONAL LOCATION DETAILS */}
 
                 <div>
                   <label className={labelStyle}>
@@ -1057,7 +1247,9 @@ Location detail: ${text(form.extraLocation)}`
                     className={fieldStyle}
                     maxLength={120}
                     value={form.extraLocation}
-                    onChange={(e) => change("extraLocation", e.target.value)}
+                    onChange={(event) =>
+                      change("extraLocation", event.target.value)
+                    }
                     placeholder="Landmark or access instructions"
                   />
                 </div>
@@ -1072,7 +1264,9 @@ Location detail: ${text(form.extraLocation)}`
                     maxLength={1300}
                     className={`${fieldStyle} resize-y`}
                     value={form.description}
-                    onChange={(e) => change("description", e.target.value)}
+                    onChange={(event) =>
+                      change("description", event.target.value)
+                    }
                     placeholder="Describe what is damaged, how long it has been happening, and the assistance needed..."
                   />
 
@@ -1085,7 +1279,7 @@ Location detail: ${text(form.extraLocation)}`
           )}
 
           {/* ========================================
-              STEP 3 - VISIT TIME
+              STEP 3 - PREFERRED VISIT DATE
           ======================================== */}
 
           {step === 3 && (
@@ -1111,11 +1305,12 @@ Location detail: ${text(form.extraLocation)}`
                       className={`${fieldStyle} pl-11`}
                       min={indianNow().date}
                       value={form.visitDate}
-                      onChange={(e) =>
+                      onChange={(event) =>
                         setForm((old) => ({
                           ...old,
 
-                          visitDate: e.target.value,
+                          visitDate: event.target.value,
+
                           slots: [],
                         }))
                       }
@@ -1197,7 +1392,7 @@ Location detail: ${text(form.extraLocation)}`
                   </p>
                 </div>
 
-                {/* SUMMARY */}
+                {/* COMPLAINT SUMMARY */}
 
                 <div className="rounded-2xl border bg-slate-50 p-4 text-sm">
                   <p className="mb-2 font-bold">Complaint Summary</p>
@@ -1225,9 +1420,13 @@ Location detail: ${text(form.extraLocation)}`
             </Section>
           )}
 
-          {/* FOOTER BUTTONS */}
+          {/* ========================================
+              NAVIGATION BUTTONS
+          ======================================== */}
 
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+            {/* BACK */}
+
             <button
               type="button"
               onClick={() => navigateStep(-1)}
@@ -1237,6 +1436,8 @@ Location detail: ${text(form.extraLocation)}`
               <ArrowLeft size={17} />
               Back
             </button>
+
+            {/* CONTINUE */}
 
             {step < 3 ? (
               <button
@@ -1248,6 +1449,8 @@ Location detail: ${text(form.extraLocation)}`
                 <ArrowRight size={17} />
               </button>
             ) : (
+              /* SUBMIT */
+
               <button
                 type="submit"
                 disabled={submitting}
@@ -1270,7 +1473,9 @@ Location detail: ${text(form.extraLocation)}`
         </form>
       )}
 
-      {/* SUCCESS MODAL */}
+      {/* ============================================
+          SUCCESS CONFIRMATION MODAL
+      ============================================ */}
 
       {submitted && (
         <div
@@ -1287,7 +1492,7 @@ Location detail: ${text(form.extraLocation)}`
             </h2>
 
             <p className="mt-2 text-sm text-slate-500">
-              Maintenance Manager has been notified.
+              Your complaint has been registered.
             </p>
 
             <div className="mt-6 space-y-2 rounded-2xl bg-slate-50 p-4 text-left text-sm">
@@ -1308,6 +1513,8 @@ Location detail: ${text(form.extraLocation)}`
               </p>
             </div>
 
+            {/* VIEW COMPLAINTS */}
+
             <button
               type="button"
               onClick={() => navigate("/complaints")}
@@ -1315,6 +1522,8 @@ Location detail: ${text(form.extraLocation)}`
             >
               View My Complaints
             </button>
+
+            {/* CREATE ANOTHER */}
 
             <button
               type="button"
