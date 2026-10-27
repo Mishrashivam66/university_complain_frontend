@@ -25,6 +25,11 @@ import LandingPage from "../modules/auth/pages/LandingPage";
 import ForgotPassword from "../modules/auth/pages/ForgotPassword";
 
 import ResetPassword from "../modules/auth/pages/ResetPassword";
+
+// ==========================================
+// BLOCK ADMIN
+// ==========================================
+
 import BlockAdminDashboard from "../modules/blockAdmin/pages/BlockAdminDashboard.jsx";
 
 // ==========================================
@@ -34,7 +39,7 @@ import BlockAdminDashboard from "../modules/blockAdmin/pages/BlockAdminDashboard
 import { NotificationProvider } from "../modules/notifications/context/NotificationContext";
 
 // ==========================================
-// ROUTE FILES
+// EXISTING ROUTES
 // ==========================================
 
 import Adminroutes from "./Adminroutes";
@@ -48,6 +53,16 @@ import HostelDirectorRoutes from "./HostelDirectorRoutes";
 import Maintencemangerroutes from "./maintencemangerroutes";
 
 import StoreManagerRoutes from "./StoreManagerRoutes";
+
+// ==========================================
+// NEW TECHNICIAN ROUTES
+// ==========================================
+
+import TechnicianRoutes from "./TechnicianRoutes";
+
+// ==========================================
+// MESS MANAGEMENT
+// ==========================================
 
 import MessManagerLayout from "../layouts/mess/MessManagerLayout.jsx";
 
@@ -73,54 +88,56 @@ const ProtectedRoute = ({ allowedRoles }) => {
 
     user = storedUser ? JSON.parse(storedUser) : null;
   } catch (error) {
-    console.log("User Parse Error", error);
+    console.error("User Parse Error:", error);
 
     localStorage.removeItem("user");
-
     localStorage.removeItem("token");
+    localStorage.removeItem("role");
 
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   // ======================================
-  // NO TOKEN
+  // AUTHENTICATION CHECK
   // ======================================
 
   if (!token || !user) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   // ======================================
-  // ROLE CHECK
+  // ROLE VALIDATION
   // ======================================
 
+  const userRole = String(user.role || "")
+    .trim()
+    .toUpperCase();
+
+  const normalizedAllowedRoles = (allowedRoles || []).map((role) =>
+    String(role).trim().toUpperCase(),
+  );
+
   if (
-    allowedRoles &&
-    !allowedRoles
-      .map((role) => role.toLowerCase())
-      .includes(user?.role?.toLowerCase())
+    normalizedAllowedRoles.length > 0 &&
+    !normalizedAllowedRoles.includes(userRole)
   ) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return <Outlet />;
 };
 
 // ==========================================
-// APP ROUTES
+// MAIN APPLICATION ROUTES
 // ==========================================
 
 const AppRoutes = () => {
   return (
     <BrowserRouter>
-      {/* ======================================
-          COMMON NOTIFICATION CONTEXT
-      ====================================== */}
-
       <NotificationProvider>
         <Routes>
           {/* ==================================
-              PUBLIC
+              PUBLIC ROUTES
           ================================== */}
 
           <Route path="/" element={<LandingPage />} />
@@ -143,7 +160,7 @@ const AppRoutes = () => {
           <Route path="/verification-failed" element={<VerificationFailed />} />
 
           {/* ==================================
-              STUDENT
+              STUDENT ROUTES
           ================================== */}
 
           <Route element={<ProtectedRoute allowedRoles={["STUDENT"]} />}>
@@ -151,7 +168,7 @@ const AppRoutes = () => {
           </Route>
 
           {/* ==================================
-              ADMIN
+              ADMIN ROUTES
           ================================== */}
 
           <Route element={<ProtectedRoute allowedRoles={["ADMIN"]} />}>
@@ -159,7 +176,7 @@ const AppRoutes = () => {
           </Route>
 
           {/* ==================================
-              WARDEN
+              WARDEN ROUTES
           ================================== */}
 
           <Route element={<ProtectedRoute allowedRoles={["WARDEN"]} />}>
@@ -167,7 +184,7 @@ const AppRoutes = () => {
           </Route>
 
           {/* ==================================
-              HOSTEL DIRECTOR
+              HOSTEL DIRECTOR ROUTES
           ================================== */}
 
           <Route
@@ -177,7 +194,7 @@ const AppRoutes = () => {
           </Route>
 
           {/* ==================================
-              MAINTENANCE MANAGER
+              MAINTENANCE MANAGER ROUTES
           ================================== */}
 
           <Route
@@ -187,7 +204,25 @@ const AppRoutes = () => {
           </Route>
 
           {/* ==================================
-              MESS MANAGER
+              TECHNICIAN ROUTES
+              NEW
+          ================================== */}
+
+          <Route element={<ProtectedRoute allowedRoles={["TECHNICIAN"]} />}>
+            {TechnicianRoutes}
+          </Route>
+
+          {/* ==================================
+              STORE MANAGER ROUTES
+          ================================== */}
+
+          <Route element={<ProtectedRoute allowedRoles={["STORE_MANAGER"]} />}>
+            {StoreManagerRoutes}
+          </Route>
+
+          {/* ==================================
+              MESS ROUTES
+              EXISTING BEHAVIOR PRESERVED
           ================================== */}
 
           <Route path="/mess" element={<MessManagerLayout />}>
@@ -201,16 +236,9 @@ const AppRoutes = () => {
           </Route>
 
           {/* ==================================
-              STORE MANAGER
+              BLOCK ADMIN
+              READ ONLY
           ================================== */}
-
-          <Route element={<ProtectedRoute allowedRoles={["STORE_MANAGER"]} />}>
-            {StoreManagerRoutes}
-          </Route>
-
-          {/* ==================================
-    BLOCK ADMIN - READ ONLY MONITORING
-================================== */}
 
           <Route element={<ProtectedRoute allowedRoles={["BLOCK_ADMIN"]} />}>
             <Route

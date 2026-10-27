@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 
 import {
   ArrowRight,
@@ -8,9 +8,11 @@ import {
   CheckCircle2,
   ClipboardList,
   Clock3,
+  Loader2,
   LogOut,
   MapPin,
   Package,
+  Play,
   RefreshCw,
   Search,
   UserRound,
@@ -20,18 +22,18 @@ import {
 
 import api from "../../../services/api";
 
-// ==========================================
-// HELPERS
-// ==========================================
-
-const normalize = (value) =>
+const upper = (value) =>
   String(value || "")
     .trim()
     .toUpperCase();
 
 const readable = (value) => String(value || "—").replaceAll("_", " ");
 
-function formatDate(value) {
+const done = new Set(["RESOLVED", "CLOSED"]);
+
+const awaiting = new Set(["COMPLETED", "AWAITING_STUDENT_CONFIRMATION"]);
+
+function dateIST(value) {
   if (!value || Number.isNaN(new Date(value).getTime())) {
     return "—";
   }
@@ -43,22 +45,22 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
-function locationText(job) {
+function locationOf(job) {
   return (
     [
       job.hostel || job.block,
-      job.floor ? `Floor ${job.floor}` : null,
-      job.roomNumber ? `Room ${job.roomNumber}` : null,
+      job.floor ? `Floor ${job.floor}` : "",
+      job.roomNumber ? `Room ${job.roomNumber}` : "",
     ]
       .filter(Boolean)
       .join(" · ") || "—"
   );
 }
 
-function statusClasses(status) {
-  const value = normalize(status);
+function statusClass(status) {
+  const value = upper(status);
 
-  if (["RESOLVED", "CLOSED"].includes(value)) {
+  if (done.has(value)) {
     return "bg-emerald-50 text-emerald-800";
   }
 
@@ -66,11 +68,7 @@ function statusClasses(status) {
     return "bg-rose-50 text-rose-800";
   }
 
-  if (
-    ["COMPLETED", "AWAITING_STUDENT_CONFIRMATION", "WAITING_MATERIAL"].includes(
-      value,
-    )
-  ) {
+  if (awaiting.has(value)) {
     return "bg-amber-50 text-amber-800";
   }
 
@@ -85,26 +83,25 @@ function storedUser() {
   }
 }
 
-// ==========================================
-// TECHNICIAN DASHBOARD
-// ==========================================
-
 export default function TechnicianDashboard() {
   const navigate = useNavigate();
 
   const [user] = useState(storedUser);
-  const [jobs, setJobs] = useState([]);
 
+  const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const [error, setError] = useState("");
+
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("ALL");
+
   const [selectedId, setSelectedId] = useState("");
+  const [startingId, setStartingId] = useState("");
 
   // ========================================
-  // FETCH ASSIGNED JOBS
+  // FETCH OWN ASSIGNED JOBS
   // ========================================
 
   const fetchMyJobs = useCallback(async (silent = false) => {
@@ -127,7 +124,7 @@ export default function TechnicianDashboard() {
     } catch (requestError) {
       setError(
         requestError?.response?.data?.message ||
-          "Unable to load your assigned jobs.",
+          "Unable to load assigned jobs.",
       );
     } finally {
       setLoading(false);
@@ -144,67 +141,46 @@ export default function TechnicianDashboard() {
       }
     }, 30000);
 
-    return () => {
-      window.clearInterval(interval);
-    };
+    return () => window.clearInterval(interval);
   }, [fetchMyJobs]);
 
   // ========================================
-  // LOGOUT
+  // STATISTICS
   // ========================================
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("user");
-    localStorage.removeItem("role");
-    localStorage.removeItem("activeRole");
-
-    navigate("/login", {
-      replace: true,
-    });
-  };
-
-  // ========================================
-  // STATS
-  // ========================================
-
-  const stats = useMemo(() => {
-    const active = jobs.filter(
-      (job) =>
-        ![
-          "RESOLVED",
-          "CLOSED",
-          "COMPLETED",
-          "AWAITING_STUDENT_CONFIRMATION",
-        ].includes(normalize(job.status)),
-    );
-
-    return {
+  const stats = useMemo(
+    () => ({
       total: jobs.length,
-      active: active.length,
 
-      awaiting: jobs.filter((job) =>
-        ["COMPLETED", "AWAITING_STUDENT_CONFIRMATION"].includes(
-          normalize(job.status),
-        ),
-      ).length,
+      assigned: jobs.filter((job) => upper(job.status) === "ASSIGNED").length,
 
-      resolved: jobs.filter((job) =>
-        ["RESOLVED", "CLOSED"].includes(normalize(job.status)),
-      ).length,
-    };
-  }, [jobs]);
+      active: jobs.filter((job) => upper(job.status) === "IN_PROGRESS").length,
+
+      awaiting: jobs.filter((job) => awaiting.has(upper(job.status))).length,
+
+      resolved: jobs.filter((job) => done.has(upper(job.status))).length,
+    }),
+    [jobs],
+  );
 
   // ========================================
-  // FILTERED JOBS
+  // SEARCH AND FILTERS
   // ========================================
 
-  const visibleJobs = useMemo(() => {
+  const filteredJobs = useMemo(() => {
     const needle = search.trim().toLowerCase();
 
     return jobs.filter((job) => {
-      const searchable = [
+      const status = upper(job.status);
+
+      const matchFilter =
+        filter === "ALL" ||
+        (filter === "ASSIGNED" && status === "ASSIGNED") ||
+        (filter === "ACTIVE" && status === "IN_PROGRESS") ||
+        (filter === "AWAITING" && awaiting.has(status)) ||
+        (filter === "RESOLVED" && done.has(status));
+
+      const searchText = [
         job.complaintId,
         job.title,
         job.description,
@@ -213,39 +189,57 @@ export default function TechnicianDashboard() {
         job.block,
         job.roomNumber,
       ]
-        .map((value) => String(value || "").toLowerCase())
+        .map((part) => String(part || "").toLowerCase())
         .join(" ");
 
-      const matchesSearch = !needle || searchable.includes(needle);
-
-      const status = normalize(job.status);
-
-      const matchesFilter =
-        filter === "ALL" ||
-        (filter === "ACTIVE" &&
-          ![
-            "RESOLVED",
-            "CLOSED",
-            "COMPLETED",
-            "AWAITING_STUDENT_CONFIRMATION",
-          ].includes(status)) ||
-        (filter === "AWAITING" &&
-          ["COMPLETED", "AWAITING_STUDENT_CONFIRMATION"].includes(status)) ||
-        (filter === "RESOLVED" && ["RESOLVED", "CLOSED"].includes(status));
-
-      return matchesSearch && matchesFilter;
+      return matchFilter && (!needle || searchText.includes(needle));
     });
   }, [jobs, search, filter]);
 
   const selectedJob = jobs.find((job) => String(job._id) === selectedId);
 
   // ========================================
-  // UI
+  // TECHNICIAN START WORK
   // ========================================
+
+  async function startWork(job) {
+    if (startingId || upper(job.status) !== "ASSIGNED") {
+      return;
+    }
+
+    setStartingId(String(job._id));
+
+    try {
+      await api.put(`/maintenance/worker/my-jobs/${job._id}/start`);
+
+      toast.success("Work started. Complaint is now In Progress.");
+
+      await fetchMyJobs(true);
+    } catch (requestError) {
+      toast.error(
+        requestError?.response?.data?.message ||
+          "Cannot start work. Check your duty shift.",
+      );
+    } finally {
+      setStartingId("");
+    }
+  }
+
+  function logout() {
+    ["token", "accessToken", "user", "role", "activeRole"].forEach((key) => {
+      localStorage.removeItem(key);
+    });
+
+    navigate("/login", {
+      replace: true,
+    });
+  }
+
+  const infoClass = "rounded-xl border border-slate-200 p-3";
 
   return (
     <main className="min-h-screen bg-[#F5F7FB] text-[#102B52]">
-      {/* TOP NAVIGATION */}
+      {/* HEADER */}
 
       <header className="border-b border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-8">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3">
@@ -273,11 +267,11 @@ export default function TechnicianDashboard() {
       </header>
 
       <div className="mx-auto max-w-7xl space-y-5 p-4 sm:p-6 lg:p-8">
-        {/* WELCOME HEADER */}
+        {/* WELCOME */}
 
         <section className="rounded-3xl bg-gradient-to-r from-[#071C3C] to-[#204779] p-6 text-white shadow-lg">
           <p className="text-xs font-bold uppercase tracking-widest text-amber-300">
-            Technician Workspace
+            TECHNICIAN WORKSPACE
           </p>
 
           <h2 className="mt-2 text-2xl font-black sm:text-3xl">
@@ -285,36 +279,38 @@ export default function TechnicianDashboard() {
           </h2>
 
           <p className="mt-2 text-sm text-slate-200">
-            View your assigned maintenance complaints and track their progress.
+            Assigned jobs are scheduled first. Start work during eligible duty.
           </p>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <span className="rounded-full bg-white/10 px-3 py-2 text-xs font-bold">
-              {user.department || "Maintenance"}
-            </span>
-
-            <span className="rounded-full bg-white/10 px-3 py-2 text-xs font-bold">
-              {user.shift || "DAY"} Shift
-            </span>
-
-            <span className="rounded-full bg-white/10 px-3 py-2 text-xs font-bold">
-              Account: {user.status || "ACTIVE"}
-            </span>
+            {[
+              user.department || "Maintenance",
+              `${user.shift || "DAY"} Shift`,
+              `Account: ${user.status || "ACTIVE"}`,
+            ].map((item) => (
+              <span
+                key={item}
+                className="rounded-full bg-white/10 px-3 py-2 text-xs font-bold"
+              >
+                {item}
+              </span>
+            ))}
           </div>
 
           <p className="mt-3 text-xs text-slate-300">
-            Shift label is your assigned roster, not a live attendance
-            indicator.
+            Start Work eligibility is checked by the backend against your duty
+            shift. 24x7 means emergency on-call.
           </p>
         </section>
 
-        {/* COUNTERS */}
+        {/* STATS */}
 
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           {[
             ["Total Assigned", stats.total, ClipboardList],
-            ["Active Jobs", stats.active, Wrench],
-            ["Awaiting Student", stats.awaiting, Clock3],
+            ["Awaiting Start", stats.assigned, Clock3],
+            ["In Progress", stats.active, Wrench],
+            ["Awaiting Student", stats.awaiting, CheckCircle2],
             ["Resolved", stats.resolved, CheckCircle2],
           ].map(([label, value, Icon]) => (
             <div
@@ -330,21 +326,21 @@ export default function TechnicianDashboard() {
           ))}
         </section>
 
-        {/* JOBS LIST */}
+        {/* JOB DIRECTORY */}
 
         <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4 sm:p-5">
             <div>
               <h3 className="text-lg font-black">My Assigned Complaints</h3>
 
               <p className="text-xs text-slate-500">
-                Only complaints assigned to your account are shown.
+                Only your assigned jobs are returned by the API.
               </p>
             </div>
 
             <button
               type="button"
-              onClick={() => fetchMyJobs(true)}
+              onClick={() => void fetchMyJobs(true)}
               disabled={refreshing}
               className="inline-flex items-center gap-2 rounded-xl bg-[#102B52] px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
             >
@@ -356,10 +352,8 @@ export default function TechnicianDashboard() {
             </button>
           </div>
 
-          <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5">
-            {/* SEARCH */}
-
-            <div className="relative">
+          <div className="grid gap-3 p-4 sm:grid-cols-2">
+            <label className="relative">
               <Search
                 size={17}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
@@ -371,9 +365,7 @@ export default function TechnicianDashboard() {
                 placeholder="Search complaints..."
                 className="w-full rounded-xl border border-slate-200 py-3 pl-10 pr-3 text-sm outline-none focus:border-amber-400"
               />
-            </div>
-
-            {/* FILTER */}
+            </label>
 
             <select
               value={filter}
@@ -381,49 +373,43 @@ export default function TechnicianDashboard() {
               className="rounded-xl border border-slate-200 px-3 py-3 text-sm"
             >
               <option value="ALL">All Jobs</option>
-
-              <option value="ACTIVE">Active Jobs</option>
-
-              <option value="AWAITING">Awaiting Student Confirmation</option>
-
+              <option value="ASSIGNED">Awaiting Start</option>
+              <option value="ACTIVE">In Progress</option>
+              <option value="AWAITING">Awaiting Student</option>
               <option value="RESOLVED">Resolved</option>
             </select>
           </div>
 
-          {/* ERROR */}
-
           {error && (
-            <div
+            <p
               role="alert"
-              className="mx-4 mb-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"
+              className="mx-4 mb-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-700"
             >
               {error}
-            </div>
+            </p>
           )}
 
-          {/* LOADING */}
-
           {loading ? (
-            <div className="flex items-center justify-center gap-3 py-14 text-sm text-slate-500">
-              <RefreshCw size={19} className="animate-spin" />
+            <div className="flex items-center justify-center gap-2 py-14 text-sm text-slate-500">
+              <Loader2 size={19} className="animate-spin" />
               Loading jobs...
             </div>
-          ) : visibleJobs.length === 0 ? (
-            <div className="py-14 text-center text-sm text-slate-500">
-              No assigned complaints found.
-            </div>
+          ) : filteredJobs.length === 0 ? (
+            <p className="py-14 text-center text-sm text-slate-500">
+              No matching assigned complaints.
+            </p>
           ) : (
             <div className="grid gap-3 px-4 pb-5 sm:grid-cols-2 xl:grid-cols-3">
-              {visibleJobs.map((job) => (
+              {filteredJobs.map((job) => (
                 <article
                   key={job._id}
-                  className="rounded-xl border border-slate-200 p-4 transition hover:border-amber-400"
+                  className="rounded-xl border border-slate-200 p-4 hover:border-amber-400"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <strong className="text-sm">{job.complaintId}</strong>
 
                     <span
-                      className={`rounded-full px-2 py-1 text-[11px] font-bold ${statusClasses(
+                      className={`rounded-full px-2 py-1 text-[11px] font-bold ${statusClass(
                         job.status,
                       )}`}
                     >
@@ -437,13 +423,11 @@ export default function TechnicianDashboard() {
 
                   <p className="mt-2 flex items-center gap-1 text-xs text-slate-500">
                     <MapPin size={14} />
-                    {locationText(job)}
+                    {locationOf(job)}
                   </p>
 
                   <p className="mt-2 text-xs text-slate-500">
-                    {job.category || "—"}
-                    {" · "}
-                    {job.priority || "—"}
+                    {job.category || "—"} · {job.priority || "—"}
                   </p>
 
                   <p className="mt-1 text-xs text-slate-500">
@@ -468,9 +452,7 @@ export default function TechnicianDashboard() {
         </section>
       </div>
 
-      {/* ====================================
-          JOB DETAILS MODAL
-      ==================================== */}
+      {/* JOB DETAILS MODAL */}
 
       {selectedJob && (
         <div
@@ -482,7 +464,7 @@ export default function TechnicianDashboard() {
           <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl sm:p-6">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-bold text-amber-700">
+                <p className="text-xs font-bold uppercase text-amber-700">
                   ASSIGNED COMPLAINT
                 </p>
 
@@ -493,7 +475,7 @@ export default function TechnicianDashboard() {
 
               <button
                 type="button"
-                aria-label="Close job details"
+                aria-label="Close"
                 onClick={() => setSelectedId("")}
                 className="rounded-lg p-2 hover:bg-slate-100"
               >
@@ -508,27 +490,21 @@ export default function TechnicianDashboard() {
                 <p className="mt-2 whitespace-pre-wrap text-slate-600">
                   {selectedJob.description || "No description"}
                 </p>
-
-                {(selectedJob.titleHindi || selectedJob.descriptionHindi) && (
-                  <p className="mt-3 whitespace-pre-wrap border-t border-slate-200 pt-3 text-slate-600">
-                    {selectedJob.titleHindi} {selectedJob.descriptionHindi}
-                  </p>
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-slate-200 p-3">
+                <div className={infoClass}>
                   <p className="flex items-center gap-1 text-xs text-slate-500">
                     <MapPin size={13} />
                     Location
                   </p>
 
                   <p className="mt-2 font-semibold">
-                    {locationText(selectedJob)}
+                    {locationOf(selectedJob)}
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 p-3">
+                <div className={infoClass}>
                   <p className="text-xs text-slate-500">Status</p>
 
                   <p className="mt-2 font-semibold">
@@ -536,7 +512,7 @@ export default function TechnicianDashboard() {
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 p-3">
+                <div className={infoClass}>
                   <p className="flex items-center gap-1 text-xs text-slate-500">
                     <Package size={13} />
                     Materials
@@ -549,7 +525,7 @@ export default function TechnicianDashboard() {
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 p-3">
+                <div className={infoClass}>
                   <p className="flex items-center gap-1 text-xs text-slate-500">
                     <UserRound size={13} />
                     Reported By
@@ -561,26 +537,62 @@ export default function TechnicianDashboard() {
                 </div>
               </div>
 
+              {/* TIMELINE */}
+
               <div className="rounded-xl border border-slate-200 p-4">
                 <p className="flex items-center gap-2 font-bold">
                   <CalendarDays size={17} />
                   Work Timeline
                 </p>
 
-                <div className="mt-3 space-y-2 text-xs text-slate-600">
-                  <p>Created: {formatDate(selectedJob.createdAt)}</p>
+                <p className="mt-3 text-xs text-slate-600">
+                  Created: {dateIST(selectedJob.createdAt)}
+                </p>
 
-                  <p>Work Started: {formatDate(selectedJob.startedAt)}</p>
+                <p className="mt-2 text-xs text-slate-600">
+                  Work Started: {dateIST(selectedJob.startedAt)}
+                </p>
 
-                  <p>Work Completed: {formatDate(selectedJob.completedAt)}</p>
-                </div>
+                <p className="mt-2 text-xs text-slate-600">
+                  Work Completed: {dateIST(selectedJob.completedAt)}
+                </p>
               </div>
 
-              <p className="text-xs leading-5 text-slate-500">
-                This dashboard currently shows assigned jobs and their latest
-                status. Work Done submission and material receipt confirmation
-                will be connected to their respective backend controllers.
-              </p>
+              {/* START WORK */}
+
+              {upper(selectedJob.status) === "ASSIGNED" && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <h4 className="font-bold">Ready to start?</h4>
+
+                  <p className="mt-1 text-xs text-slate-600">
+                    This job has been assigned but is not yet In Progress. Start
+                    Work will be validated against your duty shift by the
+                    server.
+                  </p>
+
+                  <button
+                    type="button"
+                    disabled={Boolean(startingId)}
+                    onClick={() => void startWork(selectedJob)}
+                    className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-[#102B52] px-4 py-3 text-sm font-bold text-white disabled:opacity-50"
+                  >
+                    {startingId ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Play size={16} />
+                    )}
+
+                    {startingId ? "Starting..." : "Start Work"}
+                  </button>
+                </div>
+              )}
+
+              {upper(selectedJob.status) === "IN_PROGRESS" && (
+                <p className="rounded-xl bg-blue-50 p-3 text-xs text-blue-900">
+                  Work is in progress. Work Done submission will use the
+                  existing completion API after integration.
+                </p>
+              )}
             </div>
           </div>
         </div>

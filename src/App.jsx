@@ -2,7 +2,6 @@ import { Route, Routes } from "react-router-dom";
 import LandingPage from "./modules/auth/pages/LandingPage";
 import Login from "./modules/auth/pages/Login";
 import Register from "./modules/auth/pages/Register";
-import TechnicianDashboard from "./modules/technician/pages/TechnicianDashboard";
 
 export default function App() {
   return (
@@ -11,7 +10,6 @@ export default function App() {
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
-      <Route path="/worker/dashboard" element={<TechnicianDashboard />} />
       {/* Merge your existing /verify-otp, /forgot-password and protected
           dashboard routes here, using their actual imported components.
           They cannot be reconstructed from the files supplied so far. */}

@@ -1,1429 +1,1451 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
+
+import {
+  AlertCircle,
+  AlertTriangle,
+  ArrowDownUp,
+  BadgeCheck,
+  Building2,
+  CalendarClock,
+  CalendarDays,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ClipboardList,
+  Clock3,
+  Filter,
+  Hash,
+  Loader2,
+  MapPin,
+  Phone,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  ShieldCheck,
+  UserRound,
+  Wrench,
+  X,
+} from "lucide-react";
 
 import api from "../../services/api";
 
-import { createComplaint } from "../../services/studentService";
+import useRealtimeRefresh from "../notifications/hooks/useRealtimeRefresh";
 
-const hostelLocations = [
-  "Room",
+// =====================================================
+// AMI MAINTENANCE - MY COMPLAINTS
+// =====================================================
 
-  "Washroom",
+const PAGE_SIZE = 5;
 
-  "Corridor",
+// =====================================================
+// STATUS STYLES
+// =====================================================
 
-  "Mess",
+const STATUS_STYLE = {
+  PENDING: "border-amber-200 bg-amber-50 text-amber-800",
 
-  "Water Cooler",
+  ASSIGNED: "border-sky-200 bg-sky-50 text-sky-800",
 
-  "Lift",
+  IN_PROGRESS: "border-blue-200 bg-blue-50 text-blue-800",
 
-  "Other",
+  WAITING_MATERIAL: "border-violet-200 bg-violet-50 text-violet-800",
+
+  COMPLETED: "border-teal-200 bg-teal-50 text-teal-800",
+
+  RESOLVED: "border-emerald-200 bg-emerald-50 text-emerald-800",
+
+  CLOSED: "border-slate-200 bg-slate-100 text-slate-700",
+
+  REOPENED: "border-orange-200 bg-orange-50 text-orange-800",
+
+  ESCALATED: "border-rose-200 bg-rose-50 text-rose-800",
+};
+
+const PRIORITY_STYLE = {
+  LOW: "border-emerald-200 bg-emerald-50 text-emerald-700",
+
+  MEDIUM: "border-amber-200 bg-amber-50 text-amber-700",
+
+  HIGH: "border-orange-200 bg-orange-50 text-orange-700",
+
+  URGENT: "border-rose-200 bg-rose-50 text-rose-700",
+
+  CRITICAL: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
+const STATUS_OPTIONS = [
+  ["ALL", "All Statuses"],
+  ["PENDING", "Pending"],
+  ["ASSIGNED", "Assigned"],
+  ["IN_PROGRESS", "In Progress"],
+  ["WAITING_MATERIAL", "Waiting Material"],
+  ["COMPLETED", "Awaiting Student Review"],
+  ["RESOLVED", "Resolved"],
+  ["CLOSED", "Closed"],
+  ["REOPENED", "Reopened"],
+  ["ESCALATED", "Escalated"],
 ];
 
-const departmentLocations = [
-  "Classroom",
+// =====================================================
+// HELPERS
+// =====================================================
 
-  "Lab",
+const text = (value) => String(value ?? "").trim();
 
-  "Washroom",
+const readableStatus = (value) => text(value).replace(/_/g, " ") || "UNKNOWN";
 
-  "Corridor",
+function formatDate(value, withTime = true) {
+  if (!value) return "Not available";
 
-  "Department Office",
+  const date = new Date(value);
 
-  "Water Cooler",
+  if (Number.isNaN(date.getTime())) {
+    return "Not available";
+  }
 
-  "Other",
-];
+  return date.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
 
-const campusLocations = [
-  "Block A",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
 
-  "Block B",
-
-  "Block C",
-
-  "Block D",
-
-  "Block E",
-
-  "Block F",
-
-  "Sports Complex",
-
-  "Library",
-
-  "Cafeteria",
-
-  "Ground",
-
-  "Parking",
-
-  "Other",
-];
-
-const campusBlocks = [
-  "Block A",
-
-  "Block B",
-
-  "Block C",
-
-  "Block D",
-
-  "Block E",
-
-  "Block F",
-
-  "Sports Complex",
-];
-
-const availabilityTimes = [
-  "09:00 AM",
-
-  "10:00 AM",
-
-  "11:00 AM",
-
-  "12:00 PM",
-
-  "01:00 PM",
-
-  "02:00 PM",
-
-  "03:00 PM",
-
-  "04:00 PM",
-
-  "05:00 PM",
-];
-
-const CreateComplaint = () => {
-  const [user, setUser] = useState(() => {
-    try {
-      return JSON.parse(localStorage.getItem("user") || "{}");
-    } catch {
-      return {};
-    }
+    ...(withTime
+      ? {
+          hour: "2-digit",
+          minute: "2-digit",
+        }
+      : {}),
   });
-  // Use the official User schema flag as the source of truth
-  const isHosteller = user?.isHosteller === true;
-  // Support either department or branch depending on your user object
-  const getDepartment = (value) =>
-    typeof value === "string"
-      ? value.trim()
-      : value && typeof value === "object"
-        ? String(value.name || value.departmentName || "").trim()
-        : "";
-  const [studentDepartment, setStudentDepartment] = useState(
-    () => getDepartment(user?.department) || getDepartment(user?.branch),
-  );
-  // ==========================================  // STATES  // ==========================================
-  const [categories, setCategories] = useState([]);
+}
 
-  const [selectedCategory, setSelectedCategory] = useState(null);
+function formatVisitDate(value) {
+  if (!value) return "—";
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return text(value);
+  }
 
-  const [submittedComplaint, setSubmittedComplaint] = useState(null);
+  return formatDate(`${value}T12:00:00+05:30`, false);
+}
 
-  const [formData, setFormData] = useState({
-    floor: "",
+function getLocation(complaint) {
+  const area = text(complaint.complaintArea).toUpperCase();
 
-    category: "",
+  if (area === "HOSTEL") {
+    return (
+      [
+        complaint.hostel,
 
-    subCategory: "",
+        complaint.roomNumber ? `Room ${complaint.roomNumber}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ") || "Hostel"
+    );
+  }
 
-    otherSubCategory: "",
+  if (area === "DEPARTMENT") {
+    return (
+      [
+        complaint.block ? `Block ${complaint.block}` : "",
 
-    description: "",
+        complaint.issueLocation,
+      ]
+        .filter(Boolean)
+        .join(" · ") || "Academic Block"
+    );
+  }
 
-    availableFrom: "",
+  return complaint.issueLocation || "Campus";
+}
 
-    availableTo: "",
+function getWorker(complaint) {
+  return complaint.assignedTo && typeof complaint.assignedTo === "object"
+    ? complaint.assignedTo
+    : null;
+}
 
-    issueLocation: "",
+// =====================================================
+// REUSABLE BADGE
+// =====================================================
 
-    otherLocation: "",
+function Badge({ value, type = "status" }) {
+  const styles = type === "priority" ? PRIORITY_STYLE : STATUS_STYLE;
 
-    complaintArea: isHosteller ? "HOSTEL" : "DEPARTMENT",
-
-    hostel: isHosteller ? user?.hostel || "" : "",
-
-    block: isHosteller ? user?.block || "" : "",
-
-    department: studentDepartment,
-
-    roomNumber: isHosteller ? user?.roomNumber || "" : "",
-  });
-  // ==========================================  // FETCH CATEGORIES  // ==========================================
-  const fetchCategories = async () => {
-    try {
-      const res = await api.get("/student/categories", {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-
-      setCategories(res.data.categories || []);
-    } catch (error) {
-      console.log(error);
-
-      toast.error("Failed to load categories");
-    }
-  };
-  // ==========================================  // USE EFFECT  // ==========================================
-  useEffect(() => {
-    fetchCategories();
-  }, []);
-  // Fetch the same latest profile used by My Profile.
-  useEffect(() => {
-    let active = true;
-    const loadProfile = async () => {
-      try {
-        const res = await api.get("/auth/profile", {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        });
-        if (!active || !res.data?.user) return;
-        const profile = res.data.user;
-        const department =
-          getDepartment(profile.department) || getDepartment(profile.branch);
-        setUser(profile);
-        setStudentDepartment(department);
-        localStorage.setItem("user", JSON.stringify(profile));
-        setFormData((prev) => ({
-          ...prev,
-          department,
-          hostel:
-            prev.complaintArea === "HOSTEL"
-              ? profile.hostel || ""
-              : prev.hostel,
-          roomNumber:
-            prev.complaintArea === "HOSTEL"
-              ? profile.roomNumber || ""
-              : prev.roomNumber,
-          block:
-            prev.complaintArea === "HOSTEL" ? profile.block || "" : prev.block,
-        }));
-      } catch (error) {
-        console.error("Failed to fetch profile for complaint:", error);
-        toast.error("Could not refresh your profile. Please try again.");
-      }
-    };
-    loadProfile();
-    return () => {
-      active = false;
-    };
-  }, []);
-  // ==========================================  // HANDLE CHANGE  // ==========================================
-  const handleChange = (e) => {
-    setFormData({
-      ...formData,
-
-      [e.target.name]: e.target.value,
-    });
-  };
-  // ==========================================  // SUBMIT  // ==========================================
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    // Prevent duplicate submissions from double-clicking
-    if (isSubmitting) return;
-    // Day scholars can submit only Department complaints.  // This is a frontend guard; the backend should enforce the same rule too.
-    if (!isHosteller && formData.complaintArea !== "DEPARTMENT") {
-      toast.error("Day Scholars can submit only Department complaints");
-
-      return;
-    }
-    // Availability time is only for hostel complaints raised by hostellers.
-    if (
-      isHosteller &&
-      formData.complaintArea === "HOSTEL" &&
-      formData.availableFrom &&
-      formData.availableTo
-    ) {
-      const fromIndex = availabilityTimes.indexOf(formData.availableFrom);
-
-      const toIndex = availabilityTimes.indexOf(formData.availableTo);
-
-      if (toIndex <= fromIndex) {
-        toast.error("Available To time must be after Available From time");
-
-        return;
-      }
-    }
-
-    if (
-      formData.complaintArea === "DEPARTMENT" &&
-      !["A", "B", "C", "D", "E", "F"].includes(formData.block)
-    ) {
-      toast.error("Please select a valid Department Block");
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const payload = {
-        title:
-          (formData.subCategory === "Other"
-            ? formData.otherSubCategory
-            : formData.subCategory) || "Complaint",
-
-        description: formData.description,
-
-        category: formData.category,
-
-        subCategory:
-          formData.subCategory === "Other"
-            ? formData.otherSubCategory
-            : formData.subCategory,
-
-        priority: "MEDIUM",
-
-        complaintArea: isHosteller ? formData.complaintArea : "DEPARTMENT",
-
-        hostel:
-          isHosteller && formData.complaintArea === "HOSTEL"
-            ? formData.hostel
-            : "",
-
-        block:
-          formData.complaintArea === "DEPARTMENT"
-            ? formData.block
-            : formData.complaintArea === "HOSTEL"
-              ? user?.block || ""
-              : formData.block,
-
-        department:
-          formData.complaintArea === "DEPARTMENT" ? studentDepartment : "",
-
-        floor: formData.floor,
-
-        roomNumber:
-          isHosteller && formData.complaintArea === "HOSTEL"
-            ? formData.roomNumber
-            : "",
-
-        issueLocation:
-          formData.issueLocation === "Other"
-            ? formData.otherLocation
-            : formData.issueLocation,
-
-        availableFrom:
-          isHosteller && formData.complaintArea === "HOSTEL"
-            ? formData.availableFrom
-            : "",
-
-        availableTo:
-          isHosteller && formData.complaintArea === "HOSTEL"
-            ? formData.availableTo
-            : "",
-      };
-
-      const response = await createComplaint(payload);
-      // Works whether studentService returns axios response or response.data
-      const createdComplaint =
-        response?.data?.complaint ||
-        response?.complaint ||
-        response?.data ||
-        {};
-
-      setSubmittedComplaint({
-        ...payload,
-
-        complaintId:
-          createdComplaint?.complaintId ||
-          createdComplaint?._id ||
-          createdComplaint?.id ||
-          "",
-
-        submittedAt: new Date().toLocaleString("en-IN"),
-      });
-
-      toast.success("Complaint submitted successfully!");
-
-      setFormData({
-        floor: "",
-
-        category: "",
-
-        subCategory: "",
-
-        otherSubCategory: "",
-
-        description: "",
-
-        availableFrom: "",
-
-        availableTo: "",
-
-        issueLocation: "",
-
-        otherLocation: "",
-
-        complaintArea: isHosteller ? "HOSTEL" : "DEPARTMENT",
-
-        hostel: isHosteller ? user?.hostel || "" : "",
-
-        block: isHosteller ? user?.block || "" : "",
-
-        department: studentDepartment,
-
-        roomNumber: isHosteller ? user?.roomNumber || "" : "",
-      });
-
-      setSelectedCategory(null);
-    } catch (error) {
-      console.log(error);
-
-      toast.error(
-        error?.response?.data?.message || "Failed to submit complaint",
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const color =
+    styles[text(value).toUpperCase()] ||
+    "border-slate-200 bg-slate-50 text-slate-600";
 
   return (
-    <div
-      className="
-
-        min-h-screen
-
-        bg-[#eef2ff]
-
-        px-4
-
-        md:px-6
-
-        py-5
-
-      "
+    <span
+      className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[11px] font-extrabold tracking-wide ${color}`}
     >
-      <div className="w-full">
-        {/* HEADER */}
+      {readableStatus(value)}
+    </span>
+  );
+}
 
-        <div
-          className="
+// =====================================================
+// REUSABLE DETAIL CARD
+// =====================================================
 
-            bg-gradient-to-r
+function DetailCard({ icon: Icon, label, children }) {
+  return (
+    <div className="flex min-w-0 gap-3 rounded-2xl border border-slate-100 bg-[#F8FAFD] p-3.5">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#B68930] shadow-sm">
+        <Icon size={17} />
+      </span>
 
-            from-[#0b2a7d]
+      <div className="min-w-0">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+          {label}
+        </p>
 
-            via-[#1b3fa0]
-
-            to-[#7A0019]
-
-            text-white
-
-            rounded-3xl
-
-            shadow-xl
-
-            p-6
-
-            md:p-8
-
-            mb-6
-
-          "
-        >
-          <h1
-            className="
-
-              text-3xl
-
-              md:text-5xl
-
-              font-black
-
-            "
-          >
-            Create Complaint
-          </h1>
-
-          <p
-            className="
-
-              mt-3
-
-              text-gray-200
-
-              text-sm
-
-              md:text-lg
-
-            "
-          >
-            Raise issues and track them in real-time.
-          </p>
+        <div className="mt-1 break-words text-sm font-bold text-[#102746]">
+          {children || "—"}
         </div>
+      </div>
+    </div>
+  );
+}
 
-        {/* FORM */}
+// =====================================================
+// SUMMARY CARD
+// =====================================================
 
-        <form
-          onSubmit={handleSubmit}
-          className="
+function SummaryCard({ icon: Icon, label, value, sub }) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-bold text-slate-500 sm:text-sm">{label}</p>
 
-            bg-[#fdfdfd]
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F7F8FA]">
+          <Icon size={19} className="text-[#BD8E31]" />
+        </span>
+      </div>
 
-            rounded-[32px]
+      <p className="mt-2 text-2xl font-black tabular-nums text-[#102746] sm:text-3xl">
+        {value}
+      </p>
 
-            shadow-[0_10px_40px_rgba(0,0,0,0.08)]
+      <p className="mt-1 text-[11px] text-slate-400">{sub}</p>
+    </div>
+  );
+}
 
-            border
+// =====================================================
+// MAIN COMPONENT
+// =====================================================
 
-            border-gray-100
+export default function MyComplaints() {
+  const navigate = useNavigate();
 
-            p-5
+  const verificationLock = useRef(false);
 
-            md:p-8
+  const [complaints, setComplaints] = useState([]);
 
-            space-y-7
+  const [loading, setLoading] = useState(true);
 
-          "
-        >
-          {/* AREA */}
+  const [refreshing, setRefreshing] = useState(false);
 
+  const [loadError, setLoadError] = useState("");
+
+  // Search / filters
+  const [search, setSearch] = useState("");
+
+  const [statusFilter, setStatusFilter] = useState("ALL");
+
+  const [sort, setSort] = useState("NEWEST");
+
+  const [page, setPage] = useState(1);
+
+  const [expandedId, setExpandedId] = useState(null);
+
+  // Legacy reopen modal
+  const [reopenTarget, setReopenTarget] = useState(null);
+
+  const [reopenReason, setReopenReason] = useState("");
+
+  const [reopening, setReopening] = useState(false);
+
+  // Student satisfaction verification
+  const [feedbackTarget, setFeedbackTarget] = useState(null);
+
+  const [feedbackDecision, setFeedbackDecision] = useState("");
+
+  const [feedbackReason, setFeedbackReason] = useState("");
+
+  const [feedbackBusy, setFeedbackBusy] = useState(false);
+
+  // ===================================================
+  // FETCH COMPLAINTS
+  // ===================================================
+
+  const fetchComplaints = useCallback(async (showLoader = false) => {
+    if (showLoader === true) {
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
+
+    try {
+      const response = await api.get("/student/complaints/my-complaints");
+
+      setComplaints(
+        Array.isArray(response.data?.complaints)
+          ? response.data.complaints
+          : [],
+      );
+
+      setLoadError("");
+    } catch (error) {
+      console.error("FETCH COMPLAINTS ERROR:", error);
+
+      const message =
+        error?.response?.data?.message || "Unable to load complaints";
+
+      setLoadError(message);
+
+      if (!showLoader) {
+        toast.error(message);
+      }
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchComplaints(true);
+  }, [fetchComplaints]);
+
+  // Existing refresh hook preserved.
+  // Manual Refresh also works independently.
+  useRealtimeRefresh("complaintUpdated", fetchComplaints);
+
+  // ===================================================
+  // DASHBOARD COUNTS
+  //
+  // COMPLETED means Technician finished.
+  // RESOLVED means Student accepted.
+  // ===================================================
+
+  const totals = useMemo(() => {
+    const accepted = new Set(["RESOLVED", "CLOSED"]);
+
+    return {
+      total: complaints.length,
+
+      active: complaints.filter(
+        (item) => !accepted.has(item.status) && item.status !== "COMPLETED",
+      ).length,
+
+      awaitingReview: complaints.filter((item) => item.status === "COMPLETED")
+        .length,
+
+      resolved: complaints.filter((item) => accepted.has(item.status)).length,
+    };
+  }, [complaints]);
+
+  // ===================================================
+  // SEARCH AND FILTER
+  // ===================================================
+
+  const filtered = useMemo(() => {
+    const query = search.toLowerCase().trim();
+
+    const priorityRank = {
+      URGENT: 5,
+      CRITICAL: 5,
+      HIGH: 4,
+      MEDIUM: 3,
+      LOW: 2,
+    };
+
+    return complaints
+      .filter((item) => {
+        const matchStatus =
+          statusFilter === "ALL" || item.status === statusFilter;
+
+        const searchable = [
+          item.complaintId,
+          item.title,
+          item.subCategory,
+          item.category,
+          item.description,
+          item.issueLocation,
+          item.hostel,
+          item.block,
+        ]
+          .map(text)
+          .join(" ")
+          .toLowerCase();
+
+        return matchStatus && (!query || searchable.includes(query));
+      })
+      .sort((a, b) => {
+        if (sort === "PRIORITY") {
+          const difference =
+            (priorityRank[b.priority] || 0) - (priorityRank[a.priority] || 0);
+
+          if (difference !== 0) {
+            return difference;
+          }
+        }
+
+        const difference =
+          new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+
+        return sort === "OLDEST" ? -difference : difference;
+      });
+  }, [complaints, search, statusFilter, sort]);
+
+  // ===================================================
+  // PAGINATION
+  // ===================================================
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, sort]);
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+
+  const currentPage = Math.min(page, pageCount);
+
+  const visibleComplaints = filtered.slice(
+    (currentPage - 1) * PAGE_SIZE,
+    currentPage * PAGE_SIZE,
+  );
+
+  // ===================================================
+  // STUDENT VERIFICATION MODAL
+  // ===================================================
+
+  const openFeedback = (complaint, decision) => {
+    if (complaint.status !== "COMPLETED") {
+      return;
+    }
+
+    setFeedbackTarget(complaint);
+    setFeedbackDecision(decision);
+    setFeedbackReason("");
+  };
+
+  // ===================================================
+  // SUBMIT STUDENT VERIFICATION
+  // ===================================================
+
+  const submitFeedback = async (event) => {
+    event.preventDefault();
+
+    if (!feedbackTarget || feedbackBusy || verificationLock.current) {
+      return;
+    }
+
+    if (!["SATISFIED", "NOT_SATISFIED"].includes(feedbackDecision)) {
+      toast.error("Choose a verification decision");
+
+      return;
+    }
+
+    const reason = feedbackReason.trim();
+
+    if (
+      feedbackDecision === "NOT_SATISFIED" &&
+      (reason.length < 5 || reason.length > 800)
+    ) {
+      toast.error("Please provide a reason between 5 and 800 characters");
+
+      return;
+    }
+
+    verificationLock.current = true;
+    setFeedbackBusy(true);
+
+    try {
+      const response = await api.post(
+        `/student/complaints/${feedbackTarget._id}/verify`,
+
+        {
+          decision: feedbackDecision,
+
+          reason: feedbackDecision === "NOT_SATISFIED" ? reason : "",
+        },
+      );
+
+      toast.success(
+        response.data?.message || "Verification submitted successfully",
+      );
+
+      setFeedbackTarget(null);
+      setFeedbackDecision("");
+      setFeedbackReason("");
+
+      await fetchComplaints(false);
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || "Could not submit verification",
+      );
+    } finally {
+      verificationLock.current = false;
+      setFeedbackBusy(false);
+    }
+  };
+
+  // ===================================================
+  // LEGACY REOPEN FLOW
+  //
+  // Preserved for older RESOLVED complaints
+  // that have no Student Verification decision.
+  // ===================================================
+
+  const submitReopen = async (event) => {
+    event.preventDefault();
+
+    if (!reopenTarget || reopening) {
+      return;
+    }
+
+    if (reopenReason.trim().length < 5) {
+      toast.error("Reopen reason must contain at least 5 characters");
+
+      return;
+    }
+
+    setReopening(true);
+
+    try {
+      const response = await api.post(
+        "/maintenance/reopen-complaints/create",
+
+        {
+          complaintId: reopenTarget._id,
+
+          reopenReason: reopenReason.trim(),
+
+          priority: "HIGH",
+
+          managerNotes: "Complaint reopened by student",
+        },
+      );
+
+      toast.success(
+        response.data?.message || "Complaint reopened successfully",
+      );
+
+      setReopenTarget(null);
+      setReopenReason("");
+
+      await fetchComplaints(false);
+    } catch (error) {
+      toast.error(
+        error?.response?.data?.message || "Failed to reopen complaint",
+      );
+    } finally {
+      setReopening(false);
+    }
+  };
+
+  // ===================================================
+  // RENDER
+  // ===================================================
+
+  return (
+    <main className="mx-auto max-w-7xl space-y-6 pb-12 text-[#102746]">
+      {/* ==========================================
+          HERO HEADER
+      ========================================== */}
+
+      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#0C2341] via-[#10345C] to-[#194875] p-6 text-white shadow-lg sm:p-8">
+        <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-[#E5B552]/10" />
+
+        <div className="relative flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
           <div>
-            <label
-              className="
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#E5B552]/40 bg-[#E5B552]/10 px-3 py-1.5 text-[11px] font-extrabold tracking-widest text-[#F0C76B]">
+              <ShieldCheck size={14} />
+              AMI MAINTENANCE
+            </span>
 
-                font-bold
+            <h1 className="mt-4 text-2xl font-black tracking-tight sm:text-3xl">
+              My Complaints
+            </h1>
 
-                block
-
-                mb-3
-
-                text-gray-700
-
-              "
-            >
-              Complaint Area
-            </label>
-
-            {isHosteller ? (
-              <select
-                name="complaintArea"
-                value={formData.complaintArea}
-                onChange={(e) => {
-                  const nextArea = e.target.value;
-
-                  setFormData((prev) => ({
-                    ...prev,
-
-                    complaintArea: nextArea,
-
-                    block: nextArea === "HOSTEL" ? user?.block || "" : "",
-
-                    hostel: nextArea === "HOSTEL" ? user?.hostel || "" : "",
-
-                    roomNumber:
-                      nextArea === "HOSTEL" ? user?.roomNumber || "" : "",
-
-                    availableFrom:
-                      nextArea === "HOSTEL" ? prev.availableFrom : "",
-
-                    availableTo: nextArea === "HOSTEL" ? prev.availableTo : "",
-
-                    issueLocation: "",
-
-                    otherLocation: "",
-                  }));
-                }}
-                className="
-
-                  w-full
-
-                  border
-
-                  border-gray-200
-
-                  rounded-2xl
-
-                  px-5
-
-                  py-4
-
-                "
-              >
-                <option value="HOSTEL">Hostel Complaint</option>
-
-                <option value="DEPARTMENT">Department Complaint</option>
-
-                <option value="CAMPUS">Campus Complaint</option>
-              </select>
-            ) : (
-              <div
-                className="
-
-                  w-full
-
-                  border
-
-                  border-blue-200
-
-                  bg-blue-50
-
-                  rounded-2xl
-
-                  px-5
-
-                  py-4
-
-                "
-              >
-                <p className="font-bold text-[#0b2a7d]">Department Complaint</p>
-
-                <p className="text-sm text-gray-600 mt-1">
-                  Day Scholars can raise complaints only for their own
-                  department and assigned block.
-                </p>
-              </div>
-            )}
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+              Track your maintenance requests, Technician assignments, and
+              Student Verification updates.
+            </p>
           </div>
 
-          {/* DEPARTMENT DETAILS */}
+          <button
+            type="button"
+            onClick={() => navigate("/create-complaint")}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#E6B951] px-5 py-3 text-sm font-extrabold text-[#112B4A] hover:bg-[#F3CC75]"
+          >
+            <Plus size={18} />
+            New Complaint
+          </button>
+        </div>
+      </header>
 
-          {formData.complaintArea === "DEPARTMENT" && (
-            <div className="bg-blue-50 border border-blue-100 rounded-3xl p-6">
-              <h2 className="text-xl font-black mb-5 text-[#0b2a7d]">
-                Department Details
-              </h2>
+      {/* ==========================================
+          SUMMARY CARDS
+      ========================================== */}
 
-              <div className="grid md:grid-cols-2 gap-5">
-                {/* DEPARTMENT BLOCK */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <SummaryCard
+          icon={ClipboardList}
+          label="Total Complaints"
+          value={totals.total}
+          sub="All submitted requests"
+        />
 
-                <div>
-                  <label className="text-sm font-semibold text-gray-600">
-                    Department Block
-                  </label>
+        <SummaryCard
+          icon={Clock3}
+          label="Active Requests"
+          value={totals.active}
+          sub="Awaiting repair or rework"
+        />
 
-                  <select
-                    name="block"
-                    value={formData.block}
-                    onChange={handleChange}
-                    required
-                    className="mt-2 w-full border border-gray-200 rounded-2xl px-5 py-4 bg-white"
-                  >
-                    <option value="">Select Department Block</option>
+        <SummaryCard
+          icon={ShieldCheck}
+          label="Awaiting Review"
+          value={totals.awaitingReview}
+          sub="Technician completed work"
+        />
 
-                    {["A", "B", "C", "D", "E", "F"].map((block) => (
-                      <option key={block} value={block}>
-                        Block {block}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+        <SummaryCard
+          icon={CheckCircle2}
+          label="Resolved"
+          value={totals.resolved}
+          sub="Accepted or closed"
+        />
+      </div>
 
-                {/* STUDENT DEPARTMENT */}
+      {/* ==========================================
+          SEARCH / FILTER / SORT
+      ========================================== */}
 
-                <div>
-                  <label className="text-sm font-semibold text-gray-600">
-                    Your Department
-                  </label>
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          {/* SEARCH */}
 
-                  <input
-                    type="text"
-                    value={studentDepartment || "Department not assigned"}
-                    readOnly
-                    className="mt-2 w-full border border-gray-200 bg-gray-100 rounded-2xl px-5 py-4 font-semibold cursor-not-allowed"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+          <div className="relative flex-1">
+            <Search
+              size={18}
+              className="pointer-events-none absolute left-4 top-3.5 text-slate-400"
+            />
 
-          {/* CAMPUS BLOCK */}
-
-          {isHosteller && formData.complaintArea === "CAMPUS" && (
-            <div>
-              <label className="font-bold block mb-3 text-gray-700">
-                Block / Building
-              </label>
-
-              <select
-                name="block"
-                value={formData.block}
-                onChange={handleChange}
-                required
-                className="
-
-                  w-full
-
-                  border
-
-                  border-gray-200
-
-                  rounded-2xl
-
-                  px-5
-
-                  py-4
-
-                "
-              >
-                <option value="">Select Block / Building</option>
-
-                {campusBlocks.map((block) => (
-                  <option key={block} value={block}>
-                    {block}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* CATEGORY */}
-
-          <div>
-            <label
-              className="
-
-                font-bold
-
-                block
-
-                mb-3
-
-                text-gray-700
-
-              "
-            >
-              Category
-            </label>
-
-            <select
-              name="category"
-              value={formData.category}
-              onChange={(e) => {
-                const selected = categories.find(
-                  (cat) => cat.categoryName === e.target.value,
-                );
-
-                setSelectedCategory(selected);
-
-                setFormData({
-                  ...formData,
-
-                  category: e.target.value,
-
-                  subCategory: "",
-                });
-              }}
-              required
-              className="
-
-                w-full
-
-                border
-
-                border-gray-200
-
-                rounded-2xl
-
-                px-5
-
-                py-4
-
-              "
-            >
-              <option value="">Select Category</option>
-
-              {categories
-
-                .filter((item) => item.isActive)
-
-                .map((item) => (
-                  <option key={item._id} value={item.categoryName}>
-                    {item.categoryName}
-                  </option>
-                ))}
-            </select>
-          </div>
-
-          {/* SUBCATEGORY */}
-
-          {selectedCategory?.subCategories?.length > 0 && (
-            <div>
-              <label
-                className="
-
-                  font-bold
-
-                  block
-
-                  mb-3
-
-                  text-gray-700
-
-                "
-              >
-                Exact Issue
-              </label>
-
-              <select
-                name="subCategory"
-                value={formData.subCategory}
-                onChange={handleChange}
-                className="
-
-                  w-full
-
-                  border
-
-                  border-gray-200
-
-                  rounded-2xl
-
-                  px-5
-
-                  py-4
-
-                "
-              >
-                <option value="">Select Issue</option>
-
-                {selectedCategory.subCategories.map((sub) => (
-                  <option key={sub} value={sub}>
-                    {sub}
-                  </option>
-                ))}
-
-                <option value="Other">Other</option>
-              </select>
-            </div>
-          )}
-
-          {/* OTHER ISSUE */}
-
-          {formData.subCategory === "Other" && (
             <input
-              type="text"
-              name="otherSubCategory"
-              value={formData.otherSubCategory}
-              onChange={handleChange}
-              placeholder="Specify issue"
-              className="
-
-                w-full
-
-                border
-
-                border-gray-200
-
-                rounded-2xl
-
-                px-5
-
-                py-4
-
-              "
-            />
-          )}
-
-          {/* DESCRIPTION */}
-
-          <div>
-            <label
-              className="
-
-                font-bold
-
-                block
-
-                mb-3
-
-                text-gray-700
-
-              "
-            >
-              Description
-            </label>
-
-            <textarea
-              rows="6"
-              name="description"
-              value={formData.description}
-              onChange={handleChange}
-              placeholder="Describe your issue..."
-              className="
-
-                w-full
-
-                border
-
-                border-gray-200
-
-                rounded-2xl
-
-                px-5
-
-                py-4
-
-                resize-none
-
-              "
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search by ID, issue, category or location..."
+              className="w-full rounded-xl border border-slate-200 py-3 pl-11 pr-4 text-sm outline-none focus:border-[#D6A64A]"
             />
           </div>
 
-          {/* HOSTEL DETAILS */}
+          {/* STATUS */}
 
-          {isHosteller && formData.complaintArea === "HOSTEL" && (
-            <div
-              className="
-
-                bg-[#fff7f7]
-
-                border
-
-                border-[#ffd9d9]
-
-                rounded-3xl
-
-                p-6
-
-              "
-            >
-              <h2
-                className="
-
-                  text-2xl
-
-                  font-black
-
-                  mb-5
-
-                  text-[#7A0019]
-
-                "
-              >
-                Hostel Details
-              </h2>
-
-              <div
-                className="
-
-                  grid
-
-                  md:grid-cols-2
-
-                  gap-5
-
-                "
-              >
-                <input
-                  type="text"
-                  name="hostel"
-                  value={formData.hostel}
-                  onChange={handleChange}
-                  placeholder="Hostel"
-                  className="
-
-                    border
-
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-
-                    py-4
-
-                  "
-                />
-
-                <input
-                  type="text"
-                  name="roomNumber"
-                  value={formData.roomNumber}
-                  onChange={handleChange}
-                  placeholder="Room Number"
-                  className="
-
-                    border
-
-                    border-gray-200
-
-                    rounded-2xl
-
-                    px-5
-
-                    py-4
-
-                  "
-                />
-              </div>
-            </div>
-          )}
-
-          {/* LOCATION */}
-
-          <div>
-            <label
-              className="
-
-                font-bold
-
-                block
-
-                mb-3
-
-                text-gray-700
-
-              "
-            >
-              Issue Location
-            </label>
+          <div className="relative lg:w-52">
+            <Filter
+              size={16}
+              className="pointer-events-none absolute left-3 top-3.5 text-slate-400"
+            />
 
             <select
-              name="issueLocation"
-              value={formData.issueLocation}
-              onChange={handleChange}
-              className="
-
-                w-full
-
-                border
-
-                border-gray-200
-
-                rounded-2xl
-
-                px-5
-
-                py-4
-
-              "
+              value={statusFilter}
+              onChange={(event) => setStatusFilter(event.target.value)}
+              className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-8 text-sm font-semibold outline-none"
             >
-              <option value="">Select Location</option>
-
-              {(formData.complaintArea === "HOSTEL"
-                ? hostelLocations
-                : formData.complaintArea === "DEPARTMENT"
-                  ? departmentLocations
-                  : campusLocations
-              ).map((location) => (
-                <option key={location} value={location}>
-                  {location}
+              {STATUS_OPTIONS.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
                 </option>
               ))}
             </select>
+
+            <ChevronDown
+              size={16}
+              className="pointer-events-none absolute right-3 top-3.5 text-slate-400"
+            />
           </div>
 
-          {/* OTHER LOCATION */}
+          {/* SORT */}
 
-          {formData.issueLocation === "Other" && (
-            <input
-              type="text"
-              name="otherLocation"
-              value={formData.otherLocation}
-              onChange={handleChange}
-              placeholder="Specify location"
-              className="
-
-                w-full
-
-                border
-
-                border-gray-200
-
-                rounded-2xl
-
-                px-5
-
-                py-4
-
-              "
+          <div className="relative lg:w-44">
+            <ArrowDownUp
+              size={16}
+              className="pointer-events-none absolute left-3 top-3.5 text-slate-400"
             />
-          )}
 
-          {/* HOSTELLER AVAILABILITY TIME */}
-
-          {isHosteller && formData.complaintArea === "HOSTEL" && (
-            <div
-              className="
-
-              grid
-
-              md:grid-cols-2
-
-              gap-5
-
-            "
+            <select
+              value={sort}
+              onChange={(event) => setSort(event.target.value)}
+              className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-8 text-sm font-semibold outline-none"
             >
-              <select
-                name="availableFrom"
-                value={formData.availableFrom}
-                onChange={handleChange}
-                className="
+              <option value="NEWEST">Newest First</option>
 
-                border
+              <option value="OLDEST">Oldest First</option>
 
-                border-gray-200
+              <option value="PRIORITY">High Priority</option>
+            </select>
 
-                rounded-2xl
+            <ChevronDown
+              size={16}
+              className="pointer-events-none absolute right-3 top-3.5 text-slate-400"
+            />
+          </div>
 
-                px-5
-
-                py-4
-
-              "
-              >
-                <option value="">Available From</option>
-
-                {availabilityTimes.map((time) => (
-                  <option key={`from-${time}`} value={time}>
-                    {time}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                name="availableTo"
-                value={formData.availableTo}
-                onChange={handleChange}
-                className="
-
-                border
-
-                border-gray-200
-
-                rounded-2xl
-
-                px-5
-
-                py-4
-
-              "
-              >
-                <option value="">Available To</option>
-
-                {availabilityTimes.map((time) => (
-                  <option key={`to-${time}`} value={time}>
-                    {time}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* BUTTON */}
+          {/* REFRESH */}
 
           <button
-            type="submit"
-            disabled={isSubmitting}
-            className="
-
-              w-full
-
-              bg-gradient-to-r
-
-              from-[#0b2a7d]
-
-              via-[#1b3fa0]
-
-              to-[#7A0019]
-
-              hover:scale-[1.01]
-
-              active:scale-[0.98]
-
-              disabled:opacity-60
-
-              disabled:cursor-not-allowed
-
-              disabled:hover:scale-100
-
-              text-white
-
-              py-4
-
-              rounded-2xl
-
-              font-bold
-
-              text-lg
-
-              transition-all
-
-              duration-300
-
-              shadow-xl
-
-              hover:shadow-2xl
-
-            "
+            type="button"
+            onClick={() => fetchComplaints(false)}
+            disabled={refreshing}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-[#F8FAFD] px-4 py-3 text-sm font-bold disabled:opacity-50"
           >
-            {isSubmitting ? "Submitting Complaint..." : "Submit Complaint"}
+            <RefreshCw size={17} className={refreshing ? "animate-spin" : ""} />
+            Refresh
           </button>
-        </form>
-      </div>
+        </div>
 
-      {/* SUCCESS CONFIRMATION MODAL */}
+        <p className="mt-3 text-xs text-slate-500">
+          Showing {filtered.length} of {complaints.length} complaints
+        </p>
+      </section>
 
-      {submittedComplaint && (
-        <div
-          className="
+      {/* ==========================================
+          FETCH ERROR
+      ========================================== */}
 
-            fixed
+      {loadError && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+          <span className="flex items-center gap-2">
+            <AlertCircle size={18} />
+            {loadError}
+          </span>
 
-            inset-0
-
-            z-50
-
-            bg-black/50
-
-            flex
-
-            items-center
-
-            justify-center
-
-            p-4
-
-          "
-        >
-          <div
-            className="
-
-              w-full
-
-              max-w-2xl
-
-              max-h-[90vh]
-
-              overflow-y-auto
-
-              bg-white
-
-              rounded-3xl
-
-              shadow-2xl
-
-              p-6
-
-              md:p-8
-
-            "
+          <button
+            type="button"
+            onClick={() => fetchComplaints(true)}
+            className="font-bold underline"
           >
-            <div className="text-center mb-6">
-              <div
-                className="
+            Retry
+          </button>
+        </div>
+      )}
 
-                  w-16
+      {/* ==========================================
+          COMPLAINTS LOADING
+      ========================================== */}
 
-                  h-16
-
-                  mx-auto
-
-                  mb-4
-
-                  rounded-full
-
-                  bg-green-100
-
-                  flex
-
-                  items-center
-
-                  justify-center
-
-                  text-green-600
-
-                  text-3xl
-
-                  font-black
-
-                "
-              >
-                ✓
-              </div>
-
-              <h2 className="text-2xl md:text-3xl font-black text-green-700">
-                Complaint Submitted Successfully!
-              </h2>
-
-              <p className="text-gray-600 mt-2">
-                Your complaint has been registered. Please do not submit the
-                same complaint again.
-              </p>
-            </div>
-
+      {loading ? (
+        <div className="space-y-4">
+          {[1, 2, 3].map((item) => (
             <div
-              className="
-
-                bg-gray-50
-
-                border
-
-                border-gray-200
-
-                rounded-2xl
-
-                p-5
-
-                grid
-
-                md:grid-cols-2
-
-                gap-4
-
-                text-sm
-
-              "
+              key={item}
+              className="h-48 animate-pulse rounded-3xl border border-slate-200 bg-white p-6"
             >
-              {submittedComplaint.complaintId && (
-                <div>
-                  <p className="text-gray-500 font-semibold">Complaint ID</p>
+              <div className="h-5 w-1/3 rounded-lg bg-slate-100" />
 
-                  <p className="font-bold break-all">
-                    {submittedComplaint.complaintId}
-                  </p>
-                </div>
-              )}
+              <div className="mt-6 h-4 w-2/3 rounded-lg bg-slate-100" />
 
-              <div>
-                <p className="text-gray-500 font-semibold">Complaint Area</p>
-
-                <p className="font-bold">{submittedComplaint.complaintArea}</p>
-              </div>
-
-              <div>
-                <p className="text-gray-500 font-semibold">Category</p>
-
-                <p className="font-bold">{submittedComplaint.category}</p>
-              </div>
-
-              <div>
-                <p className="text-gray-500 font-semibold">Exact Issue</p>
-
-                <p className="font-bold">
-                  {submittedComplaint.subCategory || "-"}
-                </p>
-              </div>
-
-              {submittedComplaint.hostel && (
-                <div>
-                  <p className="text-gray-500 font-semibold">Hostel</p>
-
-                  <p className="font-bold">{submittedComplaint.hostel}</p>
-                </div>
-              )}
-
-              {submittedComplaint.block && (
-                <div>
-                  <p className="text-gray-500 font-semibold">
-                    Block / Building
-                  </p>
-
-                  <p className="font-bold">{submittedComplaint.block}</p>
-                </div>
-              )}
-
-              {submittedComplaint.department && (
-                <div>
-                  <p className="text-gray-500 font-semibold">Department</p>
-
-                  <p className="font-bold">{submittedComplaint.department}</p>
-                </div>
-              )}
-
-              {submittedComplaint.roomNumber && (
-                <div>
-                  <p className="text-gray-500 font-semibold">Room Number</p>
-
-                  <p className="font-bold">{submittedComplaint.roomNumber}</p>
-                </div>
-              )}
-
-              {submittedComplaint.issueLocation && (
-                <div>
-                  <p className="text-gray-500 font-semibold">Issue Location</p>
-
-                  <p className="font-bold">
-                    {submittedComplaint.issueLocation}
-                  </p>
-                </div>
-              )}
-
-              {submittedComplaint.availableFrom && (
-                <div>
-                  <p className="text-gray-500 font-semibold">Available From</p>
-
-                  <p className="font-bold">
-                    {submittedComplaint.availableFrom}
-                  </p>
-                </div>
-              )}
-
-              {submittedComplaint.availableTo && (
-                <div>
-                  <p className="text-gray-500 font-semibold">Available To</p>
-
-                  <p className="font-bold">{submittedComplaint.availableTo}</p>
-                </div>
-              )}
-
-              <div className="md:col-span-2">
-                <p className="text-gray-500 font-semibold">Description</p>
-
-                <p className="font-bold whitespace-pre-wrap">
-                  {submittedComplaint.description || "-"}
-                </p>
-              </div>
-
-              <div className="md:col-span-2">
-                <p className="text-gray-500 font-semibold">Submitted At</p>
-
-                <p className="font-bold">{submittedComplaint.submittedAt}</p>
-              </div>
+              <div className="mt-5 h-4 w-1/2 rounded-lg bg-slate-100" />
             </div>
+          ))}
+        </div>
+      ) : visibleComplaints.length === 0 ? (
+        /* EMPTY STATE */
+
+        <div className="rounded-3xl border border-slate-200 bg-white px-6 py-14 text-center shadow-sm">
+          <ClipboardList size={36} className="mx-auto text-[#B58A34]" />
+
+          <h2 className="mt-4 text-xl font-extrabold">No Complaints Found</h2>
+
+          <p className="mt-2 text-sm text-slate-500">
+            {complaints.length === 0
+              ? "You have not submitted any complaints yet."
+              : "Try another search or filter."}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (complaints.length === 0) {
+                navigate("/create-complaint");
+              } else {
+                setSearch("");
+                setStatusFilter("ALL");
+                setSort("NEWEST");
+              }
+            }}
+            className="mt-5 rounded-xl bg-[#102746] px-5 py-3 text-sm font-bold text-white"
+          >
+            {complaints.length === 0 ? "Create Complaint" : "Clear Filters"}
+          </button>
+        </div>
+      ) : (
+        /* ========================================
+            COMPLAINT CARDS
+        ======================================== */
+
+        <div className="space-y-4">
+          {visibleComplaints.map((complaint) => {
+            const isExpanded = expandedId === complaint._id;
+
+            const worker = getWorker(complaint);
+
+            // Show again if Technician completes
+            // a reopened complaint after rework.
+            const needsReview = complaint.status === "COMPLETED";
+
+            // Keep legacy reopen functionality
+            // for old complaints without verification.
+            const canLegacyReopen =
+              complaint.status === "RESOLVED" &&
+              !complaint.studentVerification?.decision;
+
+            const preferredSlots = Array.isArray(complaint.preferredVisitSlots)
+              ? complaint.preferredVisitSlots
+              : [];
+
+            const scheduledVisit = complaint.scheduledVisit;
+
+            return (
+              <article
+                key={complaint._id}
+                className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_6px_26px_rgba(16,39,70,0.05)]"
+              >
+                <div className="h-1 bg-gradient-to-r from-[#102746] via-[#235489] to-[#E6B951]" />
+
+                <div className="p-5 sm:p-6">
+                  {/* TOP */}
+
+                  <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-2 text-xs font-bold tracking-wider text-[#B68930]">
+                        <Hash size={14} />
+
+                        {complaint.complaintId || "COMPLAINT"}
+                      </p>
+
+                      <h2 className="mt-2 break-words text-xl font-black text-[#102746]">
+                        {complaint.title ||
+                          complaint.subCategory ||
+                          "Maintenance Issue"}
+                      </h2>
+
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
+                        {complaint.description || "No description provided"}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        value={complaint.priority || "MEDIUM"}
+                        type="priority"
+                      />
+
+                      <Badge value={complaint.status || "PENDING"} />
+                    </div>
+                  </div>
+
+                  {/* QUICK DETAILS */}
+
+                  <div className="mt-5 grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2 lg:grid-cols-4">
+                    <DetailCard icon={Wrench} label="Category">
+                      {complaint.category}
+                    </DetailCard>
+
+                    <DetailCard icon={MapPin} label="Location">
+                      {getLocation(complaint)}
+                    </DetailCard>
+
+                    <DetailCard icon={CalendarDays} label="Submitted On">
+                      {formatDate(complaint.createdAt)}
+                    </DetailCard>
+
+                    <DetailCard icon={UserRound} label="Assigned Technician">
+                      {worker?.name || "Not assigned yet"}
+                    </DetailCard>
+                  </div>
+
+                  {/* CONFIRMED VISIT */}
+
+                  {scheduledVisit?.date && (
+                    <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                      <CalendarClock size={18} />
+
+                      <strong>Confirmed Visit:</strong>
+
+                      {formatVisitDate(scheduledVisit.date)}
+
+                      {" · "}
+
+                      {scheduledVisit.startTime}
+
+                      {" – "}
+
+                      {scheduledVisit.endTime}
+                    </div>
+                  )}
+
+                  {/* ==================================
+                        SATISFACTION VERIFICATION
+                    ================================== */}
+
+                  {needsReview && (
+                    <div className="mt-5 rounded-2xl border border-[#E9D3A0] bg-[#FFFBF2] p-4 sm:p-5">
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#B88B32] shadow-sm">
+                          <ShieldCheck size={21} />
+                        </span>
+
+                        <div>
+                          <p className="text-sm font-extrabold">
+                            Are you satisfied with the repair?
+                          </p>
+
+                          <p className="mt-1 text-xs leading-5 text-slate-600">
+                            The Technician has marked the job as completed.
+                            Please verify whether your issue has been fixed.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => openFeedback(complaint, "SATISFIED")}
+                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-extrabold text-white hover:bg-emerald-700"
+                        >
+                          <CheckCircle2 size={18} />
+                          Satisfied
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openFeedback(complaint, "NOT_SATISFIED")
+                          }
+                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-extrabold text-rose-700 hover:bg-rose-100"
+                        >
+                          <AlertTriangle size={18} />
+                          Not Satisfied
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* SATISFIED CONFIRMATION */}
+
+                  {complaint.status === "RESOLVED" &&
+                    complaint.studentVerification?.decision === "SATISFIED" && (
+                      <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
+                        <CheckCircle2 size={18} />
+                        Student verified the work as satisfactory.
+                      </div>
+                    )}
+
+                  {/* NOT SATISFIED FEEDBACK */}
+
+                  {complaint.status === "REOPENED" &&
+                    complaint.studentVerification?.decision ===
+                      "NOT_SATISFIED" && (
+                      <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                        <p className="flex items-center gap-2 font-bold">
+                          <RotateCcw size={17} />
+                          Rework requested by Student
+                        </p>
+
+                        <p className="mt-2 whitespace-pre-wrap">
+                          {complaint.studentVerification.reason ||
+                            complaint.reopenReason}
+                        </p>
+                      </div>
+                    )}
+
+                  {/* ACTIONS */}
+
+                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      onClick={() =>
+                        setExpandedId(isExpanded ? null : complaint._id)
+                      }
+                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-extrabold hover:bg-slate-50"
+                    >
+                      {isExpanded ? (
+                        <ChevronUp size={17} />
+                      ) : (
+                        <ChevronDown size={17} />
+                      )}
+
+                      {isExpanded ? "Hide Details" : "View Full Details"}
+                    </button>
+
+                    {canLegacyReopen && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setReopenTarget(complaint);
+
+                          setReopenReason("");
+                        }}
+                        className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-extrabold text-rose-700"
+                      >
+                        <RotateCcw size={17} />
+                        Reopen Complaint
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* ================================
+                      EXPANDED DETAILS
+                  ================================ */}
+
+                {isExpanded && (
+                  <div className="border-t border-slate-200 bg-[#FBFCFE] p-5 sm:p-6">
+                    <div className="grid gap-5 lg:grid-cols-2">
+                      {/* COMPLAINT DETAILS */}
+
+                      <section className="rounded-2xl border border-slate-200 bg-white p-5">
+                        <h3 className="flex items-center gap-2 font-extrabold">
+                          <Building2 size={18} className="text-[#B68930]" />
+                          Complaint & Location
+                        </h3>
+
+                        <div className="mt-4 space-y-3 text-sm">
+                          <p>
+                            <strong>Exact Location:</strong>{" "}
+                            {complaint.issueLocation || "—"}
+                          </p>
+
+                          {complaint.hostel && (
+                            <p>
+                              <strong>Hostel:</strong> {complaint.hostel}
+                            </p>
+                          )}
+
+                          {complaint.block && (
+                            <p>
+                              <strong>Block:</strong> {complaint.block}
+                            </p>
+                          )}
+
+                          {complaint.roomNumber && (
+                            <p>
+                              <strong>Room:</strong> {complaint.roomNumber}
+                            </p>
+                          )}
+
+                          {complaint.floor && (
+                            <p>
+                              <strong>Floor:</strong> {complaint.floor}
+                            </p>
+                          )}
+
+                          <p>
+                            <strong>Deadline:</strong>{" "}
+                            {formatDate(complaint.deadline)}
+                          </p>
+                        </div>
+                      </section>
+
+                      {/* TECHNICIAN DETAILS */}
+
+                      <section className="rounded-2xl border border-slate-200 bg-white p-5">
+                        <h3 className="flex items-center gap-2 font-extrabold">
+                          <UserRound size={18} className="text-[#B68930]" />
+                          Technician & Remarks
+                        </h3>
+
+                        {worker ? (
+                          <div className="mt-4 space-y-2 text-sm">
+                            <p className="font-extrabold">
+                              {worker.name || "Technician"}
+                            </p>
+
+                            {worker.department && (
+                              <p className="text-slate-600">
+                                Department:{" "}
+                                {typeof worker.department === "string"
+                                  ? worker.department
+                                  : worker.department.name || "—"}
+                              </p>
+                            )}
+
+                            {worker.phone && (
+                              <p className="flex items-center gap-2">
+                                <Phone size={15} />
+
+                                {worker.phone}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="mt-4 text-sm text-slate-500">
+                            Technician not assigned yet.
+                          </p>
+                        )}
+
+                        <div className="mt-4 rounded-xl bg-slate-50 p-4">
+                          <p className="text-xs font-bold uppercase text-slate-400">
+                            Maintenance Remarks
+                          </p>
+
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                            {complaint.maintenanceRemarks ||
+                              complaint.managerRemarks ||
+                              complaint.workerRemarks ||
+                              complaint.remarks ||
+                              "No remarks added yet."}
+                          </p>
+                        </div>
+                      </section>
+                    </div>
+
+                    {/* PREFERRED VISIT SLOTS */}
+
+                    {preferredSlots.length > 0 && (
+                      <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5">
+                        <h3 className="flex items-center gap-2 font-extrabold">
+                          <Clock3 size={18} className="text-[#B68930]" />
+                          Preferred Visit Windows
+                        </h3>
+
+                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                          {preferredSlots.map((slot, index) => (
+                            <div
+                              key={`${slot.date}-${slot.startTime}-${index}`}
+                              className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"
+                            >
+                              <p className="text-xs font-bold text-amber-700">
+                                Preference {slot.preference || index + 1}
+                              </p>
+
+                              <p className="mt-2 font-extrabold">
+                                {formatVisitDate(slot.date)}
+                              </p>
+
+                              <p className="mt-1 text-slate-600">
+                                {slot.startTime}
+                                {" – "}
+                                {slot.endTime}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </section>
+                    )}
+
+                    {/* STATUS HISTORY */}
+
+                    {Array.isArray(complaint.statusHistory) &&
+                      complaint.statusHistory.length > 0 && (
+                        <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5">
+                          <h3 className="flex items-center gap-2 font-extrabold">
+                            <BadgeCheck size={18} className="text-[#B68930]" />
+                            Recent Status History
+                          </h3>
+
+                          <div className="mt-4 space-y-3">
+                            {[...complaint.statusHistory]
+                              .slice(-4)
+                              .reverse()
+                              .map((item, index) => (
+                                <div
+                                  key={item._id || index}
+                                  className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3 text-sm last:border-0"
+                                >
+                                  <strong>{readableStatus(item.status)}</strong>
+
+                                  <span className="text-xs text-slate-500">
+                                    {formatDate(
+                                      item.changedAt || item.updatedAt,
+                                    )}
+                                  </span>
+                                </div>
+                              ))}
+                          </div>
+                        </section>
+                      )}
+
+                    {complaint.reopenReason &&
+                      complaint.status === "REOPENED" && (
+                        <div className="mt-5 rounded-2xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800">
+                          <p className="font-bold">Reopen Reason</p>
+
+                          <p className="mt-2 whitespace-pre-wrap">
+                            {complaint.reopenReason}
+                          </p>
+                        </div>
+                      )}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ==========================================
+          PAGINATION
+      ========================================== */}
+
+      {!loading && filtered.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+          <p className="text-xs font-semibold text-slate-500">
+            Page {currentPage} of {pageCount}
+          </p>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              aria-label="Previous page"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="rounded-lg border border-slate-200 p-2 disabled:opacity-40"
+            >
+              <ChevronLeft size={18} />
+            </button>
 
             <button
               type="button"
-              onClick={() => setSubmittedComplaint(null)}
-              className="
-
-                w-full
-
-                mt-6
-
-                bg-gradient-to-r
-
-                from-[#0b2a7d]
-
-                via-[#1b3fa0]
-
-                to-[#7A0019]
-
-                text-white
-
-                py-4
-
-                rounded-2xl
-
-                font-bold
-
-                text-lg
-
-                shadow-lg
-
-                hover:shadow-xl
-
-                transition-all
-
-              "
+              disabled={currentPage >= pageCount}
+              aria-label="Next page"
+              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+              className="rounded-lg border border-slate-200 p-2 disabled:opacity-40"
             >
-              Done
+              <ChevronRight size={18} />
             </button>
           </div>
         </div>
       )}
-    </div>
-  );
-};
 
-export default CreateComplaint;
+      {/* ==========================================
+          STUDENT SATISFACTION MODAL
+      ========================================== */}
+
+      {feedbackTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="feedback-title"
+          className="fixed inset-0 z-[110] flex items-center justify-center bg-[#071A33]/75 p-4"
+        >
+          <form
+            onSubmit={submitFeedback}
+            className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl sm:p-8"
+          >
+            {/* HEADER */}
+
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <span
+                  className={`flex h-12 w-12 items-center justify-center rounded-xl ${
+                    feedbackDecision === "SATISFIED"
+                      ? "bg-emerald-50 text-emerald-700"
+                      : "bg-rose-50 text-rose-700"
+                  }`}
+                >
+                  {feedbackDecision === "SATISFIED" ? (
+                    <CheckCircle2 size={24} />
+                  ) : (
+                    <AlertTriangle size={24} />
+                  )}
+                </span>
+
+                <h2
+                  id="feedback-title"
+                  className="mt-4 text-xl font-black text-[#102746]"
+                >
+                  {feedbackDecision === "SATISFIED"
+                    ? "Confirm Satisfactory Repair"
+                    : "Why are you not satisfied?"}
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  {feedbackTarget.complaintId}
+                  {" · "}
+                  {feedbackTarget.title || feedbackTarget.subCategory}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={feedbackBusy}
+                aria-label="Close"
+                onClick={() => setFeedbackTarget(null)}
+                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* SATISFIED */}
+
+            {feedbackDecision === "SATISFIED" ? (
+              <p className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
+                By confirming, you acknowledge that the repair is satisfactory.
+                The complaint will be marked as RESOLVED.
+              </p>
+            ) : (
+              /* NOT SATISFIED */
+
+              <>
+                <label
+                  htmlFor="feedback-reason"
+                  className="mt-6 block text-sm font-bold"
+                >
+                  Explain the remaining issue *
+                </label>
+
+                <textarea
+                  id="feedback-reason"
+                  autoFocus
+                  required
+                  rows={5}
+                  maxLength={800}
+                  value={feedbackReason}
+                  onChange={(event) => setFeedbackReason(event.target.value)}
+                  placeholder="What is still not working? What should the Technician fix?"
+                  className="mt-2 w-full resize-y rounded-xl border border-slate-200 p-4 text-sm outline-none focus:border-amber-400"
+                />
+
+                <p className="mt-2 text-xs text-slate-500">
+                  Minimum 5 characters. Reason will be sent to the Maintenance
+                  Manager.
+                </p>
+              </>
+            )}
+
+            {/* MODAL BUTTONS */}
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
+              <button
+                type="button"
+                disabled={feedbackBusy}
+                onClick={() => setFeedbackTarget(null)}
+                className="flex-1 rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                disabled={
+                  feedbackBusy ||
+                  (feedbackDecision === "NOT_SATISFIED" &&
+                    feedbackReason.trim().length < 5)
+                }
+                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-white disabled:opacity-50 ${
+                  feedbackDecision === "SATISFIED"
+                    ? "bg-emerald-600 hover:bg-emerald-700"
+                    : "bg-[#102746] hover:bg-[#1C436D]"
+                }`}
+              >
+                {feedbackBusy && <Loader2 size={17} className="animate-spin" />}
+
+                {feedbackBusy
+                  ? "Submitting..."
+                  : feedbackDecision === "SATISFIED"
+                    ? "Confirm Satisfied"
+                    : "Submit and Reopen"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* ==========================================
+          LEGACY REOPEN MODAL
+      ========================================== */}
+
+      {reopenTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reopen-title"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[#071A33]/75 p-4"
+        >
+          <form
+            onSubmit={submitReopen}
+            className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <RotateCcw size={28} className="text-orange-700" />
+
+                <h2 id="reopen-title" className="mt-4 text-xl font-black">
+                  Reopen Complaint
+                </h2>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  {reopenTarget.complaintId}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                disabled={reopening}
+                aria-label="Close"
+                onClick={() => setReopenTarget(null)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <label
+              htmlFor="reopen-reason"
+              className="mt-6 block text-sm font-bold"
+            >
+              Reopen Reason *
+            </label>
+
+            <textarea
+              id="reopen-reason"
+              rows={5}
+              maxLength={800}
+              autoFocus
+              value={reopenReason}
+              onChange={(event) => setReopenReason(event.target.value)}
+              placeholder="Explain what is still not working..."
+              className="mt-2 w-full resize-y rounded-xl border border-slate-200 p-4 text-sm outline-none"
+            />
+
+            <p className="mt-1 text-right text-xs text-slate-400">
+              {reopenReason.length}/800
+            </p>
+
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                disabled={reopening}
+                onClick={() => setReopenTarget(null)}
+                className="flex-1 rounded-xl border px-5 py-3 font-bold"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="submit"
+                disabled={reopening || reopenReason.trim().length < 5}
+                className="flex-1 rounded-xl bg-[#102746] px-5 py-3 font-bold text-white disabled:opacity-50"
+              >
+                {reopening ? "Submitting..." : "Confirm Reopen"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+    </main>
+  );
+}

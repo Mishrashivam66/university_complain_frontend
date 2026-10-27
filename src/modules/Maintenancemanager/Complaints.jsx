@@ -13,7 +13,6 @@ import {
   FileText,
   FilterX,
   Loader2,
-  MapPin,
   Package,
   Plus,
   Printer,
@@ -23,17 +22,12 @@ import {
   Send,
   Trash2,
   UserCheck,
-  UserRound,
   Users,
   Wrench,
   X,
 } from "lucide-react";
 
 import api from "../../services/api";
-
-// ==========================================
-// CONFIGURATION
-// ==========================================
 
 const PAGE_SIZE = 12;
 
@@ -64,421 +58,300 @@ const TABS = [
   ["RESOLVED", "Resolved"],
 ];
 
-// ==========================================
-// HELPERS
-// ==========================================
-
-const normalize = (value) =>
-  String(value ?? "")
-    .trim()
-    .toLowerCase();
-
-const upper = (value) =>
-  String(value ?? "")
+const upper = (v) =>
+  String(v ?? "")
     .trim()
     .toUpperCase();
+const lower = (v) =>
+  String(v ?? "")
+    .trim()
+    .toLowerCase();
+const toId = (v) => String(v?._id ?? v ?? "");
+const readable = (v) => String(v || "—").replaceAll("_", " ");
 
-const readable = (value) => String(value || "—").replaceAll("_", " ");
-
-const toId = (value) => String(value?._id ?? value ?? "");
-
-const numberOrNull = (value) =>
-  value === "" ||
-  value === null ||
-  value === undefined ||
-  !Number.isFinite(Number(value))
-    ? null
-    : Number(value);
-
-const displayQuantity = (value) =>
-  numberOrNull(value) === null ? "—" : Number(value);
-
-function formatIST(value) {
-  if (!value || Number.isNaN(new Date(value).getTime())) {
-    return "—";
-  }
+function dateIST(v) {
+  if (!v || Number.isNaN(new Date(v).getTime())) return "—";
 
   return new Intl.DateTimeFormat("en-IN", {
     timeZone: "Asia/Kolkata",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(value));
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(v));
 }
 
-function locationLabel(complaint) {
-  const parts = [
-    complaint.hostel || complaint.block || complaint.complaintArea,
-
-    complaint.issueLocation,
-
-    complaint.floor ? `Floor ${complaint.floor}` : null,
-
-    complaint.roomNumber ? `Room ${complaint.roomNumber}` : null,
-  ];
-
-  return parts.filter(Boolean).join(" · ") || "—";
-}
-
-function hasAssignedTechnician(complaint) {
-  return Boolean(complaint.assignedTo || complaint.workerAssigned);
-}
-
-function isEmergency(complaint) {
+function locationOf(c) {
   return (
-    complaint.isEmergency === true ||
-    upper(complaint.priority) === "EMERGENCY" ||
-    upper(complaint.complaintType) === "EMERGENCY"
-  );
-}
-
-function isOverdue(complaint, now) {
-  if (!complaint.deadline || !now) {
-    return false;
-  }
-
-  const deadline = new Date(complaint.deadline).getTime();
-
-  return (
-    Number.isFinite(deadline) &&
-    deadline < now &&
-    !["RESOLVED", "CLOSED"].includes(upper(complaint.status))
-  );
-}
-
-function matchesRequest(request, complaint) {
-  const linked = request?.complaint;
-
-  const linkedId = toId(linked);
-
-  const publicId = typeof linked === "object" ? linked?.complaintId : null;
-
-  return (
-    (linkedId && linkedId === toId(complaint._id)) ||
-    (publicId && publicId === complaint.complaintId) ||
-    (request?.complaintId &&
-      [toId(complaint._id), complaint.complaintId].includes(
-        String(request.complaintId),
-      ))
-  );
-}
-
-// ==========================================
-// BADGE COLORS
-// ==========================================
-
-function badgeStyle(value) {
-  const status = upper(value);
-
-  if (
     [
-      "RESOLVED",
-      "CLOSED",
-      "ISSUED",
-      "APPROVED",
-      "APPROVED_BY_STORE",
-      "RECEIVED",
-    ].includes(status)
-  ) {
-    return "bg-emerald-50 text-emerald-800 ring-emerald-200";
-  }
-
-  if (
-    ["REOPENED", "REJECTED", "OUT_OF_STOCK", "EMERGENCY", "URGENT"].includes(
-      status,
-    )
-  ) {
-    return "bg-rose-50 text-rose-800 ring-rose-200";
-  }
-
-  if (["ASSIGNED", "IN_PROGRESS"].includes(status)) {
-    return "bg-blue-50 text-blue-800 ring-blue-200";
-  }
-
-  if (
-    [
-      "PENDING",
-      "COMPLETED",
-      "AWAITING_STUDENT_CONFIRMATION",
-      "WAITING_MATERIAL",
-      "WAITING_FOR_MATERIAL",
-      "PARTIALLY_ISSUED",
-      "PARTIALLY_APPROVED",
-    ].includes(status)
-  ) {
-    return "bg-amber-50 text-amber-800 ring-amber-200";
-  }
-
-  return "bg-slate-100 text-slate-600 ring-slate-200";
+      c.hostel || c.block || c.complaintArea,
+      c.issueLocation,
+      c.floor ? `Floor ${c.floor}` : "",
+      c.roomNumber ? `Room ${c.roomNumber}` : "",
+    ]
+      .filter(Boolean)
+      .join(" · ") || "—"
+  );
 }
 
-function statusText(complaint) {
-  const status = upper(complaint.status);
+function assigned(c) {
+  return Boolean(c.assignedTo || c.workerAssigned);
+}
 
-  if (status === "AWAITING_STUDENT_CONFIRMATION") {
-    return "Awaiting Student Confirmation";
+function emergency(c) {
+  return (
+    c?.isEmergency === true ||
+    upper(c?.priority) === "EMERGENCY" ||
+    upper(c?.complaintType) === "EMERGENCY"
+  );
+}
+
+function overdue(c, now) {
+  const time = c.deadline ? new Date(c.deadline).getTime() : NaN;
+
+  return (
+    Number.isFinite(time) &&
+    time < now &&
+    !["RESOLVED", "CLOSED"].includes(upper(c.status))
+  );
+}
+
+function matchesRequest(r, c) {
+  const link = r.complaint;
+
+  return (
+    toId(link) === toId(c._id) ||
+    (typeof link === "object" && link?.complaintId === c.complaintId) ||
+    [toId(c._id), c.complaintId].includes(String(r.complaintId || ""))
+  );
+}
+
+function categoryKey(v) {
+  return upper(v).replace(/\s+/g, " ");
+}
+
+function canSchedule(worker) {
+  return (
+    upper(worker.role) === "TECHNICIAN" &&
+    worker.isActive !== false &&
+    worker.isDeleted !== true &&
+    !["OFFLINE", "ON_LEAVE", "INACTIVE"].includes(upper(worker.status)) &&
+    worker.canScheduleAssignment !== false
+  );
+}
+
+function matchesTechnician(worker, complaint) {
+  return (
+    canSchedule(worker) &&
+    categoryKey(worker.department || worker.category) ===
+      categoryKey(complaint.category)
+  );
+}
+
+function badge(status) {
+  const v = upper(status);
+
+  if (["RESOLVED", "CLOSED", "ISSUED", "RECEIVED"].includes(v)) {
+    return "bg-emerald-50 text-emerald-800";
   }
 
-  if (status === "COMPLETED" && complaint.studentVerified !== true) {
+  if (["REOPENED", "REJECTED", "OUT_OF_STOCK"].includes(v)) {
+    return "bg-rose-50 text-rose-800";
+  }
+
+  if (["ASSIGNED", "IN_PROGRESS"].includes(v)) {
+    return "bg-blue-50 text-blue-800";
+  }
+
+  return "bg-amber-50 text-amber-900";
+}
+
+function statusText(c) {
+  if (upper(c.status) === "ASSIGNED") {
+    return "Assigned · Awaiting Start";
+  }
+
+  if (upper(c.status) === "COMPLETED" && c.studentVerified !== true) {
     return "Work Done · Awaiting Student";
   }
 
-  return readable(status);
+  return readable(c.status);
 }
 
-// ==========================================
-// STUDENT REOPEN REASON
-// ==========================================
-
-function studentReason(complaint) {
-  const options = [
-    complaint.studentConfirmation?.reason,
-    complaint.studentFeedback?.reason,
-    complaint.studentReopenReason,
-    complaint.reopenReason,
-    complaint.reopenNote,
-  ];
-
+function studentReason(c) {
   return (
-    options.find((value) => typeof value === "string" && value.trim()) || ""
+    [
+      c.studentConfirmation?.reason,
+      c.studentFeedback?.reason,
+      c.studentReopenReason,
+      c.reopenReason,
+      c.reopenNote,
+    ].find((v) => typeof v === "string" && v.trim()) || ""
   );
 }
 
-// ==========================================
-// CATEGORY-MATCHED TECHNICIANS
-// ==========================================
-
-function matchingTechnicians(workers, complaint) {
-  return workers.filter((worker) => {
-    const department = worker.department ?? worker.category;
-
-    const enabled =
-      worker.isActive !== false &&
-      !["OFFLINE", "INACTIVE", "DELETED"].includes(upper(worker.status));
-
-    return enabled && normalize(department) === normalize(complaint.category);
-  });
-}
-
-const INITIAL_MATERIAL = () => ({
+const newMaterial = () => ({
   itemName: "",
   quantity: "",
   unit: "PIECE",
 });
 
-// ==========================================
-// MAIN COMPONENT
-// ==========================================
+const inputClass =
+  "w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-amber-400";
+
+const primaryButton =
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-[#102B52] px-4 py-2.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50";
+
+const smallLabel = "text-xs font-bold uppercase text-slate-500";
 
 export default function Complaints() {
   const navigate = useNavigate();
 
-  // DATABASE DATA
   const [complaints, setComplaints] = useState([]);
   const [workers, setWorkers] = useState([]);
   const [requests, setRequests] = useState([]);
 
-  // LOADING
-  const [initialLoading, setInitialLoading] = useState(true);
-
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // API ERRORS
   const [complaintError, setComplaintError] = useState("");
-
   const [workerError, setWorkerError] = useState("");
-
   const [requestError, setRequestError] = useState("");
+  const [lastUpdated, setLastUpdated] = useState("");
 
-  const [lastUpdated, setLastUpdated] = useState(null);
-
-  // FILTERS
   const [tab, setTab] = useState("ALL");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [locationFilter, setLocationFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [materialFilter, setMaterialFilter] = useState("");
-
   const [page, setPage] = useState(1);
 
-  // COMPLAINT DETAILS
   const [selectedId, setSelectedId] = useState("");
-
   const [drawerTab, setDrawerTab] = useState("OVERVIEW");
 
-  // TECHNICIAN ASSIGNMENT
   const [workerId, setWorkerId] = useState("");
   const [assigning, setAssigning] = useState(false);
 
-  // MATERIAL REQUEST
-  const [materials, setMaterials] = useState([INITIAL_MATERIAL()]);
-
-  const [reason, setReason] = useState("");
-
-  const [sendingRequest, setSendingRequest] = useState(false);
-
-  // BATCH ASSIGNMENT
   const [showBatches, setShowBatches] = useState(false);
-
   const [batchSelections, setBatchSelections] = useState({});
-
   const [assigningBatch, setAssigningBatch] = useState("");
 
+  const [materials, setMaterials] = useState([newMaterial()]);
+  const [reason, setReason] = useState("");
+  const [sendingRequest, setSendingRequest] = useState(false);
+
   // ========================================
-  // FETCH ALL CONNECTED DATA
+  // FETCH EXISTING BACKEND DATA
   // ========================================
 
   const fetchAll = useCallback(async (silent = false) => {
-    if (silent) {
-      setRefreshing(true);
-    } else {
-      setInitialLoading(true);
-    }
+    if (silent) setRefreshing(true);
+    else setLoading(true);
 
     try {
-      const [complaintResult, workerResult, requestResult] =
-        await Promise.allSettled([
-          api.get("/maintenance/worker/complaints"),
+      const results = await Promise.allSettled([
+        api.get("/maintenance/worker/complaints"),
+        api.get("/maintenance/worker/workers"),
+        api.get("/maintenance/material-requests"),
+      ]);
 
-          api.get("/maintenance/assign-worker/workers"),
-
-          api.get("/maintenance/material-requests"),
-        ]);
-
-      // COMPLAINTS
+      const [complaintResult, workerResult, requestResult] = results;
 
       if (
         complaintResult.status === "fulfilled" &&
         Array.isArray(complaintResult.value.data?.complaints)
       ) {
         setComplaints(complaintResult.value.data.complaints);
-
         setComplaintError("");
       } else {
-        const error =
-          complaintResult.status === "rejected" ? complaintResult.reason : null;
-
         const message =
-          error?.response?.data?.message || "Could not load complaints.";
+          complaintResult.status === "rejected"
+            ? complaintResult.reason?.response?.data?.message ||
+              "Unable to load complaints."
+            : "Invalid complaint response.";
 
         setComplaintError(message);
-
-        if (!silent) {
-          toast.error(message);
-        }
+        if (!silent) toast.error(message);
       }
-
-      // TECHNICIANS
 
       if (
         workerResult.status === "fulfilled" &&
         Array.isArray(workerResult.value.data?.workers)
       ) {
         setWorkers(workerResult.value.data.workers);
-
         setWorkerError("");
       } else {
-        setWorkerError(
-          "Technician list unavailable. Assignment is disabled until it loads.",
-        );
+        setWorkerError("Technician list unavailable. Assignment disabled.");
       }
-
-      // MATERIAL REQUESTS
 
       if (
         requestResult.status === "fulfilled" &&
         Array.isArray(requestResult.value.data?.requests)
       ) {
         setRequests(requestResult.value.data.requests);
-
         setRequestError("");
       } else {
         setRequestError(
-          "Material request history unavailable. New requests are disabled to avoid duplicates.",
+          "Material request history unavailable. New requests disabled to prevent duplicates.",
         );
       }
 
       setLastUpdated(new Date().toISOString());
+    } catch (error) {
+      toast.error(error.message || "Unable to refresh data.");
     } finally {
-      setInitialLoading(false);
+      setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  // ========================================
-  // INITIAL LOAD + AUTO REFRESH
-  // ========================================
-
   useEffect(() => {
     void fetchAll();
 
-    const interval = window.setInterval(() => {
+    const timer = window.setInterval(() => {
       if (document.visibilityState === "visible") {
         void fetchAll(true);
       }
     }, 30000);
 
-    return () => {
-      window.clearInterval(interval);
-    };
+    return () => window.clearInterval(timer);
   }, [fetchAll]);
 
-  // ========================================
-  // DRAWER ESCAPE HANDLER
-  // ========================================
-
   useEffect(() => {
-    if (!selectedId) {
-      return undefined;
-    }
+    if (!selectedId) return undefined;
 
-    const closeOnEscape = (event) => {
-      if (event.key === "Escape") {
-        setSelectedId("");
-      }
+    const onEscape = (event) => {
+      if (event.key === "Escape") setSelectedId("");
     };
 
-    window.addEventListener("keydown", closeOnEscape);
+    window.addEventListener("keydown", onEscape);
 
-    return () => {
-      window.removeEventListener("keydown", closeOnEscape);
-    };
+    return () => window.removeEventListener("keydown", onEscape);
   }, [selectedId]);
 
   // ========================================
-  // CURRENT COMPLAINT
+  // DERIVED DATA
   // ========================================
 
   const selected = useMemo(
-    () =>
-      complaints.find((complaint) => toId(complaint._id) === selectedId) ||
-      null,
+    () => complaints.find((c) => toId(c._id) === selectedId) || null,
     [complaints, selectedId],
   );
 
-  const now = lastUpdated ? new Date(lastUpdated).getTime() : 0;
+  const linkedRequests = useCallback(
+    (complaint) =>
+      requests.filter((request) => matchesRequest(request, complaint)),
+    [requests],
+  );
 
-  // ========================================
-  // LINK MATERIAL REQUEST TO COMPLAINT
-  // ========================================
+  const selectedRequests = selected ? linkedRequests(selected) : [];
 
-  const requestsFor = (complaint) =>
-    requests.filter((request) => matchesRequest(request, complaint));
-
-  const selectedRequests = selected ? requestsFor(selected) : [];
-
-  const eligibleTechnicians = selected
-    ? matchingTechnicians(workers, selected)
+  const availableTechnicians = selected
+    ? workers.filter((w) => matchesTechnician(w, selected))
     : [];
 
-  const alreadyAssigned = selected ? hasAssignedTechnician(selected) : false;
-
-  const eligibleForAssignment =
+  const canAssign =
     selected &&
-    !alreadyAssigned &&
+    !assigned(selected) &&
     ["PENDING", "REOPENED"].includes(upper(selected.status));
 
   const canCreateRequest =
@@ -487,48 +360,18 @@ export default function Complaints() {
     selectedRequests.length === 0 &&
     !["RESOLVED", "CLOSED"].includes(upper(selected.status));
 
-  // ========================================
-  // FILTER VALUES
-  // ========================================
-
-  const locations = useMemo(
-    () =>
-      [
-        ...new Set(
-          complaints
-            .map((item) => item.hostel || item.block || item.complaintArea)
-            .filter(Boolean),
-        ),
-      ].sort(),
-    [complaints],
-  );
-
-  const categories = useMemo(
-    () =>
-      [
-        ...new Set(complaints.map((item) => item.category).filter(Boolean)),
-      ].sort(),
-    [complaints],
-  );
-
-  // ========================================
-  // COMPLAINT COUNTS
-  // ========================================
+  const now = lastUpdated ? new Date(lastUpdated).getTime() : 0;
 
   const stats = useMemo(() => {
-    const count = (check) => complaints.filter(check).length;
+    const count = (predicate) => complaints.filter(predicate).length;
 
     return {
       ALL: complaints.length,
 
-      PENDING: count(
-        (c) => upper(c.status) === "PENDING" && !hasAssignedTechnician(c),
-      ),
+      PENDING: count((c) => upper(c.status) === "PENDING" && !assigned(c)),
 
       ASSIGNED: count(
-        (c) =>
-          hasAssignedTechnician(c) &&
-          !["RESOLVED", "CLOSED"].includes(upper(c.status)),
+        (c) => assigned(c) && !["RESOLVED", "CLOSED"].includes(upper(c.status)),
       ),
 
       IN_PROGRESS: count((c) => upper(c.status) === "IN_PROGRESS"),
@@ -546,69 +389,76 @@ export default function Complaints() {
 
       REOPENED: count((c) => upper(c.status) === "REOPENED"),
 
-      OVERDUE: count((c) => isOverdue(c, now)),
+      OVERDUE: count((c) => overdue(c, now)),
 
       RESOLVED: count((c) => ["RESOLVED", "CLOSED"].includes(upper(c.status))),
     };
   }, [complaints, requests, now]);
 
-  // ========================================
-  // SEARCH + FILTERING
-  // ========================================
+  const locations = useMemo(
+    () =>
+      [
+        ...new Set(
+          complaints
+            .map((c) => c.hostel || c.block || c.complaintArea)
+            .filter(Boolean),
+        ),
+      ].sort(),
+    [complaints],
+  );
+
+  const categories = useMemo(
+    () =>
+      [...new Set(complaints.map((c) => c.category).filter(Boolean))].sort(),
+    [complaints],
+  );
 
   const filtered = useMemo(() => {
-    const value = normalize(search);
+    const query = lower(search);
 
     return complaints
-      .filter((item) => {
-        const status = upper(item.status);
+      .filter((c) => {
+        const status = upper(c.status);
+        const linked = linkedRequests(c);
+        const hasMaterials = Boolean(c.materialRequired || linked.length);
 
-        const tabMatches =
+        const matchTab =
           tab === "ALL" ||
-          (tab === "PENDING" &&
-            status === "PENDING" &&
-            !hasAssignedTechnician(item)) ||
+          (tab === "PENDING" && status === "PENDING" && !assigned(c)) ||
           (tab === "ASSIGNED" &&
-            hasAssignedTechnician(item) &&
+            assigned(c) &&
             !["RESOLVED", "CLOSED"].includes(status)) ||
           (tab === "IN_PROGRESS" && status === "IN_PROGRESS") ||
-          (tab === "MATERIAL" &&
-            (item.materialRequired ||
-              requests.some((r) => matchesRequest(r, item)))) ||
+          (tab === "MATERIAL" && hasMaterials) ||
           (tab === "AWAITING" &&
             ["COMPLETED", "AWAITING_STUDENT_CONFIRMATION"].includes(status) &&
-            item.studentVerified !== true) ||
+            c.studentVerified !== true) ||
           (tab === "REOPENED" && status === "REOPENED") ||
-          (tab === "OVERDUE" && isOverdue(item, now)) ||
+          (tab === "OVERDUE" && overdue(c, now)) ||
           (tab === "RESOLVED" && ["RESOLVED", "CLOSED"].includes(status));
 
-        const location = item.hostel || item.block || item.complaintArea;
-
         const searchable = [
-          item.complaintId,
-          item.title,
-          item.description,
-          item.hostel,
-          item.block,
-          item.roomNumber,
-          item.category,
-          item.createdBy?.name,
-          item.assignedTo?.name,
+          c.complaintId,
+          c.title,
+          c.description,
+          c.category,
+          c.hostel,
+          c.block,
+          c.roomNumber,
+          c.createdBy?.name,
+          c.assignedTo?.name,
         ]
-          .map(normalize)
+          .map(lower)
           .join(" ");
 
-        const hasMaterials = Boolean(
-          item.materialRequired ||
-          requests.some((r) => matchesRequest(r, item)),
-        );
+        const location = c.hostel || c.block || c.complaintArea;
 
         return (
-          tabMatches &&
-          (!value || searchable.includes(value)) &&
-          (!categoryFilter || item.category === categoryFilter) &&
+          matchTab &&
+          (!query || searchable.includes(query)) &&
+          (!categoryFilter || c.category === categoryFilter) &&
           (!locationFilter || location === locationFilter) &&
-          (!priorityFilter || upper(item.priority) === priorityFilter) &&
+          (!priorityFilter || upper(c.priority) === priorityFilter) &&
           (!materialFilter ||
             (materialFilter === "REQUIRED" ? hasMaterials : !hasMaterials))
         );
@@ -620,7 +470,7 @@ export default function Complaints() {
       );
   }, [
     complaints,
-    requests,
+    linkedRequests,
     tab,
     search,
     categoryFilter,
@@ -629,10 +479,6 @@ export default function Complaints() {
     materialFilter,
     now,
   ]);
-
-  // ========================================
-  // PAGINATION
-  // ========================================
 
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
 
@@ -643,27 +489,16 @@ export default function Complaints() {
     safePage * PAGE_SIZE,
   );
 
-  // ========================================
-  // BATCH ASSIGNMENT
-  // SAME LOCATION + CATEGORY
-  // MAX 10 PER BATCH
-  // ========================================
-
   const batches = useMemo(() => {
     const groups = new Map();
 
     complaints
-      .filter(
-        (item) =>
-          upper(item.status) === "PENDING" && !hasAssignedTechnician(item),
-      )
-      .forEach((item) => {
-        const location =
-          item.hostel || item.block || item.complaintArea || "Other";
+      .filter((c) => upper(c.status) === "PENDING" && !assigned(c))
+      .forEach((c) => {
+        const location = c.hostel || c.block || c.complaintArea || "Other";
 
-        const category = item.category || "Uncategorized";
-
-        const key = `${normalize(location)}::${normalize(category)}`;
+        const category = c.category || "Uncategorized";
+        const key = `${lower(location)}::${lower(category)}`;
 
         if (!groups.has(key)) {
           groups.set(key, {
@@ -673,135 +508,127 @@ export default function Complaints() {
           });
         }
 
-        groups.get(key).complaints.push(item);
+        groups.get(key).complaints.push(c);
       });
 
-    const result = [];
+    const list = [];
 
     for (const [key, group] of groups.entries()) {
       for (let index = 0; index < group.complaints.length; index += 10) {
-        result.push({
+        list.push({
           key: `${key}::${index / 10 + 1}`,
-
           location: group.location,
-
           category: group.category,
-
           complaints: group.complaints.slice(index, index + 10),
         });
       }
     }
 
-    return result;
+    return list;
   }, [complaints]);
 
   // ========================================
-  // OPEN COMPLAINT DRAWER
+  // ACTIONS
   // ========================================
 
-  function openComplaint(complaint, initialTab = "OVERVIEW") {
-    setSelectedId(toId(complaint._id));
-
-    setDrawerTab(initialTab);
-
+  function openComplaint(c, section = "OVERVIEW") {
+    setSelectedId(toId(c._id));
+    setDrawerTab(section);
     setWorkerId("");
-
-    setMaterials([INITIAL_MATERIAL()]);
-
+    setMaterials([newMaterial()]);
     setReason("");
   }
 
-  // ========================================
-  // UPDATE MATERIAL FORM
-  // ========================================
-
-  function updateMaterial(index, field, value) {
-    setMaterials((items) =>
-      items.map((item, i) =>
-        i === index
-          ? {
-              ...item,
-              [field]: value,
-            }
-          : item,
-      ),
-    );
+  function resetFilters() {
+    setTab("ALL");
+    setSearch("");
+    setCategoryFilter("");
+    setLocationFilter("");
+    setPriorityFilter("");
+    setMaterialFilter("");
+    setPage(1);
   }
 
-  // ========================================
-  // ASSIGN SINGLE COMPLAINT
-  // ========================================
-
   async function assignOne() {
-    if (!selected || !workerId || assigning || !eligibleForAssignment) {
+    if (!selected || !canAssign || !workerId || assigning) return;
+
+    const technician = availableTechnicians.find(
+      (w) => toId(w._id) === workerId,
+    );
+
+    if (!technician || !canSchedule(technician)) {
+      toast.error("Technician cannot receive this assignment.");
       return;
     }
 
-    try {
-      setAssigning(true);
+    setAssigning(true);
 
-      await api.put("/maintenance/assign-worker/assign", {
+    try {
+      await api.put("/maintenance/worker/assign-worker", {
         complaintId: selected._id,
         workerId,
       });
 
-      toast.success("Technician assigned successfully.");
+      toast.success(
+        "Technician assigned. Work will start during eligible duty.",
+      );
 
       setWorkerId("");
-
       await fetchAll(true);
     } catch (error) {
       toast.error(
-        error?.response?.data?.message || "Could not assign Technician.",
+        error?.response?.data?.message || "Technician assignment failed.",
       );
     } finally {
       setAssigning(false);
     }
   }
 
-  // ========================================
-  // ASSIGN COMPLAINT BATCH
-  // ========================================
-
   async function assignBatch(batch) {
-    const chosen = batchSelections[batch.key];
+    const id = batchSelections[batch.key];
+    if (!id || assigningBatch) return;
 
-    if (!chosen || assigningBatch) {
+    const technician = workers.find(
+      (w) => toId(w._id) === id && matchesTechnician(w, batch.complaints[0]),
+    );
+
+    if (!technician) {
+      toast.error("Selected Technician is unavailable.");
       return;
     }
 
     setAssigningBatch(batch.key);
-
-    let assignedCount = 0;
+    let count = 0;
+    let failed = false;
 
     try {
-      for (const complaint of batch.complaints) {
+      for (const c of batch.complaints) {
         try {
-          await api.put("/maintenance/assign-worker/assign", {
-            complaintId: complaint._id,
-            workerId: chosen,
+          await api.put("/maintenance/worker/assign-worker", {
+            complaintId: c._id,
+            workerId: id,
           });
-
-          assignedCount += 1;
+          count += 1;
         } catch (error) {
           toast.error(
-            `${assignedCount} assigned. Stopped at ${complaint.complaintId}: ${
+            `${count} assigned. Failed at ${c.complaintId}: ${
               error?.response?.data?.message || "Assignment failed"
             }`,
           );
 
+          failed = true;
           break;
         }
       }
 
-      if (assignedCount === batch.complaints.length) {
-        toast.success(`${assignedCount} complaints assigned.`);
+      if (!failed) {
+        toast.success(`${count} complaints assigned successfully.`);
       }
 
       await fetchAll(true);
 
-      setBatchSelections((current) => ({
-        ...current,
+      setBatchSelections((old) => ({
+        ...old,
         [batch.key]: "",
       }));
     } finally {
@@ -809,9 +636,11 @@ export default function Complaints() {
     }
   }
 
-  // ========================================
-  // CREATE MATERIAL REQUEST
-  // ========================================
+  function updateMaterial(index, field, value) {
+    setMaterials((list) =>
+      list.map((item, i) => (i === index ? { ...item, [field]: value } : item)),
+    );
+  }
 
   async function createMaterialRequest(event) {
     event.preventDefault();
@@ -821,126 +650,98 @@ export default function Complaints() {
     }
 
     if (!reason.trim()) {
-      return toast.error("Please enter the reason for materials.");
+      toast.error("Enter material request reason.");
+      return;
     }
 
     const invalid = materials.some(
-      (material) =>
-        !material.itemName.trim() ||
-        numberOrNull(material.quantity) === null ||
-        Number(material.quantity) <= 0,
+      (m) =>
+        !m.itemName.trim() ||
+        !Number.isFinite(Number(m.quantity)) ||
+        Number(m.quantity) <= 0,
     );
 
     if (invalid) {
-      return toast.error(
-        "Enter a material name and valid quantity for each item.",
-      );
+      toast.error("Enter valid materials and quantities.");
+      return;
     }
 
-    try {
-      setSendingRequest(true);
+    setSendingRequest(true);
 
+    try {
       await api.post("/maintenance/material-requests/create", {
         complaintId: selected._id,
-
-        materials: materials.map((material) => ({
-          itemName: material.itemName.trim(),
-
-          quantity: Number(material.quantity),
-
-          unit: material.unit,
+        materials: materials.map((m) => ({
+          itemName: m.itemName.trim(),
+          quantity: Number(m.quantity),
+          unit: m.unit,
         })),
-
         reason: reason.trim(),
       });
 
       toast.success("Material request sent to Store Manager.");
-
-      setMaterials([INITIAL_MATERIAL()]);
-
+      setMaterials([newMaterial()]);
       setReason("");
-
-      setDrawerTab("MATERIALS");
-
       await fetchAll(true);
     } catch (error) {
-      toast.error(
-        error?.response?.data?.message || "Could not create material request.",
-      );
+      toast.error(error?.response?.data?.message || "Material request failed.");
     } finally {
       setSendingRequest(false);
     }
   }
 
-  // ========================================
-  // INITIAL LOADER
-  // ========================================
-
-  if (initialLoading) {
+  if (loading) {
     return (
       <div className="flex min-h-[55vh] items-center justify-center gap-3 text-slate-500">
-        <Loader2 className="animate-spin text-[#B48632]" size={26} />
+        <Loader2 className="animate-spin" />
         Loading complaints...
       </div>
     );
   }
 
-  // ========================================
-  // MAIN UI
-  // ========================================
-
   return (
     <main className="min-w-0 space-y-5 text-[#102B52]">
       {/* HEADER */}
 
-      <header className="rounded-3xl bg-gradient-to-r from-[#071C3C] via-[#123665] to-[#204779] p-5 text-white shadow-lg sm:p-7">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+      <header className="rounded-3xl bg-gradient-to-r from-[#071C3C] to-[#204779] p-5 text-white shadow-lg sm:p-7">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-extrabold uppercase tracking-[0.18em] text-amber-300">
-              AMIMAINTAIN · MAINTENANCE OPERATIONS
+            <p className="text-xs font-bold uppercase tracking-widest text-amber-300">
+              AMIM AINTAIN · MAINTENANCE PORTAL
             </p>
 
             <h1 className="mt-2 text-2xl font-black sm:text-3xl">
               Complaint Management
             </h1>
 
-            <p className="mt-2 max-w-2xl text-sm text-slate-200">
-              Receive complaints, assign Technicians, send material requests and
-              track Student confirmation—all in one workspace.
+            <p className="mt-2 text-sm text-slate-200">
+              Assign Technicians, request materials and monitor Student
+              confirmation.
             </p>
           </div>
 
           <button
             type="button"
-            onClick={() => fetchAll(true)}
             disabled={refreshing}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-bold hover:bg-white/20 disabled:opacity-50"
+            onClick={() => void fetchAll(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-bold disabled:opacity-50"
           >
             <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
             Refresh
           </button>
         </div>
 
-        <p className="mt-4 text-xs text-slate-300">
-          Updated {formatIST(lastUpdated)} IST · Auto-refresh every 30 seconds
+        <p className="mt-3 text-xs text-slate-300">
+          Last updated: {dateIST(lastUpdated)}
         </p>
       </header>
-
-      {/* ERROR */}
 
       {complaintError && (
         <div
           role="alert"
-          className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"
+          className="rounded-xl bg-rose-50 p-4 text-sm text-rose-700"
         >
-          {complaintError}{" "}
-          <button
-            type="button"
-            onClick={() => fetchAll()}
-            className="font-bold underline"
-          >
-            Retry
-          </button>
+          {complaintError}
         </div>
       )}
 
@@ -948,95 +749,56 @@ export default function Complaints() {
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
         {[
-          {
-            label: "Total Complaints",
-            value: stats.ALL,
-            icon: ClipboardList,
-            filter: "ALL",
-          },
-          {
-            label: "Pending Assignment",
-            value: stats.PENDING,
-            icon: Clock3,
-            filter: "PENDING",
-          },
-          {
-            label: "In Progress",
-            value: stats.IN_PROGRESS,
-            icon: Wrench,
-            filter: "IN_PROGRESS",
-          },
-          {
-            label: "Material Requests",
-            value: stats.MATERIAL,
-            icon: Package,
-            filter: "MATERIAL",
-          },
-          {
-            label: "Awaiting Student",
-            value: stats.AWAITING,
-            icon: UserCheck,
-            filter: "AWAITING",
-          },
-        ].map((card) => {
-          const Icon = card.icon;
-
-          return (
-            <button
-              key={card.label}
-              type="button"
-              onClick={() => {
-                setTab(card.filter);
-                setPage(1);
-              }}
-              className={`rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:border-[#D7A94B] hover:shadow-md ${
-                tab === card.filter ? "border-[#D7A94B]" : "border-slate-200"
-              }`}
-            >
-              <Icon size={20} className="text-[#B48632]" />
-
-              <div className="mt-3 text-2xl font-black tabular-nums">
-                {card.value}
-              </div>
-
-              <div className="mt-1 text-xs font-semibold text-slate-500">
-                {card.label}
-              </div>
-            </button>
-          );
-        })}
+          ["Total Complaints", stats.ALL, ClipboardList, "ALL"],
+          ["Pending Assignment", stats.PENDING, Clock3, "PENDING"],
+          ["In Progress", stats.IN_PROGRESS, Wrench, "IN_PROGRESS"],
+          ["Material Requests", stats.MATERIAL, Package, "MATERIAL"],
+          ["Awaiting Student", stats.AWAITING, UserCheck, "AWAITING"],
+        ].map(([label, value, Icon, targetTab]) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => {
+              setTab(targetTab);
+              setPage(1);
+            }}
+            className={`rounded-2xl border bg-white p-4 text-left shadow-sm ${
+              tab === targetTab ? "border-amber-400" : "border-slate-200"
+            }`}
+          >
+            <Icon size={20} className="text-amber-600" />
+            <p className="mt-3 text-2xl font-black">{value}</p>
+            <p className="mt-1 text-xs font-semibold text-slate-500">{label}</p>
+          </button>
+        ))}
       </section>
 
-      {/* COMPLAINT WORKSPACE */}
+      {/* MAIN COMPLAINT SECTION */}
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        {/* FILTER HEADER */}
-
         <div className="border-b border-slate-100 p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-lg font-black">All Maintenance Complaints</h2>
 
               <p className="text-xs text-slate-500">
-                Every complaint remains a separate record, even at the same
-                location.
+                Each complaint is maintained separately.
               </p>
             </div>
 
             <button
               type="button"
-              onClick={() => setShowBatches((value) => !value)}
-              className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900 hover:bg-amber-100"
+              onClick={() => setShowBatches((v) => !v)}
+              className="flex items-center gap-2 rounded-xl bg-amber-50 px-3 py-2 text-xs font-bold text-amber-900"
             >
               <Users size={16} />
-
               {showBatches
                 ? "Hide Batch Assignment"
                 : "Batch Assignment (Max 10)"}
             </button>
           </div>
 
-          {/* STATUS TABS */}
+          {/* TABS */}
 
           <div className="mt-4 flex gap-2 overflow-x-auto pb-2">
             {TABS.map(([key, label]) => (
@@ -1047,131 +809,112 @@ export default function Complaints() {
                   setTab(key);
                   setPage(1);
                 }}
-                className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold transition ${
+                className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold ${
                   tab === key
                     ? "bg-[#102B52] text-white"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                    : "bg-slate-100 text-slate-600"
                 }`}
               >
-                {label}
-
-                <span className="ml-1 opacity-70">{stats[key]}</span>
+                {label} <span className="opacity-70">{stats[key]}</span>
               </button>
             ))}
           </div>
 
-          {/* SEARCH AND FILTERS */}
+          {/* FILTERS */}
 
-          <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <label className="relative xl:col-span-2">
               <Search
+                size={17}
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                size={18}
               />
 
               <input
                 value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
+                onChange={(e) => {
+                  setSearch(e.target.value);
                   setPage(1);
                 }}
                 placeholder="Search ID, issue, Student, Technician..."
-                className="w-full rounded-xl border border-slate-200 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-amber-400"
+                className={`${inputClass} pl-10`}
               />
             </label>
 
             <select
               value={locationFilter}
-              onChange={(event) => {
-                setLocationFilter(event.target.value);
+              onChange={(e) => {
+                setLocationFilter(e.target.value);
                 setPage(1);
               }}
-              className="min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+              className={inputClass}
             >
               <option value="">All Locations</option>
-
-              {locations.map((location) => (
-                <option key={location} value={location}>
-                  {location}
+              {locations.map((v) => (
+                <option key={v} value={v}>
+                  {v}
                 </option>
               ))}
             </select>
 
             <select
               value={categoryFilter}
-              onChange={(event) => {
-                setCategoryFilter(event.target.value);
+              onChange={(e) => {
+                setCategoryFilter(e.target.value);
                 setPage(1);
               }}
-              className="min-w-0 rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+              className={inputClass}
             >
               <option value="">All Categories</option>
-
-              {categories.map((category) => (
-                <option key={category} value={category}>
-                  {category}
+              {categories.map((v) => (
+                <option key={v} value={v}>
+                  {v}
                 </option>
               ))}
             </select>
-          </div>
 
-          <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <select
               value={priorityFilter}
-              onChange={(event) => {
-                setPriorityFilter(event.target.value);
+              onChange={(e) => {
+                setPriorityFilter(e.target.value);
                 setPage(1);
               }}
-              className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+              className={inputClass}
             >
               <option value="">All Priorities</option>
-
-              {["LOW", "MEDIUM", "HIGH", "URGENT", "EMERGENCY"].map(
-                (priority) => (
-                  <option key={priority} value={priority}>
-                    {priority}
-                  </option>
-                ),
-              )}
+              {["LOW", "MEDIUM", "HIGH", "URGENT", "EMERGENCY"].map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
             </select>
 
             <select
               value={materialFilter}
-              onChange={(event) => {
-                setMaterialFilter(event.target.value);
+              onChange={(e) => {
+                setMaterialFilter(e.target.value);
                 setPage(1);
               }}
-              className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm"
+              className={inputClass}
             >
               <option value="">All Material Requirements</option>
-
-              <option value="REQUIRED">Materials Requested / Required</option>
-
-              <option value="NOT_REQUIRED">No Materials Requested</option>
+              <option value="REQUIRED">Material Required</option>
+              <option value="NOT_REQUIRED">Not Required</option>
             </select>
           </div>
 
           {(search ||
-            locationFilter ||
+            tab !== "ALL" ||
             categoryFilter ||
+            locationFilter ||
             priorityFilter ||
-            materialFilter ||
-            tab !== "ALL") && (
+            materialFilter) && (
             <button
               type="button"
-              onClick={() => {
-                setSearch("");
-                setLocationFilter("");
-                setCategoryFilter("");
-                setPriorityFilter("");
-                setMaterialFilter("");
-                setTab("ALL");
-                setPage(1);
-              }}
-              className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-slate-500 hover:text-[#102B52]"
+              onClick={resetFilters}
+              className="mt-3 flex items-center gap-2 text-xs font-bold text-slate-500"
             >
               <FilterX size={14} />
-              Clear filters
+              Clear Filters
             </button>
           )}
         </div>
@@ -1179,180 +922,155 @@ export default function Complaints() {
         {/* BATCH ASSIGNMENT */}
 
         {showBatches && (
-          <div className="border-b border-amber-100 bg-amber-50/40 p-4 sm:p-5">
-            <div className="mb-3 font-bold">Pending Complaint Batches</div>
+          <div className="border-b bg-amber-50/30 p-4 sm:p-5">
+            <h3 className="font-bold">Pending Complaint Batches</h3>
 
             {workerError && (
-              <p className="mb-3 text-sm text-rose-700">{workerError}</p>
+              <p className="mt-2 text-sm text-rose-700">{workerError}</p>
             )}
 
-            {batches.length === 0 ? (
-              <p className="text-sm text-slate-500">
-                No unassigned pending complaints.
-              </p>
-            ) : (
-              <div className="grid gap-3 lg:grid-cols-2">
-                {batches.map((batch) => {
-                  const matching = matchingTechnicians(workers, {
-                    category: batch.category,
-                  });
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {batches.map((batch) => {
+                const matching = workers.filter((w) =>
+                  matchesTechnician(w, batch.complaints[0]),
+                );
 
-                  return (
-                    <div
-                      key={batch.key}
-                      className="rounded-xl border border-slate-200 bg-white p-4"
-                    >
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <p className="font-bold">
-                            {batch.location} · {batch.category}
-                          </p>
-
-                          <p className="mt-1 text-xs text-slate-500">
-                            {batch.complaints
-                              .map((item) => item.complaintId)
-                              .join(", ")}
-                          </p>
-                        </div>
-
-                        <span className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold text-amber-900">
-                          {batch.complaints.length}/10
-                        </span>
+                return (
+                  <div
+                    key={batch.key}
+                    className="rounded-xl border border-slate-200 bg-white p-4"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="font-bold">{batch.location}</p>
+                        <p className="text-xs text-slate-500">
+                          {batch.category}
+                        </p>
                       </div>
 
-                      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                        <select
-                          aria-label="Select Technician for batch"
-                          value={batchSelections[batch.key] || ""}
-                          onChange={(event) =>
-                            setBatchSelections((current) => ({
-                              ...current,
-                              [batch.key]: event.target.value,
-                            }))
-                          }
-                          className="min-w-0 flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                        >
-                          <option value="">Select Technician</option>
-
-                          {matching.map((worker) => (
-                            <option key={worker._id} value={worker._id}>
-                              {worker.name} ·{" "}
-                              {worker.department || worker.category}
-                            </option>
-                          ))}
-                        </select>
-
-                        <button
-                          type="button"
-                          disabled={
-                            !batchSelections[batch.key] ||
-                            !!assigningBatch ||
-                            !!workerError
-                          }
-                          onClick={() => assignBatch(batch)}
-                          className="rounded-lg bg-[#102B52] px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
-                        >
-                          {assigningBatch === batch.key
-                            ? "Assigning..."
-                            : `Assign ${batch.complaints.length}`}
-                        </button>
-                      </div>
+                      <span className="rounded-lg bg-amber-50 px-2 py-1 text-xs font-bold">
+                        {batch.complaints.length}/10
+                      </span>
                     </div>
-                  );
-                })}
-              </div>
+
+                    <p className="mt-2 text-xs text-slate-500">
+                      {batch.complaints.map((c) => c.complaintId).join(", ")}
+                    </p>
+
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <select
+                        value={batchSelections[batch.key] || ""}
+                        onChange={(e) =>
+                          setBatchSelections((prev) => ({
+                            ...prev,
+                            [batch.key]: e.target.value,
+                          }))
+                        }
+                        className={`${inputClass} flex-1`}
+                      >
+                        <option value="">Select Technician</option>
+
+                        {matching.map((w) => (
+                          <option key={w._id} value={w._id}>
+                            {w.name} · {w.shift} · {readable(w.availability)}
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        type="button"
+                        disabled={
+                          !batchSelections[batch.key] ||
+                          Boolean(assigningBatch) ||
+                          Boolean(workerError)
+                        }
+                        onClick={() => assignBatch(batch)}
+                        className={primaryButton}
+                      >
+                        {assigningBatch === batch.key
+                          ? "Assigning..."
+                          : `Assign ${batch.complaints.length}`}
+                      </button>
+                    </div>
+
+                    {matching.length === 0 && (
+                      <p className="mt-2 text-xs text-amber-800">
+                        No eligible Technician with matching Admin category.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {batches.length === 0 && (
+              <p className="mt-3 text-sm text-slate-500">
+                No pending complaint batches.
+              </p>
             )}
           </div>
         )}
 
-        {/* DESKTOP COMPLAINT TABLE */}
+        {/* DESKTOP TABLE */}
 
         <div className="hidden overflow-x-auto lg:block">
-          <table className="w-full min-w-[920px] text-left text-sm">
+          <table className="w-full min-w-[850px] text-left text-sm">
             <thead className="bg-slate-50 text-xs uppercase text-slate-500">
               <tr>
                 <th className="px-4 py-3">Complaint</th>
-
                 <th className="px-4 py-3">Location / Category</th>
-
                 <th className="px-4 py-3">Technician</th>
-
                 <th className="px-4 py-3">Status</th>
-
                 <th className="px-4 py-3">Materials</th>
-
                 <th className="px-4 py-3">Action</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-100">
-              {visible.map((complaint) => {
-                const linked = requestsFor(complaint);
+              {visible.map((c) => {
+                const linked = linkedRequests(c);
 
                 return (
-                  <tr key={complaint._id} className="hover:bg-slate-50/70">
+                  <tr key={c._id} className="hover:bg-slate-50">
                     <td className="px-4 py-3">
-                      <p className="font-black">
-                        {complaint.complaintId || "—"}
-                      </p>
-
-                      <p className="mt-1 max-w-[220px] truncate text-xs text-slate-600">
-                        {complaint.title || "Untitled"}
-                      </p>
-
+                      <p className="font-black">{c.complaintId}</p>
+                      <p className="mt-1 text-xs text-slate-600">{c.title}</p>
                       <p className="mt-1 text-xs text-slate-400">
-                        {formatIST(complaint.createdAt)}
+                        {dateIST(c.createdAt)}
                       </p>
                     </td>
 
                     <td className="px-4 py-3">
-                      <p className="max-w-[230px] text-xs">
-                        {locationLabel(complaint)}
-                      </p>
-
-                      <p className="mt-1 font-semibold">
-                        {complaint.category || "—"}
-                      </p>
+                      <p className="text-xs">{locationOf(c)}</p>
+                      <p className="mt-1 font-semibold">{c.category}</p>
                     </td>
 
                     <td className="px-4 py-3 text-xs">
-                      {complaint.assignedTo?.name ||
-                        (hasAssignedTechnician(complaint)
-                          ? "Assigned"
-                          : "Not Assigned")}
+                      {c.assignedTo?.name ||
+                        (assigned(c) ? "Assigned" : "Not Assigned")}
                     </td>
 
                     <td className="px-4 py-3">
                       <span
-                        className={`inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ${badgeStyle(
-                          complaint.status,
-                        )}`}
+                        className={`rounded-full px-2 py-1 text-xs font-bold ${badge(c.status)}`}
                       >
-                        {statusText(complaint)}
+                        {statusText(c)}
                       </span>
                     </td>
 
                     <td className="px-4 py-3 text-xs">
-                      {linked.length ? (
-                        <button
-                          type="button"
-                          onClick={() => openComplaint(complaint, "MATERIALS")}
-                          className="font-bold text-blue-700 underline"
-                        >
-                          {readable(linked[0].status)} · View
-                        </button>
-                      ) : complaint.materialRequired ? (
-                        readable(complaint.materialStatus || "PENDING")
-                      ) : (
-                        "No request"
-                      )}
+                      {linked.length
+                        ? readable(linked[0].status)
+                        : c.materialRequired
+                          ? readable(c.materialStatus || "PENDING")
+                          : "No request"}
                     </td>
 
                     <td className="px-4 py-3">
                       <button
                         type="button"
-                        onClick={() => openComplaint(complaint)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-[#102B52] px-3 py-2 text-xs font-bold text-white"
+                        onClick={() => openComplaint(c)}
+                        className={primaryButton}
                       >
                         <ArrowRight size={14} />
                         Open
@@ -1365,90 +1083,68 @@ export default function Complaints() {
           </table>
         </div>
 
-        {/* MOBILE AND TABLET CARDS */}
+        {/* MOBILE CARDS */}
 
         <div className="grid gap-3 p-3 lg:hidden">
-          {visible.map((complaint) => {
-            const linked = requestsFor(complaint);
+          {visible.map((c) => (
+            <button
+              key={c._id}
+              type="button"
+              onClick={() => openComplaint(c)}
+              className="rounded-xl border border-slate-200 p-4 text-left"
+            >
+              <div className="flex flex-wrap justify-between gap-2">
+                <strong>{c.complaintId}</strong>
+                <span
+                  className={`rounded-full px-2 py-1 text-xs ${badge(c.status)}`}
+                >
+                  {statusText(c)}
+                </span>
+              </div>
 
-            return (
-              <button
-                key={complaint._id}
-                type="button"
-                onClick={() => openComplaint(complaint)}
-                className="rounded-xl border border-slate-200 p-4 text-left hover:border-amber-400"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <strong className="text-sm">
-                    {complaint.complaintId || "—"}
-                  </strong>
+              <p className="mt-2 text-sm font-semibold">{c.title}</p>
 
-                  <span
-                    className={`rounded-full px-2 py-1 text-[10px] font-bold ring-1 ${badgeStyle(
-                      complaint.status,
-                    )}`}
-                  >
-                    {statusText(complaint)}
-                  </span>
-                </div>
+              <p className="mt-2 text-xs text-slate-500">{locationOf(c)}</p>
 
-                <p className="mt-1 text-sm font-medium">
-                  {complaint.title || "Untitled"}
-                </p>
+              <p className="mt-1 text-xs text-slate-500">
+                Category: {c.category}
+              </p>
 
-                <p className="mt-2 text-xs text-slate-500">
-                  {locationLabel(complaint)} · {complaint.category}
-                </p>
-
-                <p className="mt-1 text-xs text-slate-500">
-                  Technician: {complaint.assignedTo?.name || "Not Assigned"}
-                  {" · "}
-                  Materials:{" "}
-                  {linked.length ? readable(linked[0].status) : "No request"}
-                </p>
-              </button>
-            );
-          })}
+              <p className="mt-1 text-xs text-slate-500">
+                Technician: {c.assignedTo?.name || "Not Assigned"}
+              </p>
+            </button>
+          ))}
         </div>
 
-        {/* EMPTY STATE */}
-
         {filtered.length === 0 && (
-          <div className="px-5 py-12 text-center text-sm text-slate-500">
+          <p className="p-10 text-center text-sm text-slate-500">
             No complaints match your filters.
-          </div>
+          </p>
         )}
 
         {/* PAGINATION */}
 
         {filtered.length > PAGE_SIZE && (
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 p-4 text-xs text-slate-500">
+          <div className="flex items-center justify-between border-t p-4 text-xs">
             <span>
-              Showing {(safePage - 1) * PAGE_SIZE + 1}–
-              {Math.min(safePage * PAGE_SIZE, filtered.length)} of{" "}
-              {filtered.length}
+              Page {safePage} of {pages}
             </span>
 
-            <div className="flex items-center gap-2">
+            <div className="flex gap-2">
               <button
                 type="button"
-                aria-label="Previous page"
                 disabled={safePage === 1}
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
+                onClick={() => setPage((p) => p - 1)}
                 className="rounded-lg border p-2 disabled:opacity-40"
               >
                 <ChevronLeft size={17} />
               </button>
 
-              <span>
-                {safePage} / {pages}
-              </span>
-
               <button
                 type="button"
-                aria-label="Next page"
                 disabled={safePage >= pages}
-                onClick={() => setPage((value) => Math.min(pages, value + 1))}
+                onClick={() => setPage((p) => p + 1)}
                 className="rounded-lg border p-2 disabled:opacity-40"
               >
                 <ChevronRight size={17} />
@@ -1458,20 +1154,18 @@ export default function Complaints() {
         )}
       </section>
 
-      {/* ====================================
-          COMPLAINT DETAILS DRAWER
-      ==================================== */}
+      {/* DETAILS DRAWER */}
 
       {selected && (
         <div
-          className="fixed inset-0 z-[100]"
           role="dialog"
           aria-modal="true"
           aria-label={`Complaint ${selected.complaintId}`}
+          className="fixed inset-0 z-[100]"
         >
           <button
             type="button"
-            aria-label="Close complaint details"
+            aria-label="Close details"
             onClick={() => setSelectedId("")}
             className="absolute inset-0 w-full bg-slate-950/60"
           />
@@ -1479,7 +1173,7 @@ export default function Complaints() {
           <aside className="absolute inset-y-0 right-0 flex w-full max-w-[640px] flex-col bg-white shadow-2xl">
             {/* DRAWER HEADER */}
 
-            <div className="shrink-0 bg-gradient-to-r from-[#071C3C] to-[#204779] p-5 text-white">
+            <div className="bg-gradient-to-r from-[#071C3C] to-[#204779] p-5 text-white">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-widest text-amber-300">
@@ -1491,23 +1185,21 @@ export default function Complaints() {
                   </h2>
 
                   <p className="mt-1 text-sm text-slate-200">
-                    {selected.title || "Untitled complaint"}
+                    {selected.title}
                   </p>
                 </div>
 
                 <button
                   type="button"
-                  aria-label="Close"
                   onClick={() => setSelectedId("")}
-                  className="rounded-lg bg-white/10 p-2 hover:bg-white/20"
+                  aria-label="Close"
+                  className="rounded-lg bg-white/10 p-2"
                 >
                   <X size={21} />
                 </button>
               </div>
 
-              {/* DRAWER TABS */}
-
-              <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+              <div className="mt-4 flex gap-2 overflow-x-auto">
                 {[
                   ["OVERVIEW", "Overview"],
                   ["ASSIGN", "Technician"],
@@ -1530,211 +1222,128 @@ export default function Complaints() {
               </div>
             </div>
 
-            {/* DRAWER BODY */}
+            {/* DRAWER CONTENT */}
 
             <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
-              {/* ==========================
-                  OVERVIEW
-              ========================== */}
+              {/* OVERVIEW */}
 
               {drawerTab === "OVERVIEW" && (
                 <>
-                  {/* ISSUE DETAILS */}
-
-                  <div className="rounded-xl border border-slate-200 p-4">
+                  <div className="rounded-xl border p-4">
                     <h3 className="flex items-center gap-2 font-bold">
-                      <FileText size={17} className="text-[#B48632]" />
+                      <FileText size={17} />
                       Issue Details
                     </h3>
 
-                    <p className="mt-3 font-semibold">
-                      {selected.title || "—"}
-                    </p>
+                    <p className="mt-3 font-semibold">{selected.title}</p>
 
-                    <p className="mt-1 whitespace-pre-wrap text-sm text-slate-600">
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">
                       {selected.description || "No description"}
                     </p>
 
                     {(selected.titleHindi || selected.descriptionHindi) && (
-                      <p className="mt-3 whitespace-pre-wrap border-t pt-3 text-sm text-slate-600">
+                      <p className="mt-3 border-t pt-3 text-sm text-slate-600">
                         {selected.titleHindi} {selected.descriptionHindi}
                       </p>
                     )}
                   </div>
 
-                  {/* DETAILS GRID */}
-
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {/* LOCATION */}
-
-                    <div className="rounded-xl bg-slate-50 p-4">
-                      <p className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                        <MapPin size={15} />
-                        LOCATION
-                      </p>
-
-                      <p className="mt-2 text-sm font-semibold">
-                        {locationLabel(selected)}
-                      </p>
-                    </div>
-
-                    {/* STUDENT */}
-
-                    <div className="rounded-xl bg-slate-50 p-4">
-                      <p className="flex items-center gap-2 text-xs font-bold text-slate-500">
-                        <UserRound size={15} />
-                        STUDENT
-                      </p>
-
-                      <p className="mt-2 text-sm font-semibold">
-                        {selected.createdBy?.name || "—"}
-                      </p>
-
-                      <p className="text-xs text-slate-500">
-                        {selected.createdBy?.email || ""}
-                      </p>
-                    </div>
-
-                    {/* CATEGORY */}
-
-                    <div className="rounded-xl bg-slate-50 p-4">
-                      <p className="text-xs font-bold text-slate-500">
-                        CATEGORY / PRIORITY
-                      </p>
-
-                      <p className="mt-2 text-sm font-semibold">
-                        {selected.category || "—"}
-                        {" · "}
-                        {selected.priority || "—"}
-                      </p>
-                    </div>
-
-                    {/* STATUS */}
-
-                    <div className="rounded-xl bg-slate-50 p-4">
-                      <p className="text-xs font-bold text-slate-500">
-                        COMPLAINT STATUS
-                      </p>
-
-                      <p className="mt-2 text-sm font-semibold">
-                        {statusText(selected)}
-                      </p>
-                    </div>
+                    {[
+                      ["Location", locationOf(selected)],
+                      ["Student", selected.createdBy?.name || "—"],
+                      ["Category", selected.category],
+                      ["Priority", selected.priority],
+                      ["Status", statusText(selected)],
+                      ["Deadline", dateIST(selected.deadline)],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-xl bg-slate-50 p-4">
+                        <p className={smallLabel}>{label}</p>
+                        <p className="mt-2 text-sm font-semibold">
+                          {value || "—"}
+                        </p>
+                      </div>
+                    ))}
                   </div>
 
-                  {/* TIMELINE */}
-
-                  <div className="rounded-xl border border-slate-200 p-4">
-                    <p className="flex items-center gap-2 text-sm font-bold">
-                      <CalendarDays size={17} className="text-[#B48632]" />
+                  <div className="rounded-xl border p-4">
+                    <h3 className="flex items-center gap-2 font-bold">
+                      <CalendarDays size={17} />
                       Timeline
+                    </h3>
+
+                    <p className="mt-3 text-xs">
+                      Created: {dateIST(selected.createdAt)}
                     </p>
-
-                    <div className="mt-3 space-y-2 text-xs text-slate-600">
-                      <div className="flex justify-between gap-3">
-                        <span>Created</span>
-
-                        <b>{formatIST(selected.createdAt)}</b>
-                      </div>
-
-                      <div className="flex justify-between gap-3">
-                        <span>Work Started</span>
-
-                        <b>{formatIST(selected.startedAt)}</b>
-                      </div>
-
-                      <div className="flex justify-between gap-3">
-                        <span>Technician Work Done</span>
-
-                        <b>{formatIST(selected.completedAt)}</b>
-                      </div>
-
-                      <div className="flex justify-between gap-3">
-                        <span>Deadline</span>
-
-                        <b>{formatIST(selected.deadline)}</b>
-                      </div>
-                    </div>
+                    <p className="mt-2 text-xs">
+                      Started: {dateIST(selected.startedAt)}
+                    </p>
+                    <p className="mt-2 text-xs">
+                      Work Done: {dateIST(selected.completedAt)}
+                    </p>
                   </div>
-
-                  {/* QUICK ACTIONS */}
 
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
                       onClick={() => setDrawerTab("ASSIGN")}
-                      className="rounded-xl bg-[#102B52] px-3 py-3 text-xs font-bold text-white"
+                      className={primaryButton}
                     >
-                      Assign Technician
+                      Technician
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setDrawerTab("MATERIALS")}
-                      className="rounded-xl bg-amber-100 px-3 py-3 text-xs font-bold text-amber-950"
+                      className="rounded-xl bg-amber-100 p-3 text-xs font-bold text-amber-950"
                     >
-                      Request / Track Material
+                      Materials
                     </button>
                   </div>
 
-                  {/* EMERGENCY ONLY */}
-
-                  {isEmergency(selected) && (
+                  {emergency(selected) && (
                     <button
                       type="button"
                       onClick={() => navigate("/maintenance/job-cards")}
-                      className="inline-flex items-center gap-2 text-sm font-bold text-blue-700"
+                      className="flex items-center gap-2 text-sm font-bold text-blue-700"
                     >
                       <Printer size={16} />
                       Emergency Job Cards
-                      <ArrowRight size={15} />
                     </button>
                   )}
                 </>
               )}
 
-              {/* ==========================
-                  TECHNICIAN ASSIGNMENT
-              ========================== */}
+              {/* TECHNICIAN ASSIGNMENT */}
 
               {drawerTab === "ASSIGN" && (
                 <div className="space-y-4">
-                  {/* CURRENT TECHNICIAN */}
-
-                  <div className="rounded-xl border border-slate-200 p-4">
-                    <p className="text-xs font-bold uppercase text-slate-500">
-                      Current Technician
-                    </p>
+                  <div className="rounded-xl border p-4">
+                    <p className={smallLabel}>Current Technician</p>
 
                     <p className="mt-2 font-black">
                       {selected.assignedTo?.name ||
-                        (alreadyAssigned ? "Assigned" : "Not Assigned")}
+                        (assigned(selected) ? "Assigned" : "Not Assigned")}
                     </p>
 
                     <p className="mt-1 text-xs text-slate-500">
-                      {selected.assignedTo?.department ||
-                        selected.category ||
-                        ""}
+                      {selected.category}
                     </p>
                   </div>
 
-                  {/* ALREADY ASSIGNED */}
-
-                  {alreadyAssigned ? (
+                  {assigned(selected) ? (
                     <p className="rounded-xl bg-blue-50 p-4 text-sm text-blue-800">
-                      This complaint is already assigned. Track work updates
-                      here. Reassignment requires the existing approved
-                      workflow.
+                      Complaint already assigned. Technician will start work
+                      during eligible duty.
                     </p>
-                  ) : eligibleForAssignment ? (
-                    /* ASSIGN FORM */
-
+                  ) : canAssign ? (
                     <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-4">
                       <h3 className="font-black">Assign Technician</h3>
 
                       <p className="mt-1 text-xs text-slate-600">
-                        Only active Technicians mapped to{" "}
-                        {selected.category || "this category"} are shown.
+                        Showing active Technicians matching Admin category:{" "}
+                        <b>{selected.category}</b>. Off-duty Technicians can
+                        receive scheduled assignments.
                       </p>
 
                       {workerError && (
@@ -1745,32 +1354,48 @@ export default function Complaints() {
 
                       <select
                         value={workerId}
-                        onChange={(event) => setWorkerId(event.target.value)}
-                        disabled={!!workerError}
-                        className="mt-4 w-full rounded-lg border border-slate-200 bg-white px-3 py-3 text-sm"
+                        onChange={(e) => setWorkerId(e.target.value)}
+                        disabled={Boolean(workerError)}
+                        className={`${inputClass} mt-4`}
                       >
                         <option value="">Select Technician</option>
 
-                        {eligibleTechnicians.map((worker) => (
-                          <option key={worker._id} value={worker._id}>
-                            {worker.name} ·{" "}
-                            {worker.department || worker.category}
-                            {worker.shift ? ` · ${worker.shift}` : ""}
+                        {availableTechnicians.map((w) => (
+                          <option key={w._id} value={w._id}>
+                            {w.name} · {w.department} · {w.shift} ·{" "}
+                            {readable(w.availability)}
                           </option>
                         ))}
                       </select>
 
-                      {!workerError && eligibleTechnicians.length === 0 && (
-                        <p className="mt-2 text-xs text-rose-700">
-                          No active category-matched Technician found.
-                        </p>
+                      {availableTechnicians.length === 0 && (
+                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+                          <p className="font-bold">
+                            No category-matched eligible Technician.
+                          </p>
+
+                          <p className="mt-1">
+                            Verify the Technician's category against Admin
+                            Category Master.
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={() => navigate("/maintenance/workers")}
+                            className="mt-2 font-bold text-blue-700 underline"
+                          >
+                            Open Technician Management
+                          </button>
+                        </div>
                       )}
 
                       <button
                         type="button"
-                        disabled={!workerId || assigning || !!workerError}
                         onClick={assignOne}
-                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#102B52] py-3 text-sm font-bold text-white disabled:opacity-50"
+                        disabled={
+                          !workerId || assigning || Boolean(workerError)
+                        }
+                        className={`${primaryButton} mt-3 w-full`}
                       >
                         <UserCheck size={17} />
 
@@ -1779,247 +1404,180 @@ export default function Complaints() {
                     </div>
                   ) : (
                     <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-                      Assignment is available for unassigned Pending or Reopened
-                      complaints.
+                      Only unassigned Pending or Reopened complaints can be
+                      assigned.
                     </p>
                   )}
 
-                  <p className="text-xs text-slate-500">
-                    Manager assigns the job. The Technician submits work
-                    completion; the Student gives final YES/NO confirmation.
+                  <p className="text-xs leading-5 text-slate-500">
+                    Assignment sets status to ASSIGNED. Technician Start Work
+                    changes status to IN_PROGRESS after duty validation. Student
+                    performs final YES/NO confirmation.
                   </p>
                 </div>
               )}
 
-              {/* ==========================
-                  MATERIAL REQUESTS
-              ========================== */}
+              {/* MATERIAL REQUESTS */}
 
               {drawerTab === "MATERIALS" && (
                 <div className="space-y-4">
                   {requestError && (
                     <p
                       role="alert"
-                      className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"
+                      className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700"
                     >
                       {requestError}
                     </p>
                   )}
 
-                  {/* EXISTING REQUESTS */}
+                  {selectedRequests.length === 0 && (
+                    <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+                      No material requests for this complaint.
+                    </p>
+                  )}
 
-                  {selectedRequests.length > 0
-                    ? selectedRequests.map((request) => (
-                        <div
-                          key={request._id || request.requestId}
-                          className="overflow-hidden rounded-xl border border-slate-200"
-                        >
-                          <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-4">
-                            <div>
-                              <p className="font-black">
-                                {request.requestId || "Material Request"}
-                              </p>
+                  {selectedRequests.map((request) => (
+                    <div
+                      key={request._id || request.requestId}
+                      className="overflow-hidden rounded-xl border"
+                    >
+                      <div className="flex items-center justify-between gap-2 bg-slate-50 p-4">
+                        <div>
+                          <p className="font-bold">
+                            {request.requestId || "Material Request"}
+                          </p>
 
-                              <p className="text-xs text-slate-500">
-                                Sent {formatIST(request.createdAt)}
-                              </p>
-                            </div>
-
-                            <span
-                              className={`rounded-full px-2.5 py-1 text-xs font-bold ring-1 ${badgeStyle(
-                                request.status,
-                              )}`}
-                            >
-                              {readable(request.status)}
-                            </span>
-                          </div>
-
-                          <div className="space-y-3 p-4">
-                            {(request.materials || []).map(
-                              (material, index) => {
-                                const requested = numberOrNull(
-                                  material.quantity,
-                                );
-
-                                const issued = numberOrNull(
-                                  material.issuedQuantity,
-                                );
-
-                                const received = numberOrNull(
-                                  material.receivedQuantity,
-                                );
-
-                                const pendingIssue =
-                                  requested !== null && issued !== null
-                                    ? Math.max(0, requested - issued)
-                                    : null;
-
-                                return (
-                                  <div
-                                    key={material._id || index}
-                                    className="rounded-lg border border-slate-100 p-3"
-                                  >
-                                    <div className="flex items-center justify-between gap-2">
-                                      <p className="text-sm font-bold">
-                                        {material.itemName}
-                                      </p>
-
-                                      <span className="text-[11px] text-slate-500">
-                                        {readable(material.status)}
-                                      </span>
-                                    </div>
-
-                                    {/* QUANTITIES */}
-
-                                    <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                                      {[
-                                        ["Requested", requested],
-                                        ["Store Issued", issued],
-                                        ["Tech Received", received],
-                                        ["Pending Issue", pendingIssue],
-                                      ].map(([label, quantity]) => (
-                                        <div
-                                          key={label}
-                                          className="rounded-lg bg-slate-50 p-2"
-                                        >
-                                          <p className="text-[10px] text-slate-500">
-                                            {label}
-                                          </p>
-
-                                          <p className="mt-1 text-sm font-black">
-                                            {displayQuantity(quantity)}
-                                          </p>
-                                        </div>
-                                      ))}
-                                    </div>
-
-                                    {/* RECEIPT STATUS */}
-
-                                    {issued !== null && received === null && (
-                                      <p className="mt-2 text-xs text-amber-700">
-                                        Technician receipt confirmation not yet
-                                        available.
-                                      </p>
-                                    )}
-
-                                    {issued !== null &&
-                                      received !== null &&
-                                      issued > received && (
-                                        <p className="mt-2 text-xs text-amber-700">
-                                          {issued - received} item(s) issued but
-                                          not yet confirmed as received. Check
-                                          reconciliation status.
-                                        </p>
-                                      )}
-                                  </div>
-                                );
-                              },
-                            )}
-
-                            {request.reason && (
-                              <p className="text-xs text-slate-600">
-                                <b>Reason:</b> {request.reason}
-                              </p>
-                            )}
-                          </div>
+                          <p className="text-xs text-slate-500">
+                            {dateIST(request.createdAt)}
+                          </p>
                         </div>
-                      ))
-                    : !requestError && (
-                        <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
-                          No material request created for this complaint yet.
-                        </p>
-                      )}
 
-                  {/* NEW REQUEST FORM */}
+                        <span
+                          className={`rounded-full px-2 py-1 text-xs ${badge(request.status)}`}
+                        >
+                          {readable(request.status)}
+                        </span>
+                      </div>
+
+                      <div className="space-y-3 p-4">
+                        {(request.materials || []).map((m, i) => {
+                          const requested = Number(m.quantity);
+                          const issued =
+                            m.issuedQuantity == null
+                              ? null
+                              : Number(m.issuedQuantity);
+                          const received =
+                            m.receivedQuantity == null
+                              ? null
+                              : Number(m.receivedQuantity);
+
+                          return (
+                            <div
+                              key={m._id || i}
+                              className="rounded-xl border p-3 text-sm"
+                            >
+                              <p className="font-bold">{m.itemName}</p>
+
+                              <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                                {[
+                                  ["Requested", requested],
+                                  ["Store Issued", issued],
+                                  ["Tech Received", received],
+                                  [
+                                    "Pending Issue",
+                                    issued == null
+                                      ? null
+                                      : Math.max(0, requested - issued),
+                                  ],
+                                ].map(([label, amount]) => (
+                                  <div
+                                    key={label}
+                                    className="rounded-lg bg-slate-50 p-2"
+                                  >
+                                    <p className="text-slate-500">{label}</p>
+                                    <p className="mt-1 font-black">
+                                      {amount == null ? "—" : amount}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {request.reason && (
+                          <p className="text-xs text-slate-600">
+                            <b>Reason:</b> {request.reason}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
 
                   {canCreateRequest ? (
                     <form
                       onSubmit={createMaterialRequest}
-                      className="space-y-4 rounded-xl border border-amber-200 bg-amber-50/40 p-4"
+                      className="space-y-3 rounded-xl border border-amber-200 bg-amber-50/30 p-4"
                     >
-                      <div>
-                        <h3 className="flex items-center gap-2 font-black">
-                          <Package size={18} />
-                          Request Materials
-                        </h3>
+                      <h3 className="flex items-center gap-2 font-black">
+                        <Package size={17} />
+                        Request Materials
+                      </h3>
 
-                        <p className="mt-1 text-xs text-slate-600">
-                          You can request materials before assigning a
-                          Technician. Store Manager will receive this
-                          complaint-linked request.
-                        </p>
-                      </div>
+                      <p className="text-xs text-slate-600">
+                        Materials can be requested before Technician assignment.
+                      </p>
 
-                      {/* MATERIAL ITEMS */}
-
-                      {materials.map((material, index) => (
-                        <div
-                          key={index}
-                          className="space-y-2 rounded-lg border border-slate-200 bg-white p-3"
-                        >
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs font-bold">
-                              Item {index + 1}
-                            </p>
+                      {materials.map((m, i) => (
+                        <div key={i} className="rounded-xl border bg-white p-3">
+                          <div className="flex justify-between gap-2">
+                            <p className="text-xs font-bold">Item {i + 1}</p>
 
                             {materials.length > 1 && (
                               <button
                                 type="button"
                                 onClick={() =>
-                                  setMaterials((current) =>
-                                    current.filter((_, i) => i !== index),
+                                  setMaterials((list) =>
+                                    list.filter((_, index) => index !== i),
                                   )
                                 }
                                 aria-label="Remove material"
-                                className="rounded-lg p-1 text-rose-700 hover:bg-rose-50"
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={15} className="text-rose-600" />
                               </button>
                             )}
                           </div>
 
                           <input
                             required
-                            value={material.itemName}
-                            onChange={(event) =>
-                              updateMaterial(
-                                index,
-                                "itemName",
-                                event.target.value,
-                              )
+                            value={m.itemName}
+                            onChange={(e) =>
+                              updateMaterial(i, "itemName", e.target.value)
                             }
-                            placeholder="Material name (e.g. Tube Light)"
-                            className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                            placeholder="Material Name"
+                            className={`${inputClass} mt-2`}
                           />
 
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="mt-2 grid grid-cols-2 gap-2">
                             <input
-                              type="number"
                               required
+                              type="number"
                               min="0.01"
                               step="0.01"
-                              value={material.quantity}
-                              onChange={(event) =>
-                                updateMaterial(
-                                  index,
-                                  "quantity",
-                                  event.target.value,
-                                )
+                              value={m.quantity}
+                              onChange={(e) =>
+                                updateMaterial(i, "quantity", e.target.value)
                               }
                               placeholder="Quantity"
-                              className="min-w-0 rounded-lg border border-slate-200 px-3 py-2.5 text-sm"
+                              className={inputClass}
                             />
 
                             <select
-                              value={material.unit}
-                              onChange={(event) =>
-                                updateMaterial(
-                                  index,
-                                  "unit",
-                                  event.target.value,
-                                )
+                              value={m.unit}
+                              onChange={(e) =>
+                                updateMaterial(i, "unit", e.target.value)
                               }
-                              className="min-w-0 rounded-lg border border-slate-200 px-2 py-2.5 text-sm"
+                              className={inputClass}
                             >
                               {UNITS.map((unit) => (
                                 <option key={unit} value={unit}>
@@ -2034,117 +1592,95 @@ export default function Complaints() {
                       <button
                         type="button"
                         onClick={() =>
-                          setMaterials((current) => [
-                            ...current,
-                            INITIAL_MATERIAL(),
-                          ])
+                          setMaterials((list) => [...list, newMaterial()])
                         }
-                        className="inline-flex items-center gap-2 text-xs font-bold text-blue-700"
+                        className="flex items-center gap-2 text-xs font-bold text-blue-700"
                       >
                         <Plus size={16} />
-                        Add another material
+                        Add Material
                       </button>
 
                       <textarea
                         rows={3}
                         required
                         value={reason}
-                        onChange={(event) => setReason(event.target.value)}
-                        placeholder="Why are these materials needed?"
-                        className="w-full resize-y rounded-lg border border-slate-200 p-3 text-sm"
+                        onChange={(e) => setReason(e.target.value)}
+                        placeholder="Reason for request"
+                        className={inputClass}
                       />
 
                       <button
                         type="submit"
                         disabled={sendingRequest}
-                        className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#102B52] py-3 text-sm font-bold text-white disabled:opacity-50"
+                        className={`${primaryButton} w-full`}
                       >
                         <Send size={16} />
-
                         {sendingRequest
-                          ? "Sending Request..."
+                          ? "Sending..."
                           : "Send Request to Store"}
                       </button>
                     </form>
-                  ) : (
-                    !requestError &&
-                    selectedRequests.length > 0 && (
-                      <p className="text-xs text-slate-500">
-                        A request already exists for this complaint. Existing
-                        backend rules allow one request per complaint; follow-up
-                        requests require a backend change.
-                      </p>
-                    )
-                  )}
+                  ) : selectedRequests.length > 0 ? (
+                    <p className="text-xs text-slate-500">
+                      Existing request is tracked above. Follow-up material
+                      requests need a separate backend workflow.
+                    </p>
+                  ) : null}
                 </div>
               )}
 
-              {/* ==========================
-                  STUDENT CONFIRMATION
-              ========================== */}
+              {/* STUDENT STATUS */}
 
               {drawerTab === "STUDENT" && (
                 <div className="space-y-4">
-                  <div className="rounded-xl border border-slate-200 p-4">
-                    <p className="flex items-center gap-2 font-bold">
-                      <CheckCircle2 size={18} className="text-[#B48632]" />
+                  <div className="rounded-xl border p-4">
+                    <h3 className="flex items-center gap-2 font-bold">
+                      <CheckCircle2 size={18} />
                       Student Confirmation
-                    </p>
+                    </h3>
 
-                    <p className="mt-2 text-sm">
+                    <p className="mt-3 text-sm">
                       {selected.studentVerified === true
-                        ? "Student has confirmed that the complaint is resolved."
+                        ? "Student confirmed the complaint is resolved."
                         : [
                               "COMPLETED",
                               "AWAITING_STUDENT_CONFIRMATION",
                             ].includes(upper(selected.status))
-                          ? "Technician marked work done. Awaiting Student YES/NO confirmation."
+                          ? "Work done. Awaiting Student YES/NO confirmation."
                           : upper(selected.status) === "REOPENED"
-                            ? "Student reported that the issue is not resolved."
+                            ? "Student reported the issue is not resolved."
                             : `Current status: ${statusText(selected)}`}
                     </p>
                   </div>
 
-                  {/* REOPEN REASON */}
-
                   {upper(selected.status) === "REOPENED" && (
                     <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-                      <p className="flex items-center gap-2 font-bold text-rose-800">
+                      <h3 className="flex items-center gap-2 font-bold text-rose-800">
                         <RotateCcw size={17} />
-                        Reopened — Student Reason
-                      </p>
+                        Reopened Reason
+                      </h3>
 
-                      <p className="mt-2 whitespace-pre-wrap text-sm text-rose-900">
+                      <p className="mt-3 whitespace-pre-wrap text-sm text-rose-900">
                         {studentReason(selected) ||
-                          "Reason not included in the current API response."}
+                          "Reason not available in API response."}
                       </p>
                     </div>
                   )}
 
-                  {/* POLICY */}
-
                   <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-                    <p className="font-bold">Final closure policy</p>
-
-                    <p className="mt-2">
-                      Only the Student can confirm YES to resolve the complaint.
-                      If NO, a reason is mandatory and the complaint is reopened
-                      for rework. Maintenance Manager and Warden do not provide
-                      final verification remarks.
-                    </p>
+                    Only Student can confirm YES to resolve the complaint. NO
+                    requires a reason and reopens the complaint. Maintenance
+                    Manager and Warden monitor the process.
                   </div>
 
-                  {/* EMERGENCY CARD */}
-
-                  {isEmergency(selected) && (
+                  {emergency(selected) && (
                     <button
                       type="button"
                       onClick={() => navigate("/maintenance/job-cards")}
-                      className="inline-flex items-center gap-2 text-sm font-bold text-blue-700"
+                      className="flex items-center gap-2 text-sm font-bold text-blue-700"
                     >
                       <Printer size={16} />
                       Emergency Job Card
-                      <ArrowRight size={15} />
                     </button>
                   )}
                 </div>
