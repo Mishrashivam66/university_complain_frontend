@@ -1,241 +1,217 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useNavigate } from "react-router-dom";
-import toast from "react-hot-toast";
+import { toast } from "react-toastify";
 
 import {
-  AlertCircle,
-  AlertTriangle,
-  ArrowDownUp,
-  BadgeCheck,
+  ArrowLeft,
+  ArrowRight,
   Building2,
-  CalendarClock,
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  ChevronUp,
   ClipboardList,
   Clock3,
-  Filter,
-  Hash,
+  House,
   Loader2,
   MapPin,
-  Phone,
-  Plus,
   RefreshCw,
-  RotateCcw,
-  Search,
   ShieldCheck,
-  UserRound,
   Wrench,
-  X,
 } from "lucide-react";
 
 import api from "../../services/api";
 
-import useRealtimeRefresh from "../notifications/hooks/useRealtimeRefresh";
+import { createComplaint } from "../../services/studentService";
 
 // =====================================================
-// AMI MAINTENANCE - MY COMPLAINTS
+// TWO-HOUR VISIT WINDOWS
 // =====================================================
 
-const PAGE_SIZE = 5;
-
-// =====================================================
-// STATUS STYLES
-// =====================================================
-
-const STATUS_STYLE = {
-  PENDING: "border-amber-200 bg-amber-50 text-amber-800",
-
-  ASSIGNED: "border-sky-200 bg-sky-50 text-sky-800",
-
-  IN_PROGRESS: "border-blue-200 bg-blue-50 text-blue-800",
-
-  WAITING_MATERIAL: "border-violet-200 bg-violet-50 text-violet-800",
-
-  COMPLETED: "border-teal-200 bg-teal-50 text-teal-800",
-
-  RESOLVED: "border-emerald-200 bg-emerald-50 text-emerald-800",
-
-  CLOSED: "border-slate-200 bg-slate-100 text-slate-700",
-
-  REOPENED: "border-orange-200 bg-orange-50 text-orange-800",
-
-  ESCALATED: "border-rose-200 bg-rose-50 text-rose-800",
-};
-
-const PRIORITY_STYLE = {
-  LOW: "border-emerald-200 bg-emerald-50 text-emerald-700",
-
-  MEDIUM: "border-amber-200 bg-amber-50 text-amber-700",
-
-  HIGH: "border-orange-200 bg-orange-50 text-orange-700",
-
-  URGENT: "border-rose-200 bg-rose-50 text-rose-700",
-
-  CRITICAL: "border-rose-200 bg-rose-50 text-rose-700",
-};
-
-const STATUS_OPTIONS = [
-  ["ALL", "All Statuses"],
-  ["PENDING", "Pending"],
-  ["ASSIGNED", "Assigned"],
-  ["IN_PROGRESS", "In Progress"],
-  ["WAITING_MATERIAL", "Waiting Material"],
-  ["COMPLETED", "Awaiting Student Review"],
-  ["RESOLVED", "Resolved"],
-  ["CLOSED", "Closed"],
-  ["REOPENED", "Reopened"],
-  ["ESCALATED", "Escalated"],
+const VISIT_WINDOWS = [
+  {
+    from: "09:00 AM",
+    to: "11:00 AM",
+    start: 540,
+  },
+  {
+    from: "11:00 AM",
+    to: "01:00 PM",
+    start: 660,
+  },
+  {
+    from: "01:00 PM",
+    to: "03:00 PM",
+    start: 780,
+  },
+  {
+    from: "03:00 PM",
+    to: "05:00 PM",
+    start: 900,
+  },
 ];
+
+// =====================================================
+// STYLES
+// =====================================================
+
+const fieldStyle =
+  "w-full min-w-0 rounded-xl border border-slate-200 " +
+  "bg-white px-4 py-3 text-sm text-[#102746] " +
+  "outline-none transition focus:border-[#C49A45] " +
+  "focus:ring-4 focus:ring-[#C49A45]/10";
+
+const labelStyle = "mb-2 block text-sm font-semibold text-[#102746]";
 
 // =====================================================
 // HELPERS
 // =====================================================
 
-const text = (value) => String(value ?? "").trim();
+const text = (v) => String(v ?? "").trim();
 
-const readableStatus = (value) => text(value).replace(/_/g, " ") || "UNKNOWN";
+const normalized = (v) =>
+  text(v)
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
 
-function formatDate(value, withTime = true) {
-  if (!value) return "Not available";
+const hostelCode = (v) => normalized(v).replace(/^HOSTEL/, "");
 
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Not available";
+const readUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "{}");
+  } catch {
+    return {};
   }
+};
 
-  return date.toLocaleString("en-IN", {
-    timeZone: "Asia/Kolkata",
+function studentHostel(user) {
+  const v = user?.hostel;
 
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-
-    ...(withTime
-      ? {
-          hour: "2-digit",
-          minute: "2-digit",
-        }
-      : {}),
-  });
+  return typeof v === "object" && v !== null
+    ? text(v.hostelCode || v.hostelName || v.name || v._id)
+    : text(v);
 }
 
-function formatVisitDate(value) {
-  if (!value) return "—";
-
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    return text(value);
-  }
-
-  return formatDate(`${value}T12:00:00+05:30`, false);
-}
-
-function getLocation(complaint) {
-  const area = text(complaint.complaintArea).toUpperCase();
-
-  if (area === "HOSTEL") {
-    return (
-      [
-        complaint.hostel,
-
-        complaint.roomNumber ? `Room ${complaint.roomNumber}` : "",
-      ]
-        .filter(Boolean)
-        .join(" · ") || "Hostel"
-    );
-  }
-
-  if (area === "DEPARTMENT") {
-    return (
-      [
-        complaint.block ? `Block ${complaint.block}` : "",
-
-        complaint.issueLocation,
-      ]
-        .filter(Boolean)
-        .join(" · ") || "Academic Block"
-    );
-  }
-
-  return complaint.issueLocation || "Campus";
-}
-
-function getWorker(complaint) {
-  return complaint.assignedTo && typeof complaint.assignedTo === "object"
-    ? complaint.assignedTo
-    : null;
-}
-
-// =====================================================
-// REUSABLE BADGE
-// =====================================================
-
-function Badge({ value, type = "status" }) {
-  const styles = type === "priority" ? PRIORITY_STYLE : STATUS_STYLE;
-
-  const color =
-    styles[text(value).toUpperCase()] ||
-    "border-slate-200 bg-slate-50 text-slate-600";
+function matchedHostel(hostel, user) {
+  const own = hostelCode(studentHostel(user));
 
   return (
-    <span
-      className={`inline-flex items-center rounded-full border px-3 py-1.5 text-[11px] font-extrabold tracking-wide ${color}`}
-    >
-      {readableStatus(value)}
-    </span>
+    !!own &&
+    [hostel.id, hostel.name, hostel.code].some((v) => hostelCode(v) === own)
   );
 }
 
+function departmentName(user) {
+  const v = user?.department || user?.branch;
+
+  return typeof v === "object" && v !== null
+    ? text(v.departmentName || v.name)
+    : text(v);
+}
+
 // =====================================================
-// REUSABLE DETAIL CARD
+// HOSTEL FLOOR AUTO DETECTION
 // =====================================================
 
-function DetailCard({ icon: Icon, label, children }) {
+function detectFloor(roomNumber) {
+  const v = normalized(roomNumber);
+
+  if (v.startsWith("G")) {
+    return "Ground Floor";
+  }
+
+  if (v.startsWith("F")) {
+    return "First Floor";
+  }
+
+  if (/^S[23]/.test(v)) {
+    return "Second Floor";
+  }
+
+  return "";
+}
+
+// =====================================================
+// CURRENT INDIA DATE AND TIME
+// =====================================================
+
+function indianNow() {
+  const values = Object.fromEntries(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Kolkata",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    })
+      .formatToParts(new Date())
+      .map(({ type, value }) => [type, value]),
+  );
+
+  return {
+    date: `${values.year}-${values.month}-${values.day}`,
+
+    minutes: Number(values.hour) * 60 + Number(values.minute),
+  };
+}
+
+// =====================================================
+// INITIAL FORM STATE
+// =====================================================
+
+const initialForm = () => ({
+  locationKey: "",
+  complaintArea: "",
+
+  hostel: "",
+  block: "",
+  roomNumber: "",
+  floor: "",
+  department: "",
+
+  category: "",
+  subCategory: "",
+  customTitle: "",
+
+  issueLocation: "",
+  extraLocation: "",
+  description: "",
+
+  visitDate: "",
+  slots: [],
+});
+
+const emptyMaster = () => ({
+  hostels: [],
+  academicBlocks: [],
+  otherLocations: [],
+  categories: [],
+});
+
+// =====================================================
+// REUSABLE FORM SECTION
+// =====================================================
+
+function Section({ number, title, help, children }) {
   return (
-    <div className="flex min-w-0 gap-3 rounded-2xl border border-slate-100 bg-[#F8FAFD] p-3.5">
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#B68930] shadow-sm">
-        <Icon size={17} />
-      </span>
+    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgba(16,39,70,.05)] sm:p-8">
+      <div className="mb-7 flex items-start gap-4">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-[#102746] font-extrabold text-[#F3C971]">
+          {number}
+        </span>
 
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-          {label}
-        </p>
+        <div>
+          <h2 className="text-xl font-black text-[#102746] sm:text-2xl">
+            {title}
+          </h2>
 
-        <div className="mt-1 break-words text-sm font-bold text-[#102746]">
-          {children || "—"}
+          <p className="mt-1 text-sm leading-relaxed text-slate-500">{help}</p>
         </div>
       </div>
-    </div>
-  );
-}
 
-// =====================================================
-// SUMMARY CARD
-// =====================================================
-
-function SummaryCard({ icon: Icon, label, value, sub }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-bold text-slate-500 sm:text-sm">{label}</p>
-
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F7F8FA]">
-          <Icon size={19} className="text-[#BD8E31]" />
-        </span>
-      </div>
-
-      <p className="mt-2 text-2xl font-black tabular-nums text-[#102746] sm:text-3xl">
-        {value}
-      </p>
-
-      <p className="mt-1 text-[11px] text-slate-400">{sub}</p>
-    </div>
+      {children}
+    </section>
   );
 }
 
@@ -243,1207 +219,1111 @@ function SummaryCard({ icon: Icon, label, value, sub }) {
 // MAIN COMPONENT
 // =====================================================
 
-export default function MyComplaints() {
+export default function CreateComplaint() {
   const navigate = useNavigate();
+  const inFlight = useRef(false);
 
-  const verificationLock = useRef(false);
+  const [user, setUser] = useState(readUser);
 
-  const [complaints, setComplaints] = useState([]);
+  const [master, setMaster] = useState(emptyMaster);
 
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const [refreshing, setRefreshing] = useState(false);
+  const [form, setForm] = useState(initialForm);
+  const [step, setStep] = useState(1);
 
-  const [loadError, setLoadError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  // Search / filters
-  const [search, setSearch] = useState("");
+  const [submitted, setSubmitted] = useState(null);
 
-  const [statusFilter, setStatusFilter] = useState("ALL");
-
-  const [sort, setSort] = useState("NEWEST");
-
-  const [page, setPage] = useState(1);
-
-  const [expandedId, setExpandedId] = useState(null);
-
-  // Legacy reopen modal
-  const [reopenTarget, setReopenTarget] = useState(null);
-
-  const [reopenReason, setReopenReason] = useState("");
-
-  const [reopening, setReopening] = useState(false);
-
-  // Student satisfaction verification
-  const [feedbackTarget, setFeedbackTarget] = useState(null);
-
-  const [feedbackDecision, setFeedbackDecision] = useState("");
-
-  const [feedbackReason, setFeedbackReason] = useState("");
-
-  const [feedbackBusy, setFeedbackBusy] = useState(false);
+  const isHosteller = user?.isHosteller === true;
 
   // ===================================================
-  // FETCH COMPLAINTS
+  // FETCH ADMIN MASTER DATA
   // ===================================================
 
-  const fetchComplaints = useCallback(async (showLoader = false) => {
-    if (showLoader === true) {
-      setLoading(true);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+
+    const [config, profile] = await Promise.allSettled([
+      api.get("/student/complaint-form-config"),
+
+      api.get("/auth/profile"),
+    ]);
+
+    if (config.status === "fulfilled" && config.value.data?.success !== false) {
+      const data = config.value.data || {};
+
+      const arr = (value) => (Array.isArray(value) ? value : []);
+
+      setMaster({
+        hostels: arr(data.hostels),
+
+        academicBlocks: arr(data.academicBlocks),
+
+        otherLocations: arr(data.otherLocations),
+
+        categories: arr(data.categories),
+      });
     } else {
-      setRefreshing(true);
-    }
-
-    try {
-      const response = await api.get("/student/complaints/my-complaints");
-
-      setComplaints(
-        Array.isArray(response.data?.complaints)
-          ? response.data.complaints
-          : [],
+      setError(
+        config.status === "rejected"
+          ? config.reason?.response?.data?.message ||
+              "Unable to load locations from Admin"
+          : "Invalid complaint form configuration",
       );
-
-      setLoadError("");
-    } catch (error) {
-      console.error("FETCH COMPLAINTS ERROR:", error);
-
-      const message =
-        error?.response?.data?.message || "Unable to load complaints";
-
-      setLoadError(message);
-
-      if (!showLoader) {
-        toast.error(message);
-      }
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
     }
+
+    if (profile.status === "fulfilled") {
+      const current = profile.value.data?.user;
+
+      if (current) {
+        setUser(current);
+
+        localStorage.setItem("user", JSON.stringify(current));
+      }
+    }
+
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    fetchComplaints(true);
-  }, [fetchComplaints]);
-
-  // Existing refresh hook preserved.
-  // Manual Refresh also works independently.
-  useRealtimeRefresh("complaintUpdated", fetchComplaints);
+    load();
+  }, [load]);
 
   // ===================================================
-  // DASHBOARD COUNTS
-  //
-  // COMPLETED means Technician finished.
-  // RESOLVED means Student accepted.
+  // SELECTED LOCATION
   // ===================================================
 
-  const totals = useMemo(() => {
-    const accepted = new Set(["RESOLVED", "CLOSED"]);
+  const selected = useMemo(() => {
+    const [kind, id] = form.locationKey.split(":");
 
-    return {
-      total: complaints.length,
+    const groups = {
+      HOSTEL: master.hostels,
 
-      active: complaints.filter(
-        (item) => !accepted.has(item.status) && item.status !== "COMPLETED",
-      ).length,
+      BLOCK: master.academicBlocks,
 
-      awaitingReview: complaints.filter((item) => item.status === "COMPLETED")
-        .length,
-
-      resolved: complaints.filter((item) => accepted.has(item.status)).length,
-    };
-  }, [complaints]);
-
-  // ===================================================
-  // SEARCH AND FILTER
-  // ===================================================
-
-  const filtered = useMemo(() => {
-    const query = search.toLowerCase().trim();
-
-    const priorityRank = {
-      URGENT: 5,
-      CRITICAL: 5,
-      HIGH: 4,
-      MEDIUM: 3,
-      LOW: 2,
+      OTHER: master.otherLocations,
     };
 
-    return complaints
-      .filter((item) => {
-        const matchStatus =
-          statusFilter === "ALL" || item.status === statusFilter;
-
-        const searchable = [
-          item.complaintId,
-          item.title,
-          item.subCategory,
-          item.category,
-          item.description,
-          item.issueLocation,
-          item.hostel,
-          item.block,
-        ]
-          .map(text)
-          .join(" ")
-          .toLowerCase();
-
-        return matchStatus && (!query || searchable.includes(query));
-      })
-      .sort((a, b) => {
-        if (sort === "PRIORITY") {
-          const difference =
-            (priorityRank[b.priority] || 0) - (priorityRank[a.priority] || 0);
-
-          if (difference !== 0) {
-            return difference;
-          }
-        }
-
-        const difference =
-          new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-
-        return sort === "OLDEST" ? -difference : difference;
-      });
-  }, [complaints, search, statusFilter, sort]);
+    return (groups[kind] || []).find((item) => text(item.id) === id) || null;
+  }, [form.locationKey, master]);
 
   // ===================================================
-  // PAGINATION
+  // SELECTED CATEGORY
   // ===================================================
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, statusFilter, sort]);
-
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-
-  const currentPage = Math.min(page, pageCount);
-
-  const visibleComplaints = filtered.slice(
-    (currentPage - 1) * PAGE_SIZE,
-    currentPage * PAGE_SIZE,
+  const category = useMemo(
+    () => master.categories.find((item) => item.name === form.category),
+    [master, form.category],
   );
 
+  const subCategories = Array.isArray(category?.subCategories)
+    ? category.subCategories
+    : [];
+
+  const customTitle = !subCategories.length || form.subCategory === "__OTHER__";
+
+  const title = customTitle ? text(form.customTitle) : text(form.subCategory);
+
   // ===================================================
-  // STUDENT VERIFICATION MODAL
+  // ISSUE LOCATION
   // ===================================================
 
-  const openFeedback = (complaint, decision) => {
-    if (complaint.status !== "COMPLETED") {
-      return;
-    }
+  const location =
+    selected?.type === "OTHER"
+      ? selected.areas?.length
+        ? `${selected.name} - ${form.issueLocation}`
+        : selected.name
+      : text(form.issueLocation);
 
-    setFeedbackTarget(complaint);
-    setFeedbackDecision(decision);
-    setFeedbackReason("");
+  const change = (key, value) => {
+    setForm((old) => ({
+      ...old,
+      [key]: value,
+    }));
   };
 
   // ===================================================
-  // SUBMIT STUDENT VERIFICATION
+  // LOCATION SELECTION
   // ===================================================
 
-  const submitFeedback = async (event) => {
+  const chooseLocation = (value) => {
+    const [kind, id] = value.split(":");
+
+    const groups = {
+      HOSTEL: master.hostels,
+
+      BLOCK: master.academicBlocks,
+
+      OTHER: master.otherLocations,
+    };
+
+    const place = (groups[kind] || []).find((item) => text(item.id) === id);
+
+    if (!place) {
+      setForm(initialForm());
+      return;
+    }
+
+    if (kind === "HOSTEL" && (!isHosteller || !matchedHostel(place, user))) {
+      toast.error(
+        "Hostel complaint is permitted only for your registered hostel",
+      );
+
+      return;
+    }
+
+    setForm((old) => ({
+      ...old,
+
+      locationKey: value,
+
+      complaintArea:
+        kind === "HOSTEL"
+          ? "HOSTEL"
+          : kind === "BLOCK"
+            ? "DEPARTMENT"
+            : "CAMPUS",
+
+      hostel: kind === "HOSTEL" ? place.name : "",
+
+      block: kind === "BLOCK" ? place.code : "",
+
+      roomNumber: kind === "HOSTEL" ? text(user.roomNumber) : "",
+
+      floor: kind === "HOSTEL" ? detectFloor(user.roomNumber) : "",
+
+      department: kind === "BLOCK" ? departmentName(user) : "",
+
+      issueLocation: "",
+      extraLocation: "",
+    }));
+  };
+
+  // ===================================================
+  // TIME SLOTS
+  // ===================================================
+
+  const unavailable = (slot) => {
+    if (!form.visitDate) {
+      return true;
+    }
+
+    const now = indianNow();
+
+    return (
+      form.visitDate < now.date ||
+      (form.visitDate === now.date && slot.start <= now.minutes)
+    );
+  };
+
+  const toggleSlot = (index) => {
+    if (unavailable(VISIT_WINDOWS[index])) {
+      return;
+    }
+
+    if (!form.slots.includes(index) && form.slots.length === 3) {
+      toast.info("Please choose exactly 3 time slots");
+
+      return;
+    }
+
+    change(
+      "slots",
+
+      form.slots.includes(index)
+        ? form.slots.filter((x) => x !== index)
+        : [...form.slots, index].sort((a, b) => a - b),
+    );
+  };
+
+  // ===================================================
+  // VALIDATION
+  // ===================================================
+
+  const validate = (number) => {
+    if (number === 1) {
+      if (!selected) {
+        return "Select a Hostel, Academic Block or Other Location";
+      }
+
+      if (
+        selected.type === "HOSTEL" &&
+        (!isHosteller || !matchedHostel(selected, user))
+      ) {
+        return "Only your registered hostel can be selected";
+      }
+
+      if (selected.type === "HOSTEL" && !text(user.roomNumber)) {
+        return "Your registered room number is missing";
+      }
+    }
+
+    if (number === 2) {
+      if (!category) {
+        return "Choose an Admin-created maintenance category";
+      }
+
+      if (!title || title.length > 150) {
+        return "Select or enter an issue title (up to 150 characters)";
+      }
+
+      if (
+        selected?.type === "OTHER" &&
+        selected.areas?.length &&
+        !selected.areas.includes(form.issueLocation)
+      ) {
+        return "Select an area configured by Admin";
+      }
+
+      if (selected?.type !== "OTHER" && !text(form.issueLocation)) {
+        return "Enter the exact repair location";
+      }
+
+      if (text(form.description).length < 10) {
+        return "Describe the issue in at least 10 characters";
+      }
+
+      if (text(form.description).length > 1300) {
+        return "Description is too long";
+      }
+
+      if (location.length > 200) {
+        return "Issue location must be within 200 characters";
+      }
+    }
+
+    if (number === 3) {
+      const now = indianNow();
+
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(form.visitDate) ||
+        form.visitDate < now.date
+      ) {
+        return "Select a valid date";
+      }
+
+      if (form.slots.length !== 3) {
+        return "Select exactly 3 preferred 2-hour slots";
+      }
+
+      if (form.slots.some((index) => unavailable(VISIT_WINDOWS[index]))) {
+        return "One slot already started; choose a different date";
+      }
+    }
+
+    return "";
+  };
+
+  // ===================================================
+  // NEXT / BACK
+  // ===================================================
+
+  const navigateStep = (delta) => {
+    if (delta > 0) {
+      const problem = validate(step);
+
+      if (problem) {
+        toast.error(problem);
+        return;
+      }
+    }
+
+    setStep((old) => Math.max(1, Math.min(3, old + delta)));
+
+    window.scrollTo({
+      top: 0,
+      behavior: "smooth",
+    });
+  };
+
+  // ===================================================
+  // SUBMIT COMPLAINT
+  // ===================================================
+
+  const submit = async (event) => {
     event.preventDefault();
 
-    if (!feedbackTarget || feedbackBusy || verificationLock.current) {
+    if (step !== 3 || inFlight.current) {
       return;
     }
 
-    if (!["SATISFIED", "NOT_SATISFIED"].includes(feedbackDecision)) {
-      toast.error("Choose a verification decision");
+    for (const number of [1, 2, 3]) {
+      const problem = validate(number);
 
-      return;
+      if (problem) {
+        toast.error(problem);
+        setStep(number);
+        return;
+      }
     }
 
-    const reason = feedbackReason.trim();
+    inFlight.current = true;
+    setSubmitting(true);
 
-    if (
-      feedbackDecision === "NOT_SATISFIED" &&
-      (reason.length < 5 || reason.length > 800)
-    ) {
-      toast.error("Please provide a reason between 5 and 800 characters");
+    const preferredVisitSlots = form.slots.map((index, preference) => ({
+      preference: preference + 1,
 
-      return;
-    }
+      date: form.visitDate,
 
-    verificationLock.current = true;
-    setFeedbackBusy(true);
+      startTime: VISIT_WINDOWS[index].from,
+
+      endTime: VISIT_WINDOWS[index].to,
+    }));
+
+    const description = text(form.extraLocation)
+      ? `${text(form.description)}
+Location detail: ${text(form.extraLocation)}`
+      : text(form.description);
+
+    const payload = {
+      locationKey: form.locationKey,
+      complaintArea: form.complaintArea,
+
+      hostel: form.hostel,
+      block: form.block,
+      roomNumber: form.roomNumber,
+      floor: form.floor,
+      department: form.department,
+
+      category: category.name,
+
+      subCategory: title,
+      title,
+      description,
+
+      issueLocation: location,
+
+      priority: category.priority,
+
+      preferredVisitSlots,
+
+      availableFrom: preferredVisitSlots[0].startTime,
+
+      availableTo: preferredVisitSlots[0].endTime,
+    };
 
     try {
-      const response = await api.post(
-        `/student/complaints/${feedbackTarget._id}/verify`,
+      const response = await createComplaint(payload);
 
-        {
-          decision: feedbackDecision,
+      const complaint = response?.data?.complaint || response?.complaint || {};
 
-          reason: feedbackDecision === "NOT_SATISFIED" ? reason : "",
-        },
-      );
+      setSubmitted({
+        id: complaint.complaintId || complaint._id || "Registered",
 
-      toast.success(
-        response.data?.message || "Verification submitted successfully",
-      );
+        title,
 
-      setFeedbackTarget(null);
-      setFeedbackDecision("");
-      setFeedbackReason("");
+        location: selected.name,
+      });
 
-      await fetchComplaints(false);
-    } catch (error) {
+      setForm(initialForm());
+      setStep(1);
+
+      toast.success("Complaint registered successfully");
+    } catch (err) {
       toast.error(
-        error?.response?.data?.message || "Could not submit verification",
+        err?.response?.data?.message ||
+          "Submission not confirmed; please check My Complaints before trying again",
       );
     } finally {
-      verificationLock.current = false;
-      setFeedbackBusy(false);
+      inFlight.current = false;
+      setSubmitting(false);
     }
   };
 
   // ===================================================
-  // LEGACY REOPEN FLOW
-  //
-  // Preserved for older RESOLVED complaints
-  // that have no Student Verification decision.
-  // ===================================================
-
-  const submitReopen = async (event) => {
-    event.preventDefault();
-
-    if (!reopenTarget || reopening) {
-      return;
-    }
-
-    if (reopenReason.trim().length < 5) {
-      toast.error("Reopen reason must contain at least 5 characters");
-
-      return;
-    }
-
-    setReopening(true);
-
-    try {
-      const response = await api.post(
-        "/maintenance/reopen-complaints/create",
-
-        {
-          complaintId: reopenTarget._id,
-
-          reopenReason: reopenReason.trim(),
-
-          priority: "HIGH",
-
-          managerNotes: "Complaint reopened by student",
-        },
-      );
-
-      toast.success(
-        response.data?.message || "Complaint reopened successfully",
-      );
-
-      setReopenTarget(null);
-      setReopenReason("");
-
-      await fetchComplaints(false);
-    } catch (error) {
-      toast.error(
-        error?.response?.data?.message || "Failed to reopen complaint",
-      );
-    } finally {
-      setReopening(false);
-    }
-  };
-
-  // ===================================================
-  // RENDER
+  // MAIN UI
   // ===================================================
 
   return (
-    <main className="mx-auto max-w-7xl space-y-6 pb-12 text-[#102746]">
-      {/* ==========================================
-          HERO HEADER
-      ========================================== */}
+    <main className="mx-auto max-w-5xl space-y-6 pb-10 text-[#102746]">
+      {/* HERO */}
 
-      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#0C2341] via-[#10345C] to-[#194875] p-6 text-white shadow-lg sm:p-8">
-        <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-[#E5B552]/10" />
-
-        <div className="relative flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
+      <header className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#091F3C] via-[#102F56] to-[#184779] p-6 text-white shadow-lg sm:p-8">
+        <div className="relative flex items-center justify-between gap-4">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#E5B552]/40 bg-[#E5B552]/10 px-3 py-1.5 text-[11px] font-extrabold tracking-widest text-[#F0C76B]">
-              <ShieldCheck size={14} />
+            <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 text-xs font-bold tracking-wider text-amber-200">
+              <ShieldCheck size={15} />
               AMI MAINTENANCE
-            </span>
+            </p>
 
-            <h1 className="mt-4 text-2xl font-black tracking-tight sm:text-3xl">
-              My Complaints
+            <h1 className="text-2xl font-black sm:text-3xl">
+              Report a Maintenance Issue
             </h1>
 
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-              Track your maintenance requests, Technician assignments, and
-              Student Verification updates.
+            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-200">
+              Submit your complaint in three simple steps. Our Maintenance
+              Manager will confirm a preferred visit time.
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => navigate("/create-complaint")}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[#E6B951] px-5 py-3 text-sm font-extrabold text-[#112B4A] hover:bg-[#F3CC75]"
-          >
-            <Plus size={18} />
-            New Complaint
-          </button>
+          <Wrench
+            size={34}
+            className="hidden shrink-0 text-amber-200 sm:block"
+          />
         </div>
       </header>
 
-      {/* ==========================================
-          SUMMARY CARDS
-      ========================================== */}
+      {/* PROGRESS */}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <SummaryCard
-          icon={ClipboardList}
-          label="Total Complaints"
-          value={totals.total}
-          sub="All submitted requests"
-        />
+      <nav
+        aria-label="Form progress"
+        className="grid grid-cols-3 gap-2 sm:gap-3"
+      >
+        {[
+          ["Location", MapPin],
+          ["Issue Details", ClipboardList],
+          ["Visit Time", Clock3],
+        ].map(([label, Icon], i) => {
+          const number = i + 1;
 
-        <SummaryCard
-          icon={Clock3}
-          label="Active Requests"
-          value={totals.active}
-          sub="Awaiting repair or rework"
-        />
-
-        <SummaryCard
-          icon={ShieldCheck}
-          label="Awaiting Review"
-          value={totals.awaitingReview}
-          sub="Technician completed work"
-        />
-
-        <SummaryCard
-          icon={CheckCircle2}
-          label="Resolved"
-          value={totals.resolved}
-          sub="Accepted or closed"
-        />
-      </div>
-
-      {/* ==========================================
-          SEARCH / FILTER / SORT
-      ========================================== */}
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-          {/* SEARCH */}
-
-          <div className="relative flex-1">
-            <Search
-              size={18}
-              className="pointer-events-none absolute left-4 top-3.5 text-slate-400"
-            />
-
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by ID, issue, category or location..."
-              className="w-full rounded-xl border border-slate-200 py-3 pl-11 pr-4 text-sm outline-none focus:border-[#D6A64A]"
-            />
-          </div>
-
-          {/* STATUS */}
-
-          <div className="relative lg:w-52">
-            <Filter
-              size={16}
-              className="pointer-events-none absolute left-3 top-3.5 text-slate-400"
-            />
-
-            <select
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-8 text-sm font-semibold outline-none"
+          return (
+            <div
+              key={label}
+              className={`flex items-center gap-2 rounded-xl border p-3 ${
+                step === number
+                  ? "border-amber-300 bg-amber-50"
+                  : step > number
+                    ? "border-emerald-200 bg-emerald-50"
+                    : "border-slate-200 bg-white"
+              }`}
             >
-              {STATUS_OPTIONS.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+              <span
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                  step === number
+                    ? "bg-[#102746] text-amber-200"
+                    : step > number
+                      ? "bg-emerald-600 text-white"
+                      : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                {step > number ? (
+                  <CheckCircle2 size={18} />
+                ) : (
+                  <Icon size={18} />
+                )}
+              </span>
 
-            <ChevronDown
-              size={16}
-              className="pointer-events-none absolute right-3 top-3.5 text-slate-400"
-            />
-          </div>
+              <div className="min-w-0">
+                <p className="text-[10px] text-slate-500">Step {number}</p>
 
-          {/* SORT */}
+                <p className="truncate text-xs font-bold sm:text-sm">{label}</p>
+              </div>
+            </div>
+          );
+        })}
+      </nav>
 
-          <div className="relative lg:w-44">
-            <ArrowDownUp
-              size={16}
-              className="pointer-events-none absolute left-3 top-3.5 text-slate-400"
-            />
+      {/* LOADING / ERROR */}
 
-            <select
-              value={sort}
-              onChange={(event) => setSort(event.target.value)}
-              className="w-full appearance-none rounded-xl border border-slate-200 bg-white py-3 pl-10 pr-8 text-sm font-semibold outline-none"
-            >
-              <option value="NEWEST">Newest First</option>
+      {loading ? (
+        <div className="flex min-h-60 flex-col items-center justify-center rounded-3xl bg-white">
+          <Loader2 size={28} className="animate-spin text-amber-600" />
 
-              <option value="OLDEST">Oldest First</option>
-
-              <option value="PRIORITY">High Priority</option>
-            </select>
-
-            <ChevronDown
-              size={16}
-              className="pointer-events-none absolute right-3 top-3.5 text-slate-400"
-            />
-          </div>
-
-          {/* REFRESH */}
-
-          <button
-            type="button"
-            onClick={() => fetchComplaints(false)}
-            disabled={refreshing}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-[#F8FAFD] px-4 py-3 text-sm font-bold disabled:opacity-50"
-          >
-            <RefreshCw size={17} className={refreshing ? "animate-spin" : ""} />
-            Refresh
-          </button>
+          <p className="mt-3 text-sm text-slate-500">
+            Loading locations from Admin...
+          </p>
         </div>
+      ) : error ? (
+        <div className="rounded-3xl border border-red-200 bg-white p-7 text-center">
+          <p className="font-bold text-red-700">
+            Unable to load complaint form
+          </p>
 
-        <p className="mt-3 text-xs text-slate-500">
-          Showing {filtered.length} of {complaints.length} complaints
-        </p>
-      </section>
-
-      {/* ==========================================
-          FETCH ERROR
-      ========================================== */}
-
-      {loadError && (
-        <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
-          <span className="flex items-center gap-2">
-            <AlertCircle size={18} />
-            {loadError}
-          </span>
+          <p className="mt-2 text-sm text-slate-500">{error}</p>
 
           <button
             type="button"
-            onClick={() => fetchComplaints(true)}
-            className="font-bold underline"
+            onClick={load}
+            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-[#102746] px-5 py-3 text-sm font-bold text-white"
           >
+            <RefreshCw size={17} />
             Retry
           </button>
         </div>
-      )}
-
-      {/* ==========================================
-          COMPLAINTS LOADING
-      ========================================== */}
-
-      {loading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((item) => (
-            <div
-              key={item}
-              className="h-48 animate-pulse rounded-3xl border border-slate-200 bg-white p-6"
-            >
-              <div className="h-5 w-1/3 rounded-lg bg-slate-100" />
-
-              <div className="mt-6 h-4 w-2/3 rounded-lg bg-slate-100" />
-
-              <div className="mt-5 h-4 w-1/2 rounded-lg bg-slate-100" />
-            </div>
-          ))}
-        </div>
-      ) : visibleComplaints.length === 0 ? (
-        /* EMPTY STATE */
-
-        <div className="rounded-3xl border border-slate-200 bg-white px-6 py-14 text-center shadow-sm">
-          <ClipboardList size={36} className="mx-auto text-[#B58A34]" />
-
-          <h2 className="mt-4 text-xl font-extrabold">No Complaints Found</h2>
-
-          <p className="mt-2 text-sm text-slate-500">
-            {complaints.length === 0
-              ? "You have not submitted any complaints yet."
-              : "Try another search or filter."}
-          </p>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (complaints.length === 0) {
-                navigate("/create-complaint");
-              } else {
-                setSearch("");
-                setStatusFilter("ALL");
-                setSort("NEWEST");
-              }
-            }}
-            className="mt-5 rounded-xl bg-[#102746] px-5 py-3 text-sm font-bold text-white"
-          >
-            {complaints.length === 0 ? "Create Complaint" : "Clear Filters"}
-          </button>
-        </div>
       ) : (
-        /* ========================================
-            COMPLAINT CARDS
-        ======================================== */
+        <form onSubmit={submit}>
+          {/* ========================================
+              STEP 1 - LOCATION
+          ======================================== */}
 
-        <div className="space-y-4">
-          {visibleComplaints.map((complaint) => {
-            const isExpanded = expandedId === complaint._id;
+          {step === 1 && (
+            <Section
+              number="01"
+              title="Where is the problem?"
+              help="Select an Admin-created Hostel, Academic Block or Other Location."
+            >
+              <label htmlFor="locationKey" className={labelStyle}>
+                Complaint Location *
+              </label>
 
-            const worker = getWorker(complaint);
+              <div className="relative">
+                <Building2
+                  size={18}
+                  className="pointer-events-none absolute left-4 top-3.5 text-amber-700"
+                />
 
-            // Show again if Technician completes
-            // a reopened complaint after rework.
-            const needsReview = complaint.status === "COMPLETED";
+                <select
+                  id="locationKey"
+                  className={`${fieldStyle} pl-11`}
+                  value={form.locationKey}
+                  onChange={(e) => chooseLocation(e.target.value)}
+                >
+                  <option value="">
+                    Select Hostel / Academic Block / Other Location
+                  </option>
 
-            // Keep legacy reopen functionality
-            // for old complaints without verification.
-            const canLegacyReopen =
-              complaint.status === "RESOLVED" &&
-              !complaint.studentVerification?.decision;
+                  {/* ADMIN HOSTELS — ALWAYS VISIBLE */}
 
-            const preferredSlots = Array.isArray(complaint.preferredVisitSlots)
-              ? complaint.preferredVisitSlots
-              : [];
-
-            const scheduledVisit = complaint.scheduledVisit;
-
-            return (
-              <article
-                key={complaint._id}
-                className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_6px_26px_rgba(16,39,70,0.05)]"
-              >
-                <div className="h-1 bg-gradient-to-r from-[#102746] via-[#235489] to-[#E6B951]" />
-
-                <div className="p-5 sm:p-6">
-                  {/* TOP */}
-
-                  <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-                    <div className="min-w-0">
-                      <p className="flex items-center gap-2 text-xs font-bold tracking-wider text-[#B68930]">
-                        <Hash size={14} />
-
-                        {complaint.complaintId || "COMPLAINT"}
-                      </p>
-
-                      <h2 className="mt-2 break-words text-xl font-black text-[#102746]">
-                        {complaint.title ||
-                          complaint.subCategory ||
-                          "Maintenance Issue"}
-                      </h2>
-
-                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
-                        {complaint.description || "No description provided"}
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge
-                        value={complaint.priority || "MEDIUM"}
-                        type="priority"
-                      />
-
-                      <Badge value={complaint.status || "PENDING"} />
-                    </div>
-                  </div>
-
-                  {/* QUICK DETAILS */}
-
-                  <div className="mt-5 grid gap-3 border-t border-slate-100 pt-5 sm:grid-cols-2 lg:grid-cols-4">
-                    <DetailCard icon={Wrench} label="Category">
-                      {complaint.category}
-                    </DetailCard>
-
-                    <DetailCard icon={MapPin} label="Location">
-                      {getLocation(complaint)}
-                    </DetailCard>
-
-                    <DetailCard icon={CalendarDays} label="Submitted On">
-                      {formatDate(complaint.createdAt)}
-                    </DetailCard>
-
-                    <DetailCard icon={UserRound} label="Assigned Technician">
-                      {worker?.name || "Not assigned yet"}
-                    </DetailCard>
-                  </div>
-
-                  {/* CONFIRMED VISIT */}
-
-                  {scheduledVisit?.date && (
-                    <div className="mt-4 flex flex-wrap items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                      <CalendarClock size={18} />
-
-                      <strong>Confirmed Visit:</strong>
-
-                      {formatVisitDate(scheduledVisit.date)}
-
-                      {" · "}
-
-                      {scheduledVisit.startTime}
-
-                      {" – "}
-
-                      {scheduledVisit.endTime}
-                    </div>
+                  {master.hostels.length > 0 && (
+                    <optgroup label="HOSTELS — ADMIN CREATED">
+                      {master.hostels.map((item) => (
+                        <option
+                          key={item.id}
+                          value={`HOSTEL:${item.id}`}
+                          disabled={!isHosteller || !matchedHostel(item, user)}
+                        >
+                          {item.name}
+                          {!isHosteller
+                            ? " (Hostellers only)"
+                            : !matchedHostel(item, user)
+                              ? " (Not your hostel)"
+                              : ""}
+                        </option>
+                      ))}
+                    </optgroup>
                   )}
 
-                  {/* ==================================
-                        SATISFACTION VERIFICATION
-                    ================================== */}
+                  {/* ADMIN ACADEMIC BLOCKS */}
 
-                  {needsReview && (
-                    <div className="mt-5 rounded-2xl border border-[#E9D3A0] bg-[#FFFBF2] p-4 sm:p-5">
-                      <div className="flex items-start gap-3">
-                        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-[#B88B32] shadow-sm">
-                          <ShieldCheck size={21} />
-                        </span>
-
-                        <div>
-                          <p className="text-sm font-extrabold">
-                            Are you satisfied with the repair?
-                          </p>
-
-                          <p className="mt-1 text-xs leading-5 text-slate-600">
-                            The Technician has marked the job as completed.
-                            Please verify whether your issue has been fixed.
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                        <button
-                          type="button"
-                          onClick={() => openFeedback(complaint, "SATISFIED")}
-                          className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 text-sm font-extrabold text-white hover:bg-emerald-700"
-                        >
-                          <CheckCircle2 size={18} />
-                          Satisfied
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            openFeedback(complaint, "NOT_SATISFIED")
-                          }
-                          className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-5 py-3 text-sm font-extrabold text-rose-700 hover:bg-rose-100"
-                        >
-                          <AlertTriangle size={18} />
-                          Not Satisfied
-                        </button>
-                      </div>
-                    </div>
+                  {master.academicBlocks.length > 0 && (
+                    <optgroup label="ACADEMIC BLOCKS — ADMIN CREATED">
+                      {master.academicBlocks.map((item) => (
+                        <option key={item.id} value={`BLOCK:${item.id}`}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </optgroup>
                   )}
 
-                  {/* SATISFIED CONFIRMATION */}
+                  {/* ADMIN OTHER LOCATIONS */}
 
-                  {complaint.status === "RESOLVED" &&
-                    complaint.studentVerification?.decision === "SATISFIED" && (
-                      <div className="mt-4 flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-800">
-                        <CheckCircle2 size={18} />
-                        Student verified the work as satisfactory.
-                      </div>
+                  {master.otherLocations.length > 0 && (
+                    <optgroup label="OTHER LOCATIONS — ADMIN CREATED">
+                      {master.otherLocations.map((item) => (
+                        <option key={item.id} value={`OTHER:${item.id}`}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+
+              {master.hostels.length +
+                master.academicBlocks.length +
+                master.otherLocations.length ===
+                0 && (
+                <p className="mt-3 text-sm text-amber-700">
+                  No active locations available. Contact Admin.
+                </p>
+              )}
+
+              {/* AUTO-FETCHED DETAILS */}
+
+              {selected && (
+                <div className="mt-6 rounded-2xl border border-amber-200 bg-[#FFFAEF] p-5">
+                  <div className="mb-4 flex items-center gap-2 font-extrabold">
+                    {selected.type === "HOSTEL" ? (
+                      <House size={19} />
+                    ) : (
+                      <Building2 size={19} />
                     )}
 
-                  {/* NOT SATISFIED FEEDBACK */}
+                    {selected.name}
 
-                  {complaint.status === "REOPENED" &&
-                    complaint.studentVerification?.decision ===
-                      "NOT_SATISFIED" && (
-                      <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                        <p className="flex items-center gap-2 font-bold">
-                          <RotateCcw size={17} />
-                          Rework requested by Student
-                        </p>
+                    <CheckCircle2
+                      size={18}
+                      className="ml-auto text-emerald-600"
+                    />
+                  </div>
 
-                        <p className="mt-2 whitespace-pre-wrap">
-                          {complaint.studentVerification.reason ||
-                            complaint.reopenReason}
-                        </p>
+                  {selected.type === "HOSTEL" ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className={labelStyle}>Registered Room</label>
+
+                        <input
+                          readOnly
+                          className={`${fieldStyle} bg-slate-50`}
+                          value={form.roomNumber || "Not set in profile"}
+                        />
                       </div>
-                    )}
 
-                  {/* ACTIONS */}
+                      <div>
+                        <label className={labelStyle}>
+                          Floor (auto-detected)
+                        </label>
 
-                  <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
-                    <button
-                      type="button"
-                      aria-expanded={isExpanded}
-                      onClick={() =>
-                        setExpandedId(isExpanded ? null : complaint._id)
-                      }
-                      className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-extrabold hover:bg-slate-50"
+                        <input
+                          readOnly
+                          className={`${fieldStyle} bg-slate-50`}
+                          value={form.floor || "Not detected"}
+                        />
+                      </div>
+                    </div>
+                  ) : selected.type === "BLOCK" ? (
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <label className={labelStyle}>Academic Block</label>
+
+                        <input
+                          readOnly
+                          className={`${fieldStyle} bg-slate-50`}
+                          value={selected.name}
+                        />
+                      </div>
+
+                      <div>
+                        <label className={labelStyle}>Department</label>
+
+                        <input
+                          readOnly
+                          className={`${fieldStyle} bg-slate-50`}
+                          value={form.department || "Not set in profile"}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-600">
+                      You will select the exact area in Step 2.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <p className="mt-4 flex items-start gap-2 text-xs text-slate-500">
+                <ShieldCheck size={16} className="shrink-0 text-amber-700" />
+                Admin manages location records. Hostel options are visible to
+                everyone but available only to the registered hosteller.
+              </p>
+            </Section>
+          )}
+
+          {/* ========================================
+              STEP 2 - ISSUE DETAILS
+          ======================================== */}
+
+          {step === 2 && (
+            <Section
+              number="02"
+              title="Describe the issue"
+              help="Choose an Admin maintenance category and tell us the repair location."
+            >
+              <div className="space-y-5">
+                {/* CATEGORY */}
+
+                <div>
+                  <label className={labelStyle}>Maintenance Category *</label>
+
+                  <select
+                    className={fieldStyle}
+                    value={form.category}
+                    onChange={(e) =>
+                      setForm((old) => ({
+                        ...old,
+
+                        category: e.target.value,
+
+                        subCategory: "",
+                        customTitle: "",
+                      }))
+                    }
+                  >
+                    <option value="">Select category</option>
+
+                    {master.categories.map((item) => (
+                      <option key={item.id} value={item.name}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </select>
+
+                  {category && (
+                    <p className="mt-2 text-xs text-slate-500">
+                      Default priority (Admin):
+                      <strong> {category.priority}</strong>
+                    </p>
+                  )}
+
+                  {!master.categories.length && (
+                    <p className="mt-2 text-xs text-amber-700">
+                      No active categories. Contact Admin.
+                    </p>
+                  )}
+                </div>
+
+                {/* SUBCATEGORY */}
+
+                {subCategories.length > 0 && (
+                  <div>
+                    <label className={labelStyle}>Exact Issue *</label>
+
+                    <select
+                      className={fieldStyle}
+                      value={form.subCategory}
+                      onChange={(e) => change("subCategory", e.target.value)}
                     >
-                      {isExpanded ? (
-                        <ChevronUp size={17} />
-                      ) : (
-                        <ChevronDown size={17} />
-                      )}
+                      <option value="">Select issue</option>
 
-                      {isExpanded ? "Hide Details" : "View Full Details"}
-                    </button>
+                      {subCategories.map((value) => (
+                        <option key={value} value={value}>
+                          {value}
+                        </option>
+                      ))}
 
-                    {canLegacyReopen && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setReopenTarget(complaint);
+                      <option value="__OTHER__">Other issue (describe)</option>
+                    </select>
+                  </div>
+                )}
 
-                          setReopenReason("");
-                        }}
-                        className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-extrabold text-rose-700"
+                {/* CUSTOM TITLE */}
+
+                {customTitle && (
+                  <div>
+                    <label className={labelStyle}>Issue Title *</label>
+
+                    <input
+                      className={fieldStyle}
+                      maxLength={150}
+                      placeholder="Describe the problem briefly"
+                      value={form.customTitle}
+                      onChange={(e) => change("customTitle", e.target.value)}
+                    />
+                  </div>
+                )}
+
+                {/* ISSUE LOCATION */}
+
+                <div>
+                  <label className={labelStyle}>Exact Issue Location *</label>
+
+                  {selected?.type === "OTHER" ? (
+                    selected.areas?.length ? (
+                      <select
+                        className={fieldStyle}
+                        value={form.issueLocation}
+                        onChange={(e) =>
+                          change("issueLocation", e.target.value)
+                        }
                       >
-                        <RotateCcw size={17} />
-                        Reopen Complaint
-                      </button>
-                    )}
+                        <option value="">Select Admin-created area</option>
+
+                        {selected.areas.map((area) => (
+                          <option key={area} value={area}>
+                            {area}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        readOnly
+                        className={`${fieldStyle} bg-slate-50`}
+                        value={selected.name}
+                      />
+                    )
+                  ) : (
+                    <input
+                      className={fieldStyle}
+                      value={form.issueLocation}
+                      maxLength={150}
+                      onChange={(e) => change("issueLocation", e.target.value)}
+                      placeholder="Room / Lab / Corridor / exact repair point"
+                    />
+                  )}
+                </div>
+
+                {/* ADDITIONAL LOCATION */}
+
+                <div>
+                  <label className={labelStyle}>
+                    Additional Location Detail (Optional)
+                  </label>
+
+                  <input
+                    className={fieldStyle}
+                    maxLength={120}
+                    value={form.extraLocation}
+                    onChange={(e) => change("extraLocation", e.target.value)}
+                    placeholder="Landmark or access instructions"
+                  />
+                </div>
+
+                {/* DESCRIPTION */}
+
+                <div>
+                  <label className={labelStyle}>Problem Description *</label>
+
+                  <textarea
+                    rows={5}
+                    maxLength={1300}
+                    className={`${fieldStyle} resize-y`}
+                    value={form.description}
+                    onChange={(e) => change("description", e.target.value)}
+                    placeholder="Describe what is damaged, how long it has been happening, and the assistance needed..."
+                  />
+
+                  <p className="mt-1 text-right text-xs text-slate-400">
+                    {form.description.length}/1300
+                  </p>
+                </div>
+              </div>
+            </Section>
+          )}
+
+          {/* ========================================
+              STEP 3 - VISIT TIME
+          ======================================== */}
+
+          {step === 3 && (
+            <Section
+              number="03"
+              title="When are you available?"
+              help="Choose exactly 3 non-overlapping 2-hour windows. The Manager will confirm one."
+            >
+              <div className="space-y-6">
+                {/* VISIT DATE */}
+
+                <div>
+                  <label className={labelStyle}>Preferred Visit Date *</label>
+
+                  <div className="relative max-w-sm">
+                    <CalendarDays
+                      size={18}
+                      className="pointer-events-none absolute left-4 top-3.5 text-slate-400"
+                    />
+
+                    <input
+                      type="date"
+                      className={`${fieldStyle} pl-11`}
+                      min={indianNow().date}
+                      value={form.visitDate}
+                      onChange={(e) =>
+                        setForm((old) => ({
+                          ...old,
+
+                          visitDate: e.target.value,
+                          slots: [],
+                        }))
+                      }
+                    />
                   </div>
                 </div>
 
-                {/* ================================
-                      EXPANDED DETAILS
-                  ================================ */}
+                {/* TIME WINDOWS */}
 
-                {isExpanded && (
-                  <div className="border-t border-slate-200 bg-[#FBFCFE] p-5 sm:p-6">
-                    <div className="grid gap-5 lg:grid-cols-2">
-                      {/* COMPLAINT DETAILS */}
+                <div>
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <p className="text-sm font-bold">Available Windows *</p>
 
-                      <section className="rounded-2xl border border-slate-200 bg-white p-5">
-                        <h3 className="flex items-center gap-2 font-extrabold">
-                          <Building2 size={18} className="text-[#B68930]" />
-                          Complaint & Location
-                        </h3>
-
-                        <div className="mt-4 space-y-3 text-sm">
-                          <p>
-                            <strong>Exact Location:</strong>{" "}
-                            {complaint.issueLocation || "—"}
-                          </p>
-
-                          {complaint.hostel && (
-                            <p>
-                              <strong>Hostel:</strong> {complaint.hostel}
-                            </p>
-                          )}
-
-                          {complaint.block && (
-                            <p>
-                              <strong>Block:</strong> {complaint.block}
-                            </p>
-                          )}
-
-                          {complaint.roomNumber && (
-                            <p>
-                              <strong>Room:</strong> {complaint.roomNumber}
-                            </p>
-                          )}
-
-                          {complaint.floor && (
-                            <p>
-                              <strong>Floor:</strong> {complaint.floor}
-                            </p>
-                          )}
-
-                          <p>
-                            <strong>Deadline:</strong>{" "}
-                            {formatDate(complaint.deadline)}
-                          </p>
-                        </div>
-                      </section>
-
-                      {/* TECHNICIAN DETAILS */}
-
-                      <section className="rounded-2xl border border-slate-200 bg-white p-5">
-                        <h3 className="flex items-center gap-2 font-extrabold">
-                          <UserRound size={18} className="text-[#B68930]" />
-                          Technician & Remarks
-                        </h3>
-
-                        {worker ? (
-                          <div className="mt-4 space-y-2 text-sm">
-                            <p className="font-extrabold">
-                              {worker.name || "Technician"}
-                            </p>
-
-                            {worker.department && (
-                              <p className="text-slate-600">
-                                Department:{" "}
-                                {typeof worker.department === "string"
-                                  ? worker.department
-                                  : worker.department.name || "—"}
-                              </p>
-                            )}
-
-                            {worker.phone && (
-                              <p className="flex items-center gap-2">
-                                <Phone size={15} />
-
-                                {worker.phone}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <p className="mt-4 text-sm text-slate-500">
-                            Technician not assigned yet.
-                          </p>
-                        )}
-
-                        <div className="mt-4 rounded-xl bg-slate-50 p-4">
-                          <p className="text-xs font-bold uppercase text-slate-400">
-                            Maintenance Remarks
-                          </p>
-
-                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                            {complaint.maintenanceRemarks ||
-                              complaint.managerRemarks ||
-                              complaint.workerRemarks ||
-                              complaint.remarks ||
-                              "No remarks added yet."}
-                          </p>
-                        </div>
-                      </section>
-                    </div>
-
-                    {/* PREFERRED VISIT SLOTS */}
-
-                    {preferredSlots.length > 0 && (
-                      <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5">
-                        <h3 className="flex items-center gap-2 font-extrabold">
-                          <Clock3 size={18} className="text-[#B68930]" />
-                          Preferred Visit Windows
-                        </h3>
-
-                        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                          {preferredSlots.map((slot, index) => (
-                            <div
-                              key={`${slot.date}-${slot.startTime}-${index}`}
-                              className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"
-                            >
-                              <p className="text-xs font-bold text-amber-700">
-                                Preference {slot.preference || index + 1}
-                              </p>
-
-                              <p className="mt-2 font-extrabold">
-                                {formatVisitDate(slot.date)}
-                              </p>
-
-                              <p className="mt-1 text-slate-600">
-                                {slot.startTime}
-                                {" – "}
-                                {slot.endTime}
-                              </p>
-                            </div>
-                          ))}
-                        </div>
-                      </section>
-                    )}
-
-                    {/* STATUS HISTORY */}
-
-                    {Array.isArray(complaint.statusHistory) &&
-                      complaint.statusHistory.length > 0 && (
-                        <section className="mt-5 rounded-2xl border border-slate-200 bg-white p-5">
-                          <h3 className="flex items-center gap-2 font-extrabold">
-                            <BadgeCheck size={18} className="text-[#B68930]" />
-                            Recent Status History
-                          </h3>
-
-                          <div className="mt-4 space-y-3">
-                            {[...complaint.statusHistory]
-                              .slice(-4)
-                              .reverse()
-                              .map((item, index) => (
-                                <div
-                                  key={item._id || index}
-                                  className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3 text-sm last:border-0"
-                                >
-                                  <strong>{readableStatus(item.status)}</strong>
-
-                                  <span className="text-xs text-slate-500">
-                                    {formatDate(
-                                      item.changedAt || item.updatedAt,
-                                    )}
-                                  </span>
-                                </div>
-                              ))}
-                          </div>
-                        </section>
-                      )}
-
-                    {complaint.reopenReason &&
-                      complaint.status === "REOPENED" && (
-                        <div className="mt-5 rounded-2xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800">
-                          <p className="font-bold">Reopen Reason</p>
-
-                          <p className="mt-2 whitespace-pre-wrap">
-                            {complaint.reopenReason}
-                          </p>
-                        </div>
-                      )}
+                    <span className="rounded-full bg-[#102746] px-3 py-1 text-xs font-bold text-white">
+                      {form.slots.length}/3 selected
+                    </span>
                   </div>
-                )}
-              </article>
-            );
-          })}
-        </div>
-      )}
 
-      {/* ==========================================
-          PAGINATION
-      ========================================== */}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {VISIT_WINDOWS.map((slot, index) => {
+                      const chosen = form.slots.includes(index);
 
-      {!loading && filtered.length > PAGE_SIZE && (
-        <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3">
-          <p className="text-xs font-semibold text-slate-500">
-            Page {currentPage} of {pageCount}
-          </p>
+                      return (
+                        <button
+                          key={slot.from}
+                          type="button"
+                          disabled={unavailable(slot)}
+                          aria-pressed={chosen}
+                          onClick={() => toggleSlot(index)}
+                          className={`flex items-center justify-between rounded-2xl border-2 p-4 text-left transition ${
+                            chosen
+                              ? "border-amber-500 bg-amber-50"
+                              : "border-slate-200 hover:border-amber-400"
+                          } disabled:cursor-not-allowed disabled:opacity-40`}
+                        >
+                          <span className="flex items-center gap-3">
+                            <Clock3 size={20} className="text-amber-700" />
 
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={currentPage === 1}
-              aria-label="Previous page"
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="rounded-lg border border-slate-200 p-2 disabled:opacity-40"
-            >
-              <ChevronLeft size={18} />
-            </button>
+                            <span>
+                              <strong className="block text-sm">
+                                {slot.from}
+                                {" – "}
+                                {slot.to}
+                              </strong>
 
-            <button
-              type="button"
-              disabled={currentPage >= pageCount}
-              aria-label="Next page"
-              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-              className="rounded-lg border border-slate-200 p-2 disabled:opacity-40"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
-        </div>
-      )}
+                              <span className="mt-1 block text-xs text-slate-500">
+                                2-hour window · IST
+                              </span>
+                            </span>
+                          </span>
 
-      {/* ==========================================
-          STUDENT SATISFACTION MODAL
-      ========================================== */}
+                          {chosen && (
+                            <CheckCircle2
+                              size={20}
+                              className="text-emerald-600"
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
 
-      {feedbackTarget && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="feedback-title"
-          className="fixed inset-0 z-[110] flex items-center justify-center bg-[#071A33]/75 p-4"
-        >
-          <form
-            onSubmit={submitFeedback}
-            className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl sm:p-8"
-          >
-            {/* HEADER */}
+                  <p className="mt-3 text-xs text-slate-500">
+                    These are preferences, not confirmed appointments. Past
+                    slots cannot be selected.
+                  </p>
+                </div>
 
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <span
-                  className={`flex h-12 w-12 items-center justify-center rounded-xl ${
-                    feedbackDecision === "SATISFIED"
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-rose-50 text-rose-700"
-                  }`}
-                >
-                  {feedbackDecision === "SATISFIED" ? (
-                    <CheckCircle2 size={24} />
-                  ) : (
-                    <AlertTriangle size={24} />
-                  )}
-                </span>
+                {/* WHAT HAPPENS NEXT */}
 
-                <h2
-                  id="feedback-title"
-                  className="mt-4 text-xl font-black text-[#102746]"
-                >
-                  {feedbackDecision === "SATISFIED"
-                    ? "Confirm Satisfactory Repair"
-                    : "Why are you not satisfied?"}
-                </h2>
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  <strong>What happens next?</strong>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  {feedbackTarget.complaintId}
-                  {" · "}
-                  {feedbackTarget.title || feedbackTarget.subCategory}
-                </p>
+                  <p className="mt-2">
+                    Your complaint goes to the Maintenance Manager as PENDING.
+                    The Manager assigns a Technician and chooses a preferred
+                    visit time. Email confirmation needs the Manager scheduling
+                    API.
+                  </p>
+                </div>
+
+                {/* SUMMARY */}
+
+                <div className="rounded-2xl border bg-slate-50 p-4 text-sm">
+                  <p className="mb-2 font-bold">Complaint Summary</p>
+
+                  <p>
+                    <span className="text-slate-500">Location:</span>{" "}
+                    {selected?.name}
+                  </p>
+
+                  <p>
+                    <span className="text-slate-500">Category:</span>{" "}
+                    {category?.name}
+                  </p>
+
+                  <p>
+                    <span className="text-slate-500">Issue:</span> {title}
+                  </p>
+
+                  <p>
+                    <span className="text-slate-500">Priority:</span>{" "}
+                    {category?.priority}
+                  </p>
+                </div>
               </div>
+            </Section>
+          )}
 
+          {/* FOOTER BUTTONS */}
+
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
+            <button
+              type="button"
+              onClick={() => navigateStep(-1)}
+              disabled={step === 1 || submitting}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border bg-white px-6 py-3.5 text-sm font-bold disabled:opacity-40"
+            >
+              <ArrowLeft size={17} />
+              Back
+            </button>
+
+            {step < 3 ? (
               <button
                 type="button"
-                disabled={feedbackBusy}
-                aria-label="Close"
-                onClick={() => setFeedbackTarget(null)}
-                className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
+                onClick={() => navigateStep(1)}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#102746] px-7 py-3.5 text-sm font-bold text-white"
               >
-                <X size={20} />
+                Continue
+                <ArrowRight size={17} />
               </button>
-            </div>
-
-            {/* SATISFIED */}
-
-            {feedbackDecision === "SATISFIED" ? (
-              <p className="mt-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-900">
-                By confirming, you acknowledge that the repair is satisfactory.
-                The complaint will be marked as RESOLVED.
-              </p>
             ) : (
-              /* NOT SATISFIED */
-
-              <>
-                <label
-                  htmlFor="feedback-reason"
-                  className="mt-6 block text-sm font-bold"
-                >
-                  Explain the remaining issue *
-                </label>
-
-                <textarea
-                  id="feedback-reason"
-                  autoFocus
-                  required
-                  rows={5}
-                  maxLength={800}
-                  value={feedbackReason}
-                  onChange={(event) => setFeedbackReason(event.target.value)}
-                  placeholder="What is still not working? What should the Technician fix?"
-                  className="mt-2 w-full resize-y rounded-xl border border-slate-200 p-4 text-sm outline-none focus:border-amber-400"
-                />
-
-                <p className="mt-2 text-xs text-slate-500">
-                  Minimum 5 characters. Reason will be sent to the Maintenance
-                  Manager.
-                </p>
-              </>
-            )}
-
-            {/* MODAL BUTTONS */}
-
-            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row">
-              <button
-                type="button"
-                disabled={feedbackBusy}
-                onClick={() => setFeedbackTarget(null)}
-                className="flex-1 rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold"
-              >
-                Cancel
-              </button>
-
               <button
                 type="submit"
-                disabled={
-                  feedbackBusy ||
-                  (feedbackDecision === "NOT_SATISFIED" &&
-                    feedbackReason.trim().length < 5)
-                }
-                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-extrabold text-white disabled:opacity-50 ${
-                  feedbackDecision === "SATISFIED"
-                    ? "bg-emerald-600 hover:bg-emerald-700"
-                    : "bg-[#102746] hover:bg-[#1C436D]"
-                }`}
+                disabled={submitting}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#E7B953] px-7 py-3.5 text-sm font-extrabold text-[#102746] disabled:opacity-50"
               >
-                {feedbackBusy && <Loader2 size={17} className="animate-spin" />}
-
-                {feedbackBusy
-                  ? "Submitting..."
-                  : feedbackDecision === "SATISFIED"
-                    ? "Confirm Satisfied"
-                    : "Submit and Reopen"}
+                {submitting ? (
+                  <>
+                    <Loader2 className="animate-spin" size={18} />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    <ClipboardList size={18} />
+                    Submit Complaint
+                  </>
+                )}
               </button>
-            </div>
-          </form>
-        </div>
+            )}
+          </div>
+        </form>
       )}
 
-      {/* ==========================================
-          LEGACY REOPEN MODAL
-      ========================================== */}
+      {/* SUCCESS MODAL */}
 
-      {reopenTarget && (
+      {submitted && (
         <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-[#06192F]/75 p-4"
           role="dialog"
           aria-modal="true"
-          aria-labelledby="reopen-title"
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-[#071A33]/75 p-4"
+          aria-labelledby="complaint-success"
         >
-          <form
-            onSubmit={submitReopen}
-            className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <RotateCcw size={28} className="text-orange-700" />
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 text-center shadow-2xl sm:p-8">
+            <CheckCircle2 size={54} className="mx-auto text-emerald-600" />
 
-                <h2 id="reopen-title" className="mt-4 text-xl font-black">
-                  Reopen Complaint
-                </h2>
+            <h2 id="complaint-success" className="mt-4 text-2xl font-black">
+              Complaint Submitted!
+            </h2>
 
-                <p className="mt-1 text-sm text-slate-500">
-                  {reopenTarget.complaintId}
-                </p>
-              </div>
-
-              <button
-                type="button"
-                disabled={reopening}
-                aria-label="Close"
-                onClick={() => setReopenTarget(null)}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            <label
-              htmlFor="reopen-reason"
-              className="mt-6 block text-sm font-bold"
-            >
-              Reopen Reason *
-            </label>
-
-            <textarea
-              id="reopen-reason"
-              rows={5}
-              maxLength={800}
-              autoFocus
-              value={reopenReason}
-              onChange={(event) => setReopenReason(event.target.value)}
-              placeholder="Explain what is still not working..."
-              className="mt-2 w-full resize-y rounded-xl border border-slate-200 p-4 text-sm outline-none"
-            />
-
-            <p className="mt-1 text-right text-xs text-slate-400">
-              {reopenReason.length}/800
+            <p className="mt-2 text-sm text-slate-500">
+              Maintenance Manager has been notified.
             </p>
 
-            <div className="mt-6 flex gap-3">
-              <button
-                type="button"
-                disabled={reopening}
-                onClick={() => setReopenTarget(null)}
-                className="flex-1 rounded-xl border px-5 py-3 font-bold"
-              >
-                Cancel
-              </button>
+            <div className="mt-6 space-y-2 rounded-2xl bg-slate-50 p-4 text-left text-sm">
+              <p>
+                <strong>Complaint ID:</strong> {submitted.id}
+              </p>
 
-              <button
-                type="submit"
-                disabled={reopening || reopenReason.trim().length < 5}
-                className="flex-1 rounded-xl bg-[#102746] px-5 py-3 font-bold text-white disabled:opacity-50"
-              >
-                {reopening ? "Submitting..." : "Confirm Reopen"}
-              </button>
+              <p>
+                <strong>Issue:</strong> {submitted.title}
+              </p>
+
+              <p>
+                <strong>Location:</strong> {submitted.location}
+              </p>
+
+              <p>
+                <strong>Status:</strong> PENDING
+              </p>
             </div>
-          </form>
+
+            <button
+              type="button"
+              onClick={() => navigate("/complaints")}
+              className="mt-6 w-full rounded-xl bg-[#102746] px-5 py-3 font-bold text-white"
+            >
+              View My Complaints
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSubmitted(null)}
+              className="mt-3 w-full rounded-xl border py-3 text-sm font-semibold"
+            >
+              Create Another Complaint
+            </button>
+          </div>
         </div>
       )}
     </main>
