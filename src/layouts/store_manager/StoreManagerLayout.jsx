@@ -1,670 +1,495 @@
-import { useState } from "react";
-
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
 import {
-  LayoutDashboard,
-  Package,
-  PlusSquare,
   AlertTriangle,
+  ArrowDownToLine,
+  ChevronRight,
   ClipboardList,
-  Wrench,
+  FileSpreadsheet,
+  LayoutDashboard,
   LogOut,
   Menu,
+  Package,
+  PackageCheck,
+  PlusSquare,
+  RotateCcw,
+  ShieldCheck,
+  Warehouse,
   X,
-  User,
-  Boxes,
 } from "lucide-react";
 
-// ==========================================
-// NOTIFICATION BELL
-// ==========================================
-
 import NotificationBell from "../../modules/notifications/components/NotificationBell";
+import StockInward from "../../modules/Storemanager/StockInward";
 
 // ==========================================
-// SAFE USER FETCH
+// USER
 // ==========================================
 
 const getStoredUser = () => {
   try {
-    const storedUser = localStorage.getItem("user");
-
-    return storedUser ? JSON.parse(storedUser) : {};
-  } catch (error) {
-    console.log("USER PARSE ERROR:", error);
-
+    const value = localStorage.getItem("user");
+    return value ? JSON.parse(value) : {};
+  } catch {
     return {};
   }
 };
 
 // ==========================================
-// STORE MANAGER LAYOUT
+// SIDEBAR MENU CONFIGURATION
+// ==========================================
+
+const menuGroups = [
+  {
+    title: "OVERVIEW",
+    items: [
+      {
+        name: "Dashboard",
+        path: "/store/dashboard",
+        icon: LayoutDashboard,
+        exact: true,
+      },
+    ],
+  },
+  {
+    title: "INVENTORY CONTROL",
+    items: [
+      {
+        name: "Inventory Management",
+        path: "/store/inventory",
+        icon: Package,
+      },
+      {
+        name: "Add Inventory",
+        path: "/store/add-item",
+        icon: PlusSquare,
+      },
+      {
+        name: "Excel Import / Inward",
+        path: "/store/dashboard?view=stock-inward",
+        icon: FileSpreadsheet,
+        special: true,
+      },
+      {
+        name: "Low Stock Alerts",
+        path: "/store/low-stock",
+        icon: AlertTriangle,
+      },
+    ],
+  },
+  {
+    title: "MATERIAL OPERATIONS",
+    items: [
+      {
+        name: "Material Requests",
+        path: "/store/requests",
+        icon: ClipboardList,
+      },
+      {
+        name: "Issued Items",
+        path: "/store/issued-items",
+        icon: PackageCheck,
+      },
+      {
+        name: "Retrieved Items",
+        path: "/store/damaged-items",
+        icon: RotateCcw,
+      },
+    ],
+  },
+];
+
+// ==========================================
+// MAIN COMPONENT
 // ==========================================
 
 const StoreManagerLayout = () => {
   const navigate = useNavigate();
-
-  // ========================================
-  // STATE
-  // ========================================
+  const location = useLocation();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [logoutOpen, setLogoutOpen] = useState(false);
+  const [user] = useState(getStoredUser);
 
-  // ========================================
-  // USER
-  // ========================================
+  const isStockInward =
+    location.pathname === "/store/dashboard" &&
+    new URLSearchParams(location.search).get("view") === "stock-inward";
 
-  const user = getStoredUser();
+  const currentPage = useMemo(() => {
+    if (isStockInward) return "Excel Import / Stock Inward";
 
-  // ========================================
-  // MENU ITEMS
-  // ========================================
+    const allItems = menuGroups.flatMap((group) => group.items);
 
-  const menuItems = [
-    {
-      name: "Dashboard",
+    const current = allItems.find(
+      (item) => !item.special && location.pathname === item.path,
+    );
 
-      path: "/store/dashboard",
+    return current?.name || "Store Management";
+  }, [location.pathname, isStockInward]);
 
-      icon: LayoutDashboard,
-    },
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [location.pathname, location.search]);
 
-    {
-      name: "Inventory",
+  useEffect(() => {
+    if (!sidebarOpen && !logoutOpen) return;
 
-      path: "/store/inventory",
+    const onEscape = (event) => {
+      if (event.key === "Escape") {
+        setSidebarOpen(false);
+        setLogoutOpen(false);
+      }
+    };
 
-      icon: Package,
-    },
+    window.addEventListener("keydown", onEscape);
 
-    {
-      name: "Add Inventory",
+    return () => {
+      window.removeEventListener("keydown", onEscape);
+    };
+  }, [sidebarOpen, logoutOpen]);
 
-      path: "/store/add-item",
+  const userName = user?.name || "Store Manager";
+  const userInitial = userName.trim().charAt(0).toUpperCase() || "S";
 
-      icon: PlusSquare,
-    },
-
-    {
-      name: "Low Stock Alerts",
-
-      path: "/store/low-stock",
-
-      icon: AlertTriangle,
-    },
-
-    {
-      name: "Requests",
-
-      path: "/store/requests",
-
-      icon: ClipboardList,
-    },
-
-    {
-      name: "Issued Items",
-
-      path: "/store/issued-items",
-
-      icon: Boxes,
-    },
-
-    {
-      name: "Damaged Items",
-
-      path: "/store/damaged-items",
-
-      icon: Wrench,
-    },
-  ];
-
-  // ========================================
-  // USER INITIAL
-  // ========================================
-
-  const userInitial = user?.name?.trim()?.charAt(0)?.toUpperCase() || "S";
-
-  // ========================================
+  // ==========================================
   // LOGOUT
-  // ========================================
+  // ==========================================
 
   const handleLogout = () => {
     localStorage.removeItem("token");
-
     localStorage.removeItem("user");
 
-    navigate("/", {
-      replace: true,
-    });
+    setLogoutOpen(false);
+    setSidebarOpen(false);
+
+    navigate("/", { replace: true });
+  };
+
+  // ==========================================
+  // SIDEBAR LINK
+  // ==========================================
+
+  const renderMenuLink = (item) => {
+    const Icon = item.icon;
+
+    return (
+      <NavLink
+        key={item.path}
+        to={item.path}
+        end={item.exact || false}
+        onClick={() => setSidebarOpen(false)}
+        className={({ isActive }) => {
+          const selected = item.special
+            ? isStockInward
+            : isActive && !(item.path === "/store/dashboard" && isStockInward);
+
+          return [
+            "group relative flex items-center gap-3",
+            "rounded-xl px-3.5 py-3",
+            "text-[13px] font-semibold",
+            "transition-all duration-200",
+            selected
+              ? "bg-gradient-to-r from-[#E7C979] to-[#D3AE53] text-[#001B54] shadow-md"
+              : "text-slate-200 hover:bg-white/[0.09] hover:text-white",
+          ].join(" ");
+        }}
+      >
+        {({ isActive }) => {
+          const selected = item.special
+            ? isStockInward
+            : isActive && !(item.path === "/store/dashboard" && isStockInward);
+
+          return (
+            <>
+              {selected && (
+                <span className="absolute -left-1 top-2 bottom-2 w-1 rounded-full bg-white" />
+              )}
+
+              <span
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+                  selected
+                    ? "bg-[#001B54]/10"
+                    : "bg-white/[0.07] group-hover:bg-white/[0.13]"
+                }`}
+              >
+                <Icon size={18} strokeWidth={2} />
+              </span>
+
+              <span className="min-w-0 flex-1 truncate">{item.name}</span>
+
+              <ChevronRight
+                size={15}
+                className={`shrink-0 ${
+                  selected
+                    ? "opacity-80"
+                    : "opacity-0 transition-opacity group-hover:opacity-70"
+                }`}
+              />
+            </>
+          );
+        }}
+      </NavLink>
+    );
   };
 
   return (
-    <div
-      className="
-        flex
-        min-h-screen
-        bg-[#EEF3FF]
-      "
-    >
-      {/* ======================================
+    <div className="min-h-screen bg-[#F5F7FC] text-slate-800">
+      {/* ====================================
           MOBILE OVERLAY
-      ====================================== */}
+      ==================================== */}
 
       {sidebarOpen && (
-        <div
-          className="
-            fixed
-            inset-0
-
-            bg-black/40
-
-            z-40
-
-            md:hidden
-          "
+        <button
+          type="button"
+          aria-label="Close navigation"
           onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-40 bg-[#00122D]/65 backdrop-blur-[2px] lg:hidden"
         />
       )}
 
-      {/* ======================================
+      {/* ====================================
           SIDEBAR
-      ====================================== */}
+      ==================================== */}
 
       <aside
-        className={`
-          fixed
-          top-0
-          left-0
-
-          z-50
-
-          h-screen
-          w-80
-
-          bg-gradient-to-b
-          from-[#001B54]
-          via-[#002B7F]
-          to-[#7A0019]
-
-          text-white
-
-          shadow-2xl
-
-          transform
-
-          transition-transform
-          duration-300
-
-          flex
-          flex-col
-
-          ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-          }
-        `}
+        className={[
+          "fixed inset-y-0 left-0 z-50",
+          "flex w-[286px] flex-col",
+          "bg-gradient-to-b from-[#001A43] via-[#00245A] to-[#00132F]",
+          "text-white shadow-2xl",
+          "transition-transform duration-300 ease-in-out",
+          "lg:translate-x-0",
+          sidebarOpen ? "translate-x-0" : "-translate-x-full",
+        ].join(" ")}
       >
-        {/* ==================================
-            LOGO
-        ================================== */}
+        {/* BRAND */}
 
-        <div
-          className="
-            px-7
-            pt-7
-            pb-5
+        <div className="relative overflow-hidden border-b border-white/10 px-5 pb-5 pt-6">
+          <div className="absolute -right-10 -top-14 h-36 w-36 rounded-full bg-[#D9B663]/10 blur-2xl" />
 
-            border-b
-            border-white/10
-          "
-        >
-          <div
-            className="
-              flex
-              items-start
-              justify-between
-            "
-          >
-            <div>
-              <h1
-                className="
-                  text-[30px]
+          <div className="relative flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-[#E6C777]/40 bg-[#E6C777]/15">
+                <Warehouse size={25} className="text-[#E6C777]" />
+              </div>
 
-                  font-extrabold
+              <div className="min-w-0">
+                <p className="text-[17px] font-extrabold tracking-tight text-white">
+                  AMI MAINTENANCE
+                </p>
 
-                  tracking-wide
-                  leading-tight
-                "
-              >
-                CAMPUSPULSE
-              </h1>
-
-              <p
-                className="
-                  text-yellow-300
-
-                  text-sm
-
-                  mt-1
-                "
-              >
-                Store Manager Panel
-              </p>
+                <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.17em] text-[#E6C777]">
+                  Store Manager
+                </p>
+              </div>
             </div>
 
             <button
               type="button"
               onClick={() => setSidebarOpen(false)}
-              className="
-                md:hidden
-              "
+              className="rounded-lg p-1.5 text-slate-300 hover:bg-white/10 lg:hidden"
               aria-label="Close sidebar"
             >
-              <X size={24} />
+              <X size={20} />
             </button>
+          </div>
+
+          <div className="relative mt-5 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5">
+            <ShieldCheck size={16} className="text-[#E6C777]" />
+            <span className="text-[11px] font-medium text-slate-200">
+              University Store Operations
+            </span>
           </div>
         </div>
 
-        {/* ==================================
-            MENU
-        ================================== */}
+        {/* MENU GROUPS */}
 
-        <div
-          className="
-            flex-1
-
-            overflow-y-auto
-
-            px-5
-            py-5
-
-            space-y-2
-          "
+        <nav
+          className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-5"
+          aria-label="Store Manager navigation"
         >
-          {menuItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) => `
-                  flex
-                  items-center
+          {menuGroups.map((group) => (
+            <div key={group.title}>
+              <p className="mb-2 px-4 text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#92A7CC]">
+                {group.title}
+              </p>
 
-                  gap-4
-
-                  px-5
-                  py-4
-
-                  rounded-2xl
-
-                  font-medium
-
-                  transition-all
-                  duration-300
-
-                  ${
-                    isActive
-                      ? `
-                        bg-yellow-400
-                        text-[#001B54]
-                        shadow-xl
-                      `
-                      : `
-                        text-white
-                        hover:bg-white/10
-                      `
-                  }
-                `}
-            >
-              <item.icon
-                size={22}
-                className="
-                    shrink-0
-                  "
-              />
-
-              <span
-                className="
-                    text-[15px]
-                  "
-              >
-                {item.name}
-              </span>
-            </NavLink>
+              <div className="space-y-1">{group.items.map(renderMenuLink)}</div>
+            </div>
           ))}
-        </div>
 
-        {/* ==================================
-            USER CARD
-        ================================== */}
+          <div className="mx-2 rounded-xl border border-[#E6C777]/20 bg-[#E6C777]/[0.08] p-3">
+            <div className="flex items-center gap-2">
+              <FileSpreadsheet size={16} className="text-[#E6C777]" />
+              <p className="text-xs font-bold text-[#E6C777]">Stock Inward</p>
+            </div>
 
-        <div
-          className="
-            px-5
-            pt-4
-          "
-        >
-          <div
-            className="
-              bg-white/10
+            <p className="mt-2 text-[11px] leading-5 text-slate-300">
+              Excel import, GRN, bills and vendor-wise stock receipts.
+            </p>
 
-              border
-              border-white/10
-
-              rounded-3xl
-
-              p-4
-
-              flex
-              items-center
-
-              gap-4
-            "
-          >
-            <div
-              className="
-                h-14
-                w-14
-
-                rounded-full
-
-                bg-white/20
-
-                flex
-                items-center
-                justify-center
-
-                text-xl
-                font-bold
-
-                shrink-0
-              "
+            <button
+              type="button"
+              onClick={() => {
+                setSidebarOpen(false);
+                navigate("/store/dashboard?view=stock-inward");
+              }}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#E6C777] px-3 py-2 text-xs font-bold text-[#001B54] transition hover:bg-[#F0D794]"
             >
+              <ArrowDownToLine size={15} />
+              Open Stock Inward
+            </button>
+          </div>
+        </nav>
+
+        {/* USER PANEL */}
+
+        <div className="border-t border-white/10 p-4">
+          <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.07] p-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#E6C777] text-base font-extrabold text-[#001B54]">
               {userInitial}
             </div>
 
-            <div
-              className="
-                flex-1
-                min-w-0
-              "
-            >
-              <h3
-                className="
-                  font-bold
-                  text-lg
-
-                  truncate
-                "
-              >
-                {user?.name || "Store Manager"}
-              </h3>
-
-              <p
-                className="
-                  text-sm
-                  text-gray-300
-                "
-              >
-                Inventory Management
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-white">
+                {userName}
+              </p>
+              <p className="mt-0.5 text-[11px] text-slate-300">
+                Store Manager Account
               </p>
             </div>
+
+            <span className="h-2.5 w-2.5 shrink-0 rounded-full bg-emerald-400" />
           </div>
-        </div>
 
-        {/* ==================================
-            LOGOUT
-        ================================== */}
-
-        <div
-          className="
-            p-5
-          "
-        >
           <button
             type="button"
-            onClick={handleLogout}
-            className="
-              w-full
-
-              bg-red-500
-
-              hover:bg-red-600
-
-              transition-all
-              duration-300
-
-              rounded-2xl
-
-              px-5
-              py-4
-
-              flex
-              items-center
-              justify-center
-
-              gap-3
-
-              font-semibold
-
-              shadow-lg
-            "
+            onClick={() => setLogoutOpen(true)}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-3 text-sm font-bold text-red-200 transition hover:bg-red-500/20"
           >
-            <LogOut size={20} />
+            <LogOut size={17} />
             Logout
           </button>
         </div>
       </aside>
 
-      {/* ======================================
-          MAIN
-      ====================================== */}
+      {/* ====================================
+          MAIN AREA
+      ==================================== */}
 
-      <div
-        className="
-          flex-1
+      <div className="min-h-screen min-w-0 lg:ml-[286px]">
+        {/* TOP BAR */}
 
-          flex
-          flex-col
-
-          md:ml-80
-
-          min-w-0
-        "
-      >
-        {/* ==================================
-            TOPBAR
-        ================================== */}
-
-        <header
-          className="
-            sticky
-            top-0
-
-            z-30
-
-            bg-white/95
-
-            backdrop-blur-md
-
-            border-b
-            border-gray-200
-
-            px-4
-            md:px-6
-
-            py-4
-
-            flex
-            items-center
-            justify-between
-
-            shadow-sm
-          "
-        >
-          {/* LEFT */}
-
-          <div
-            className="
-              flex
-              items-center
-
-              gap-4
-
-              min-w-0
-            "
-          >
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="
-                md:hidden
-
-                shrink-0
-              "
-              aria-label="Open sidebar"
-            >
-              <Menu size={26} />
-            </button>
-
-            <div
-              className="
-                min-w-0
-              "
-            >
-              <h2
-                className="
-                  text-xl
-                  sm:text-2xl
-                  md:text-3xl
-
-                  font-bold
-
-                  text-[#001B54]
-
-                  truncate
-                "
+        <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm backdrop-blur-xl sm:px-6">
+          <div className="flex min-h-14 items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setSidebarOpen(true)}
+                className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-[#001B54] hover:bg-slate-100 lg:hidden"
+                aria-label="Open navigation"
               >
-                Store Manager
-              </h2>
+                <Menu size={21} />
+              </button>
 
-              <p
-                className="
-                  text-gray-500
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#A18342]">
+                  AMI MAINTENANCE
+                </p>
 
-                  text-xs
-                  sm:text-sm
-
-                  hidden
-                  sm:block
-                "
-              >
-                Inventory & Store Management
-              </p>
+                <h1 className="truncate text-lg font-extrabold text-[#001B54] sm:text-xl">
+                  {currentPage}
+                </h1>
+              </div>
             </div>
-          </div>
 
-          {/* ==================================
-              RIGHT
-          ================================== */}
-
-          <div
-            className="
-              flex
-              items-center
-
-              gap-3
-              md:gap-5
-            "
-          >
-            {/* ================================
-                NOTIFICATION BELL
-            ================================ */}
-
-            <NotificationBell />
-
-            {/* ================================
-                USER
-            ================================ */}
-
-            <div
-              className="
-                hidden
-                md:flex
-
-                items-center
-
-                gap-3
-              "
-            >
-              <div
-                className="
-                  bg-[#001B54]
-
-                  text-white
-
-                  h-11
-                  w-11
-
-                  rounded-full
-
-                  flex
-                  items-center
-                  justify-center
-                "
-              >
-                <User size={18} />
+            <div className="flex shrink-0 items-center gap-3">
+              <div className="hidden items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 md:flex">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                Store Portal
               </div>
 
-              <div
-                className="
-                  min-w-0
-                "
-              >
-                <p
-                  className="
-                    font-bold
+              <div className="rounded-xl border border-slate-100 bg-slate-50 p-1">
+                <NotificationBell />
+              </div>
 
-                    text-[#001B54]
+              <div className="hidden h-9 w-px bg-slate-200 sm:block" />
 
-                    truncate
+              <div className="hidden items-center gap-2 sm:flex">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#001B54] font-bold text-white">
+                  {userInitial}
+                </div>
 
-                    max-w-[180px]
-                  "
-                >
-                  {user?.name || "Store Manager"}
-                </p>
-
-                <p
-                  className="
-                    text-xs
-                    text-gray-500
-                  "
-                >
-                  Inventory Department
-                </p>
+                <div className="hidden min-w-0 xl:block">
+                  <p className="max-w-36 truncate text-xs font-bold text-[#001B54]">
+                    {userName}
+                  </p>
+                  <p className="text-[10px] text-slate-500">Store Manager</p>
+                </div>
               </div>
             </div>
           </div>
         </header>
 
-        {/* ==================================
-            PAGE CONTENT
-        ================================== */}
+        {/* PAGE CONTENT */}
 
-        <main
-          className="
-            flex-1
-
-            p-4
-            md:p-6
-
-            overflow-auto
-          "
-        >
-          <Outlet />
+        <main className="min-h-[calc(100vh-86px)] min-w-0 p-4 sm:p-5 xl:p-7">
+          {isStockInward ? (
+            <StockInward onBack={() => navigate("/store/dashboard")} />
+          ) : (
+            <Outlet />
+          )}
         </main>
       </div>
+
+      {/* ====================================
+          CUSTOM LOGOUT CONFIRMATION
+      ==================================== */}
+
+      {logoutOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#00112B]/65 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-title"
+            className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl"
+          >
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50">
+              <LogOut size={25} className="text-red-600" />
+            </div>
+
+            <h2
+              id="logout-title"
+              className="mt-4 text-center text-xl font-bold text-[#001B54]"
+            >
+              Logout from Store Portal?
+            </h2>
+
+            <p className="mt-2 text-center text-sm leading-6 text-slate-500">
+              Your current session will end. You can log in again with your
+              university account.
+            </p>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setLogoutOpen(false)}
+                className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-xl bg-[#001B54] px-4 py-3 text-sm font-bold text-white hover:bg-[#002C72]"
+              >
+                Yes, Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

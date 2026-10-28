@@ -21,6 +21,7 @@
     "axe-core": "^4.12.1",
     "axios": "^1.17.0",
     "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.40.0",
     "jspdf": "^4.2.1",
