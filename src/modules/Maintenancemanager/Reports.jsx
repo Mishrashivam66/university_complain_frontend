@@ -919,44 +919,118 @@ export default function Reports() {
 
       {/* DOWNLOAD */}
 
-      <section className="flex flex-wrap items-center justify-between gap-4 rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
-        <div>
-          <h2 className="text-sm font-black">Export Maintenance Report</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            PDF or Excel with selected date, location, category and filters.
-          </p>
+      {/* ==========================================
+    AMI MAINTENANCE — PREMIUM REPORT EXPORT
+    ========================================== */}
+
+      <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
+        <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          {/* LEFT — REPORT INFORMATION */}
+
+          <div className="min-w-0 flex-1">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#102B52]/[0.07] text-[#102B52]">
+                <Download size={20} />
+              </div>
+
+              <div>
+                <h2 className="text-base font-black text-[#102B52]">
+                  Download Maintenance Report
+                </h2>
+
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Generate a detailed report using your selected reporting
+                  period, location, category and filters.
+                </p>
+              </div>
+            </div>
+
+            {/* CURRENT REPORT SCOPE */}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-600">
+                {fromDate || "All Dates"} — {toDate || "All Dates"}
+              </span>
+
+              <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-600">
+                {location === "ALL" ? "All Locations" : location}
+              </span>
+
+              <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-600">
+                {category === "ALL" ? "All Categories" : category}
+              </span>
+
+              <span className="rounded-lg bg-amber-50 px-3 py-1.5 text-[11px] font-extrabold text-amber-800">
+                {summary?.totalComplaints ?? 0} Complaints
+              </span>
+            </div>
+          </div>
+
+          {/* RIGHT — DOWNLOAD BUTTONS */}
+
+          <div className="grid w-full grid-cols-2 gap-3 sm:w-auto">
+            {/* EXCEL DOWNLOAD */}
+
+            <button
+              type="button"
+              onClick={() => downloadReport("excel")}
+              disabled={
+                !summary || loading || Boolean(downloading) || invalidDates
+              }
+              aria-label="Download Excel maintenance report"
+              className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-extrabold text-emerald-800 transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-100 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+            >
+              {downloading === "excel" ? (
+                <Loader2 size={18} className="shrink-0 animate-spin" />
+              ) : (
+                <FileSpreadsheet size={18} className="shrink-0" />
+              )}
+
+              <span>
+                {downloading === "excel" ? "Generating..." : "Excel (.xlsx)"}
+              </span>
+
+              {downloading !== "excel" && (
+                <Download size={14} className="hidden shrink-0 sm:block" />
+              )}
+            </button>
+
+            {/* PDF DOWNLOAD */}
+
+            <button
+              type="button"
+              onClick={() => downloadReport("pdf")}
+              disabled={
+                !summary || loading || Boolean(downloading) || invalidDates
+              }
+              aria-label="Download PDF maintenance report"
+              className="group inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#102B52] px-4 py-3 text-xs font-extrabold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-[#204779] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:translate-y-0"
+            >
+              {downloading === "pdf" ? (
+                <Loader2 size={18} className="shrink-0 animate-spin" />
+              ) : (
+                <FileText size={18} className="shrink-0" />
+              )}
+
+              <span>
+                {downloading === "pdf" ? "Generating..." : "PDF (.pdf)"}
+              </span>
+
+              {downloading !== "pdf" && (
+                <Download size={14} className="hidden shrink-0 sm:block" />
+              )}
+            </button>
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={!summary || Boolean(downloading) || invalidDates}
-            onClick={() => downloadReport("excel")}
-            className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
-          >
-            {downloading === "excel" ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <FileSpreadsheet size={16} />
-            )}
-            Excel
-            <Download size={14} />
-          </button>
+        {/* FOOTER */}
 
-          <button
-            type="button"
-            disabled={!summary || Boolean(downloading) || invalidDates}
-            onClick={() => downloadReport("pdf")}
-            className="inline-flex items-center gap-2 rounded-xl bg-[#102B52] px-4 py-3 text-xs font-bold text-white hover:bg-[#204779] disabled:opacity-50"
-          >
-            {downloading === "pdf" ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <FileText size={16} />
-            )}
-            PDF
-            <Download size={14} />
-          </button>
+        <div className="border-t border-slate-100 bg-[#F8FAFD] px-5 py-3 sm:px-6">
+          <p className="flex items-center gap-2 text-[11px] text-slate-500">
+            <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
+            Reports include records matching your selected filters. PDF and
+            Excel are generated by the backend.
+          </p>
         </div>
       </section>
     </div>
