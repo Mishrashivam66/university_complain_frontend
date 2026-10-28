@@ -12,7 +12,6 @@ import {
   Menu,
   Package,
   PackageCheck,
-  PlusSquare,
   RotateCcw,
   ShieldCheck,
   Warehouse,
@@ -23,21 +22,19 @@ import NotificationBell from "../../modules/notifications/components/Notificatio
 import StockInward from "../../modules/Storemanager/StockInward";
 
 // ==========================================
-// USER
+// STORE MANAGER CONFIGURATION
 // ==========================================
+
+const STOCK_INWARD_URL = "/store/dashboard?view=stock-inward";
 
 const getStoredUser = () => {
   try {
-    const value = localStorage.getItem("user");
-    return value ? JSON.parse(value) : {};
+    const stored = localStorage.getItem("user");
+    return stored ? JSON.parse(stored) : {};
   } catch {
     return {};
   }
 };
-
-// ==========================================
-// SIDEBAR MENU CONFIGURATION
-// ==========================================
 
 const menuGroups = [
   {
@@ -60,14 +57,9 @@ const menuGroups = [
         icon: Package,
       },
       {
-        name: "Add Inventory",
-        path: "/store/add-item",
-        icon: PlusSquare,
-      },
-      {
-        name: "Excel Import / Inward",
-        path: "/store/dashboard?view=stock-inward",
-        icon: FileSpreadsheet,
+        name: "Stock Inward",
+        path: STOCK_INWARD_URL,
+        icon: ArrowDownToLine,
         special: true,
       },
       {
@@ -100,7 +92,7 @@ const menuGroups = [
 ];
 
 // ==========================================
-// MAIN COMPONENT
+// MAIN LAYOUT
 // ==========================================
 
 const StoreManagerLayout = () => {
@@ -111,12 +103,19 @@ const StoreManagerLayout = () => {
   const [logoutOpen, setLogoutOpen] = useState(false);
   const [user] = useState(getStoredUser);
 
-  const isStockInward =
-    location.pathname === "/store/dashboard" &&
-    new URLSearchParams(location.search).get("view") === "stock-inward";
+  const isStockInward = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+
+    return (
+      location.pathname === "/store/dashboard" &&
+      params.get("view") === "stock-inward"
+    );
+  }, [location.pathname, location.search]);
 
   const currentPage = useMemo(() => {
-    if (isStockInward) return "Excel Import / Stock Inward";
+    if (isStockInward) {
+      return "Stock Inward";
+    }
 
     const allItems = menuGroups.flatMap((group) => group.items);
 
@@ -127,6 +126,10 @@ const StoreManagerLayout = () => {
     return current?.name || "Store Management";
   }, [location.pathname, isStockInward]);
 
+  // ==========================================
+  // MOBILE NAVIGATION
+  // ==========================================
+
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname, location.search]);
@@ -134,21 +137,26 @@ const StoreManagerLayout = () => {
   useEffect(() => {
     if (!sidebarOpen && !logoutOpen) return;
 
-    const onEscape = (event) => {
+    const handleEscape = (event) => {
       if (event.key === "Escape") {
         setSidebarOpen(false);
         setLogoutOpen(false);
       }
     };
 
-    window.addEventListener("keydown", onEscape);
+    window.addEventListener("keydown", handleEscape);
 
     return () => {
-      window.removeEventListener("keydown", onEscape);
+      window.removeEventListener("keydown", handleEscape);
     };
   }, [sidebarOpen, logoutOpen]);
 
+  // ==========================================
+  // PROFILE
+  // ==========================================
+
   const userName = user?.name || "Store Manager";
+
   const userInitial = userName.trim().charAt(0).toUpperCase() || "S";
 
   // ==========================================
@@ -172,71 +180,60 @@ const StoreManagerLayout = () => {
   const renderMenuLink = (item) => {
     const Icon = item.icon;
 
+    const selected = item.special
+      ? isStockInward
+      : location.pathname === item.path &&
+        !(item.path === "/store/dashboard" && isStockInward);
+
     return (
       <NavLink
         key={item.path}
         to={item.path}
         end={item.exact || false}
         onClick={() => setSidebarOpen(false)}
-        className={({ isActive }) => {
-          const selected = item.special
-            ? isStockInward
-            : isActive && !(item.path === "/store/dashboard" && isStockInward);
-
-          return [
-            "group relative flex items-center gap-3",
-            "rounded-xl px-3.5 py-3",
-            "text-[13px] font-semibold",
-            "transition-all duration-200",
-            selected
-              ? "bg-gradient-to-r from-[#E7C979] to-[#D3AE53] text-[#001B54] shadow-md"
-              : "text-slate-200 hover:bg-white/[0.09] hover:text-white",
-          ].join(" ");
-        }}
+        className={[
+          "group relative flex items-center gap-3",
+          "rounded-xl px-3.5 py-3",
+          "text-[13px] font-semibold",
+          "transition-all duration-200",
+          selected
+            ? "bg-gradient-to-r from-[#E7C979] to-[#D3AE53] text-[#001B54] shadow-md"
+            : "text-slate-200 hover:bg-white/[0.09] hover:text-white",
+        ].join(" ")}
       >
-        {({ isActive }) => {
-          const selected = item.special
-            ? isStockInward
-            : isActive && !(item.path === "/store/dashboard" && isStockInward);
+        {selected && (
+          <span className="absolute -left-1 bottom-2 top-2 w-1 rounded-full bg-white" />
+        )}
 
-          return (
-            <>
-              {selected && (
-                <span className="absolute -left-1 top-2 bottom-2 w-1 rounded-full bg-white" />
-              )}
+        <span
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
+            selected
+              ? "bg-[#001B54]/10"
+              : "bg-white/[0.07] group-hover:bg-white/[0.13]"
+          }`}
+        >
+          <Icon size={18} strokeWidth={2} />
+        </span>
 
-              <span
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                  selected
-                    ? "bg-[#001B54]/10"
-                    : "bg-white/[0.07] group-hover:bg-white/[0.13]"
-                }`}
-              >
-                <Icon size={18} strokeWidth={2} />
-              </span>
+        <span className="min-w-0 flex-1 truncate">{item.name}</span>
 
-              <span className="min-w-0 flex-1 truncate">{item.name}</span>
-
-              <ChevronRight
-                size={15}
-                className={`shrink-0 ${
-                  selected
-                    ? "opacity-80"
-                    : "opacity-0 transition-opacity group-hover:opacity-70"
-                }`}
-              />
-            </>
-          );
-        }}
+        <ChevronRight
+          size={15}
+          className={
+            selected
+              ? "shrink-0 opacity-80"
+              : "shrink-0 opacity-0 transition-opacity group-hover:opacity-70"
+          }
+        />
       </NavLink>
     );
   };
 
   return (
     <div className="min-h-screen bg-[#F5F7FC] text-slate-800">
-      {/* ====================================
-          MOBILE OVERLAY
-      ==================================== */}
+      {/* ======================================
+          MOBILE BACKDROP
+      ====================================== */}
 
       {sidebarOpen && (
         <button
@@ -247,9 +244,9 @@ const StoreManagerLayout = () => {
         />
       )}
 
-      {/* ====================================
-          SIDEBAR
-      ==================================== */}
+      {/* ======================================
+          STORE SIDEBAR
+      ====================================== */}
 
       <aside
         className={[
@@ -296,13 +293,14 @@ const StoreManagerLayout = () => {
 
           <div className="relative mt-5 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 py-2.5">
             <ShieldCheck size={16} className="text-[#E6C777]" />
+
             <span className="text-[11px] font-medium text-slate-200">
               University Store Operations
             </span>
           </div>
         </div>
 
-        {/* MENU GROUPS */}
+        {/* NAVIGATION GROUPS */}
 
         <nav
           className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-5"
@@ -318,21 +316,25 @@ const StoreManagerLayout = () => {
             </div>
           ))}
 
+          {/* QUICK STOCK INWARD CARD */}
+
           <div className="mx-2 rounded-xl border border-[#E6C777]/20 bg-[#E6C777]/[0.08] p-3">
             <div className="flex items-center gap-2">
               <FileSpreadsheet size={16} className="text-[#E6C777]" />
+
               <p className="text-xs font-bold text-[#E6C777]">Stock Inward</p>
             </div>
 
             <p className="mt-2 text-[11px] leading-5 text-slate-300">
-              Excel import, GRN, bills and vendor-wise stock receipts.
+              Upload Excel or manually receive stock. Record bills, GRNs and
+              vendor details.
             </p>
 
             <button
               type="button"
               onClick={() => {
                 setSidebarOpen(false);
-                navigate("/store/dashboard?view=stock-inward");
+                navigate(STOCK_INWARD_URL);
               }}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-[#E6C777] px-3 py-2 text-xs font-bold text-[#001B54] transition hover:bg-[#F0D794]"
             >
@@ -342,7 +344,7 @@ const StoreManagerLayout = () => {
           </div>
         </nav>
 
-        {/* USER PANEL */}
+        {/* PROFILE PANEL */}
 
         <div className="border-t border-white/10 p-4">
           <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.07] p-3">
@@ -354,6 +356,7 @@ const StoreManagerLayout = () => {
               <p className="truncate text-sm font-bold text-white">
                 {userName}
               </p>
+
               <p className="mt-0.5 text-[11px] text-slate-300">
                 Store Manager Account
               </p>
@@ -373,12 +376,12 @@ const StoreManagerLayout = () => {
         </div>
       </aside>
 
-      {/* ====================================
-          MAIN AREA
-      ==================================== */}
+      {/* ======================================
+          MAIN CONTENT
+      ====================================== */}
 
       <div className="min-h-screen min-w-0 lg:ml-[286px]">
-        {/* TOP BAR */}
+        {/* TOP NAVBAR */}
 
         <header className="sticky top-0 z-30 border-b border-slate-200/80 bg-white/95 px-4 py-3 shadow-sm backdrop-blur-xl sm:px-6">
           <div className="flex min-h-14 items-center justify-between gap-3">
@@ -424,6 +427,7 @@ const StoreManagerLayout = () => {
                   <p className="max-w-36 truncate text-xs font-bold text-[#001B54]">
                     {userName}
                   </p>
+
                   <p className="text-[10px] text-slate-500">Store Manager</p>
                 </div>
               </div>
@@ -431,7 +435,7 @@ const StoreManagerLayout = () => {
           </div>
         </header>
 
-        {/* PAGE CONTENT */}
+        {/* PAGE */}
 
         <main className="min-h-[calc(100vh-86px)] min-w-0 p-4 sm:p-5 xl:p-7">
           {isStockInward ? (
@@ -442,9 +446,9 @@ const StoreManagerLayout = () => {
         </main>
       </div>
 
-      {/* ====================================
-          CUSTOM LOGOUT CONFIRMATION
-      ==================================== */}
+      {/* ======================================
+          LOGOUT CONFIRMATION
+      ====================================== */}
 
       {logoutOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#00112B]/65 p-4 backdrop-blur-sm">
@@ -466,7 +470,7 @@ const StoreManagerLayout = () => {
             </h2>
 
             <p className="mt-2 text-center text-sm leading-6 text-slate-500">
-              Your current session will end. You can log in again with your
+              Your current session will end. You can log in again using your
               university account.
             </p>
 

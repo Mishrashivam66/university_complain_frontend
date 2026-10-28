@@ -1,652 +1,922 @@
-import { useEffect, useState } from "react";
-
-import axios from "axios";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import {
-  Package,
-  Search,
-  Filter,
-  Edit,
-  Trash2,
   AlertTriangle,
-  CheckCircle,
+  ArrowDownToLine,
+  ArrowRight,
   Boxes,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+  Edit3,
+  Filter,
+  Loader2,
+  Package,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  SlidersHorizontal,
   X,
-  Save,
 } from "lucide-react";
 
-const InventoryManagement = () => {
-  // ==========================================
-  // STATES
-  // ==========================================
+import api from "../../services/api";
+
+const API = "/store/inventory";
+
+const fieldClass =
+  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#D0AE61] focus:ring-2 focus:ring-[#D0AE61]/20";
+
+const formatQty = (value) =>
+  Number(value || 0).toLocaleString("en-IN", {
+    maximumFractionDigits: 3,
+  });
+
+const clean = (value) => String(value ?? "").trim();
+
+const statusOf = (item) => {
+  if (item.isActive === false) return "Inactive";
+
+  const stock = Number(item.currentStock || 0);
+  const minimum = Number(item.minimumStock || 0);
+
+  if (stock <= 0) return "Out of Stock";
+  if (stock <= minimum) return "Low Stock";
+
+  return "Available";
+};
+
+const badgeClass = (status) => {
+  if (status === "Available")
+    return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+
+  if (status === "Low Stock")
+    return "bg-amber-50 text-amber-700 ring-amber-200";
+
+  if (status === "Out of Stock") return "bg-red-50 text-red-700 ring-red-200";
+
+  return "bg-slate-100 text-slate-600 ring-slate-200";
+};
+
+function StockStatus({ item }) {
+  const status = statusOf(item);
+
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-bold ring-1 ${badgeClass(
+        status,
+      )}`}
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {status}
+    </span>
+  );
+}
+
+function StatCard({ title, value, icon: Icon, color, subtitle }) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {title}
+          </p>
+          <h3 className="mt-3 text-3xl font-extrabold text-[#001B54]">
+            {value}
+          </h3>
+          <p className="mt-2 text-xs text-slate-400">{subtitle}</p>
+        </div>
+        <div className={`rounded-xl p-3 ${color}`}>
+          <Icon size={22} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Toast({ toast, onClose }) {
+  if (!toast) return null;
+
+  return (
+    <div
+      role="status"
+      className={`fixed right-4 top-4 z-[100] flex max-w-sm items-start gap-3 rounded-2xl border bg-white p-4 shadow-xl ${
+        toast.type === "error" ? "border-red-200" : "border-emerald-200"
+      }`}
+    >
+      {toast.type === "error" ? (
+        <AlertTriangle size={19} className="shrink-0 text-red-600" />
+      ) : (
+        <CheckCircle2 size={19} className="shrink-0 text-emerald-600" />
+      )}
+
+      <p className="flex-1 text-sm font-medium text-slate-700">
+        {toast.message}
+      </p>
+
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Close notification"
+        className="text-slate-400 hover:text-slate-700"
+      >
+        <X size={16} />
+      </button>
+    </div>
+  );
+}
+
+const blankEdit = {
+  itemName: "",
+  itemDescription: "",
+  category: "",
+  otherCategory: "",
+  unit: "",
+  minimumStock: "",
+};
+
+export default function InventoryManagement() {
+  const navigate = useNavigate();
 
   const [inventory, setInventory] = useState([]);
-
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
-
   const [filter, setFilter] = useState("ALL");
+  const [category, setCategory] = useState("ALL");
 
-  const [openModal, setOpenModal] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const [selectedItem, setSelectedItem] = useState(null);
+  const [editForm, setEditForm] = useState(blankEdit);
+  const [saving, setSaving] = useState(false);
 
-  const [editStock, setEditStock] = useState("");
+  const [toast, setToast] = useState(null);
+
+  const notify = (message, type = "success") => {
+    setToast({ message, type });
+  };
+
+  useEffect(() => {
+    if (!toast) return;
+
+    const timer = setTimeout(
+      () => {
+        setToast(null);
+      },
+      toast.type === "error" ? 3500 : 1400,
+    );
+
+    return () => clearTimeout(timer);
+  }, [toast]);
 
   // ==========================================
   // FETCH INVENTORY
   // ==========================================
 
-  const fetchInventory = async () => {
+  const fetchInventory = useCallback(async (showRefresh = false) => {
+    if (showRefresh) setRefreshing(true);
+    else setLoading(true);
+
     try {
-      setLoading(true);
+      setError("");
 
-      const { data } = await axios.get(
-        "https://complaine-backend.vercel.app/api/store/inventory/all",
+      const response = await api.get(`${API}/all`);
+
+      // Existing addInventoryController returns
+      // data.inventory, not data.items.
+      const list = response.data?.inventory ?? response.data?.items ?? [];
+
+      if (!Array.isArray(list)) {
+        throw new Error("Invalid inventory response format.");
+      }
+
+      setInventory(list);
+
+      if (showRefresh) {
+        notify("Inventory refreshed successfully.");
+      }
+    } catch (err) {
+      console.error("INVENTORY FETCH ERROR:", err);
+
+      setError(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to load inventory.",
       );
-
-      setInventory(data.items || []);
-
+    } finally {
       setLoading(false);
-    } catch (error) {
-      console.log(error);
-
-      setLoading(false);
+      setRefreshing(false);
     }
-  };
-
-  // ==========================================
-  // DELETE INVENTORY
-  // ==========================================
-
-  const deleteInventory = async (id) => {
-    try {
-      const confirmDelete = window.confirm("Delete this item?");
-
-      if (!confirmDelete) return;
-
-      await axios.delete(
-        `https://complaine-backend.vercel.app/api/store/inventory/delete/${id}`,
-      );
-
-      fetchInventory();
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  // ==========================================
-  // OPEN EDIT MODAL
-  // ==========================================
-
-  const openEditModal = (item) => {
-    setSelectedItem(item);
-
-    setEditStock(item.currentStock);
-
-    setOpenModal(true);
-  };
-
-  // ==========================================
-  // UPDATE STOCK
-  // ==========================================
-
-  const updateStock = async () => {
-    try {
-      await axios.put(
-        `https://complaine-backend.vercel.app/api/store/inventory/update/${selectedItem._id}`,
-
-        {
-          currentStock: Number(editStock),
-        },
-      );
-
-      fetchInventory();
-
-      setOpenModal(false);
-    } catch (error) {
-      console.log(error);
-    }
-  };
-
-  // ==========================================
-  // USE EFFECT
-  // ==========================================
+  }, []);
 
   useEffect(() => {
     fetchInventory();
-  }, []);
+  }, [fetchInventory]);
 
   // ==========================================
-  // FILTER
+  // CALCULATIONS
   // ==========================================
 
-  const filteredItems = inventory.filter((item) => {
-    const matchesSearch =
-      item.itemName?.toLowerCase().includes(search.toLowerCase()) ||
-      item.category?.toLowerCase().includes(search.toLowerCase());
+  const stats = useMemo(() => {
+    const active = inventory.filter((item) => item.isActive !== false);
 
-    const matchesFilter =
-      filter === "ALL"
-        ? true
-        : filter === "Low Stock"
-          ? item.currentStock <= item.minimumStock
-          : item.currentStock > item.minimumStock;
+    return {
+      total: active.length,
+      available: active.filter((item) => statusOf(item) === "Available").length,
+      lowStock: active.filter((item) => statusOf(item) === "Low Stock").length,
+      outOfStock: active.filter((item) => statusOf(item) === "Out of Stock")
+        .length,
+    };
+  }, [inventory]);
 
-    return matchesSearch && matchesFilter;
-  });
+  const categories = useMemo(() => {
+    return [
+      ...new Set(inventory.map((item) => clean(item.category)).filter(Boolean)),
+    ].sort();
+  }, [inventory]);
+
+  const filteredItems = useMemo(() => {
+    const term = search.trim().toLowerCase();
+
+    return inventory.filter((item) => {
+      const searchable = [
+        item.itemCode,
+        item.itemName,
+        item.itemDescription,
+        item.category,
+        item.otherCategory,
+        item.unit,
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      const matchesSearch = !term || searchable.includes(term);
+
+      const matchesCategory = category === "ALL" || item.category === category;
+
+      const matchesStatus = filter === "ALL" || statusOf(item) === filter;
+
+      return matchesSearch && matchesCategory && matchesStatus;
+    });
+  }, [inventory, search, category, filter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / pageSize));
+
+  const safePage = Math.min(page, totalPages);
+
+  const paginatedItems = filteredItems.slice(
+    (safePage - 1) * pageSize,
+    safePage * pageSize,
+  );
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, filter, category, pageSize]);
 
   // ==========================================
-  // STATUS COLOR
+  // EDIT ITEM METADATA
   // ==========================================
 
-  const getStatusColor = (item) => {
-    if (item.currentStock <= item.minimumStock) {
-      return "bg-red-100 text-red-700";
+  const openEdit = (item) => {
+    setSelectedItem(item);
+
+    setEditForm({
+      itemName: item.itemName || "",
+      itemDescription: item.itemDescription || "",
+      category: item.category || "",
+      otherCategory: item.otherCategory || "",
+      unit: item.unit || "Nos",
+      minimumStock: String(item.minimumStock ?? 5),
+    });
+  };
+
+  const saveEdit = async (event) => {
+    event.preventDefault();
+
+    if (!selectedItem) return;
+
+    if (
+      !editForm.itemName.trim() ||
+      !editForm.category.trim() ||
+      !editForm.unit.trim()
+    ) {
+      notify("Item name, category and UOM are required.", "error");
+      return;
     }
 
-    return "bg-green-100 text-green-700";
+    if (
+      editForm.minimumStock === "" ||
+      !Number.isFinite(Number(editForm.minimumStock)) ||
+      Number(editForm.minimumStock) < 0
+    ) {
+      notify("Enter a valid minimum stock quantity.", "error");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      // Metadata only. Stock quantities must
+      // be changed through auditable inward,
+      // issue or adjustment transactions.
+      await api.put(`${API}/${selectedItem._id}`, {
+        itemName: editForm.itemName.trim(),
+        itemDescription: editForm.itemDescription.trim(),
+        category: editForm.category.trim(),
+        otherCategory: editForm.otherCategory.trim(),
+        unit: editForm.unit.trim(),
+        minimumStock: Number(editForm.minimumStock),
+      });
+
+      setSelectedItem(null);
+      notify("Inventory details updated successfully.");
+
+      await fetchInventory();
+    } catch (err) {
+      notify(
+        err.response?.data?.message || "Failed to update inventory details.",
+        "error",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   // ==========================================
-  // COUNTS
+  // CSV EXPORT
   // ==========================================
 
-  const totalItems = inventory.length;
+  const exportCSV = () => {
+    if (!filteredItems.length) {
+      notify("No inventory records available to export.", "error");
+      return;
+    }
 
-  const lowStockItems = inventory.filter(
-    (item) => item.currentStock <= item.minimumStock,
-  ).length;
+    const header = [
+      "Item Code",
+      "Item Description",
+      "UOM",
+      "Category Name",
+      "Opening Qty",
+      "Incoming",
+      "Outgoing",
+      "Closing Qty",
+      "Minimum Stock",
+      "Status",
+    ];
 
-  const availableItems = inventory.filter(
-    (item) => item.currentStock > item.minimumStock,
-  ).length;
+    const rows = filteredItems.map((item) => [
+      item.itemCode || "",
+      item.itemDescription || item.itemName || "",
+      item.unit || "",
+      item.category || "",
+      item.openingQuantity ?? "",
+      item.incomingQuantity ?? 0,
+      item.outgoingQuantity ?? 0,
+      item.currentStock ?? 0,
+      item.minimumStock ?? 0,
+      statusOf(item),
+    ]);
+
+    const escapeCSV = (value) => {
+      const text = String(value ?? "");
+
+      // Prevent Excel formula injection.
+      const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+
+      return `"${safe.replace(/"/g, '""')}"`;
+    };
+
+    const content = [header, ...rows]
+      .map((row) => row.map(escapeCSV).join(","))
+      .join("\r\n");
+
+    const blob = new Blob(["\uFEFF", content], {
+      type: "text/csv;charset=utf-8;",
+    });
+
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+
+    anchor.href = url;
+    anchor.download = `AMI_Inventory_${new Date()
+      .toISOString()
+      .slice(0, 10)}.csv`;
+
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+
+    URL.revokeObjectURL(url);
+
+    notify("Inventory exported successfully.");
+  };
 
   // ==========================================
-  // LOADING
+  // RENDER
   // ==========================================
-
-  if (loading) {
-    return (
-      <div
-        className="
-          flex
-          justify-center
-          items-center
-          h-screen
-        "
-      >
-        <h1 className="text-2xl font-bold">Loading...</h1>
-      </div>
-    );
-  }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6 pb-10">
+      <Toast toast={toast} onClose={() => setToast(null)} />
+
       {/* HEADER */}
 
-      <div
-        className="
-          bg-gradient-to-r
-          from-[#001B54]
-          via-[#002B7F]
-          to-[#7A0019]
-          rounded-3xl
-          p-6
-          md:p-8
-          text-white
-          shadow-2xl
-        "
-      >
-        <div className="flex justify-between items-center">
+      <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-[#001A49] via-[#002A68] to-[#06214D] p-6 text-white shadow-xl md:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
-            <h1
-              className="
-                text-3xl
-                md:text-4xl
-                font-bold
-              "
-            >
+            <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#E6C777]">
+              <Boxes size={17} />
+              AMI MAINTENANCE · STORE MANAGER
+            </div>
+
+            <h1 className="text-2xl font-extrabold tracking-tight md:text-4xl">
               Inventory Management
             </h1>
 
-            <p className="mt-2 text-gray-200">Manage all inventory items</p>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-100">
+              Track university inventory, item codes, opening balances, incoming
+              stock, outgoing quantities and closing balances.
+            </p>
           </div>
 
-          <div
-            className="
-              hidden
-              md:flex
-              h-24
-              w-24
-              rounded-3xl
-              bg-white/10
-              items-center
-              justify-center
-            "
-          >
-            <Boxes size={45} />
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => fetchInventory(true)}
+              disabled={refreshing}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/20 disabled:opacity-50"
+            >
+              <RefreshCw
+                size={17}
+                className={refreshing ? "animate-spin" : ""}
+              />
+              Refresh
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigate("/store/dashboard?view=stock-inward")}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#E6C777] px-4 py-3 text-sm font-extrabold text-[#001B54] shadow-lg transition hover:bg-[#F0D794]"
+            >
+              <ArrowDownToLine size={18} />
+              Stock Inward
+              <ArrowRight size={16} />
+            </button>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* STATS */}
 
-      <div
-        className="
-          grid
-          grid-cols-1
-          md:grid-cols-3
-          gap-6
-        "
-      >
-        {/* TOTAL */}
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <StatCard
+          title="Total Items"
+          value={stats.total}
+          icon={Package}
+          color="bg-blue-50 text-blue-700"
+          subtitle="Active inventory items"
+        />
 
-        <div
-          className="
-            bg-white
-            rounded-3xl
-            shadow
-            p-6
-          "
-        >
-          <div className="flex justify-between">
-            <div>
-              <p className="text-gray-500">Total Items</p>
+        <StatCard
+          title="Available"
+          value={stats.available}
+          icon={CheckCircle2}
+          color="bg-emerald-50 text-emerald-700"
+          subtitle="Above minimum stock"
+        />
 
-              <h2
-                className="
-                  text-4xl
-                  font-bold
-                  mt-2
-                "
-              >
-                {totalItems}
-              </h2>
-            </div>
+        <StatCard
+          title="Low Stock"
+          value={stats.lowStock}
+          icon={AlertTriangle}
+          color="bg-amber-50 text-amber-700"
+          subtitle="Reorder threshold reached"
+        />
 
-            <div
-              className="
-                bg-blue-100
-                p-4
-                rounded-2xl
-              "
-            >
-              <Package className="text-blue-600" />
-            </div>
-          </div>
-        </div>
-
-        {/* AVAILABLE */}
-
-        <div
-          className="
-            bg-white
-            rounded-3xl
-            shadow
-            p-6
-          "
-        >
-          <div className="flex justify-between">
-            <div>
-              <p className="text-gray-500">Available</p>
-
-              <h2
-                className="
-                  text-4xl
-                  font-bold
-                  mt-2
-                "
-              >
-                {availableItems}
-              </h2>
-            </div>
-
-            <div
-              className="
-                bg-green-100
-                p-4
-                rounded-2xl
-              "
-            >
-              <CheckCircle className="text-green-600" />
-            </div>
-          </div>
-        </div>
-
-        {/* LOW STOCK */}
-
-        <div
-          className="
-            bg-white
-            rounded-3xl
-            shadow
-            p-6
-          "
-        >
-          <div className="flex justify-between">
-            <div>
-              <p className="text-gray-500">Low Stock</p>
-
-              <h2
-                className="
-                  text-4xl
-                  font-bold
-                  mt-2
-                "
-              >
-                {lowStockItems}
-              </h2>
-            </div>
-
-            <div
-              className="
-                bg-red-100
-                p-4
-                rounded-2xl
-              "
-            >
-              <AlertTriangle className="text-red-600" />
-            </div>
-          </div>
-        </div>
+        <StatCard
+          title="Out of Stock"
+          value={stats.outOfStock}
+          icon={Boxes}
+          color="bg-red-50 text-red-700"
+          subtitle="Zero available balance"
+        />
       </div>
 
-      {/* SEARCH */}
+      {/* ERROR */}
 
-      <div
-        className="
-          bg-white
-          rounded-3xl
-          shadow
-          p-5
-        "
-      >
-        <div
-          className="
-            flex
-            flex-col
-            lg:flex-row
-            gap-4
-          "
-        >
-          <div className="relative flex-1">
+      {error && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+          {error}
+        </div>
+      )}
+
+      {/* FILTERS */}
+
+      <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-extrabold text-[#001B54]">
+              <SlidersHorizontal size={20} />
+              Inventory Register
+            </h2>
+            <p className="mt-1 text-xs text-slate-500">
+              Search and review imported or manually added materials.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={exportCSV}
+            className="inline-flex items-center gap-2 rounded-xl border border-[#D7BE83] bg-[#FFFBF1] px-4 py-2.5 text-sm font-bold text-[#001B54] hover:bg-amber-50"
+          >
+            <Download size={17} />
+            Export CSV
+          </button>
+        </div>
+
+        <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr_auto]">
+          <div className="relative">
             <Search
               size={18}
-              className="
-                absolute
-                left-4
-                top-4
-                text-gray-400
-              "
+              className="absolute left-3.5 top-3.5 text-slate-400"
             />
 
             <input
-              type="text"
-              placeholder="Search inventory..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="
-                w-full
-                border
-                rounded-2xl
-                pl-12
-                pr-4
-                py-4
-                focus:outline-none
-              "
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search item code, description or category..."
+              className={`${fieldClass} pl-11`}
             />
           </div>
 
           <select
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            className="
-              border
-              rounded-2xl
-              px-4
-              py-4
-            "
+            className={fieldClass}
+            value={category}
+            onChange={(event) => setCategory(event.target.value)}
           >
-            <option value="ALL">All</option>
-
-            <option value="Available">Available</option>
-
-            <option value="Low Stock">Low Stock</option>
+            <option value="ALL">All Categories</option>
+            {categories.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
           </select>
-        </div>
-      </div>
 
-      {/* CARDS */}
-
-      <div
-        className="
-          grid
-          grid-cols-1
-          md:grid-cols-2
-          xl:grid-cols-3
-          gap-6
-        "
-      >
-        {filteredItems.map((item) => (
-          <div
-            key={item._id}
-            className="
-                bg-white
-                rounded-3xl
-                shadow-lg
-                p-6
-                border
-                hover:shadow-2xl
-                transition-all
-              "
+          <select
+            className={fieldClass}
+            value={filter}
+            onChange={(event) => setFilter(event.target.value)}
           >
-            {/* TOP */}
+            <option value="ALL">All Stock Statuses</option>
+            <option value="Available">Available</option>
+            <option value="Low Stock">Low Stock</option>
+            <option value="Out of Stock">Out of Stock</option>
+            <option value="Inactive">Inactive</option>
+          </select>
 
-            <div className="flex justify-between">
-              <div
-                className="
-                    bg-[#EEF3FF]
-                    h-16
-                    w-16
-                    rounded-2xl
-                    flex
-                    items-center
-                    justify-center
-                  "
-              >
-                <Package className="text-[#001B54]" />
-              </div>
+          <button
+            type="button"
+            onClick={() => {
+              setSearch("");
+              setFilter("ALL");
+              setCategory("ALL");
+            }}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+          >
+            <Filter size={16} />
+            Clear
+          </button>
+        </div>
 
-              <span
-                className={`
-                    px-4
-                    py-2
-                    rounded-full
-                    text-sm
-                    font-semibold
-                    h-fit
-                    ${getStatusColor(item)}
-                  `}
-              >
-                {item.currentStock <= item.minimumStock
-                  ? "Low Stock"
-                  : "Available"}
-              </span>
-            </div>
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-slate-500">
+            Showing{" "}
+            <strong className="text-[#001B54]">{filteredItems.length}</strong>{" "}
+            matching inventory records
+          </p>
 
-            {/* DETAILS */}
-
-            <div className="mt-5 space-y-3">
-              <h2
-                className="
-                    text-2xl
-                    font-bold
-                  "
-              >
-                {item.itemName}
-              </h2>
-
-              <p className="text-gray-500">
-                Category: <span className="font-semibold">{item.category}</span>
-              </p>
-
-              <p className="text-gray-500">
-                Current Stock:{" "}
-                <span className="font-semibold">{item.currentStock}</span>
-              </p>
-
-              <p className="text-gray-500">
-                Minimum Stock:{" "}
-                <span className="font-semibold">{item.minimumStock}</span>
-              </p>
-            </div>
-
-            {/* BUTTONS */}
-
-            <div className="flex gap-4 mt-6">
-              <button
-                onClick={() => openEditModal(item)}
-                className="
-                    flex-1
-                    bg-blue-500
-                    hover:bg-blue-600
-                    text-white
-                    py-3
-                    rounded-2xl
-                    flex
-                    items-center
-                    justify-center
-                    gap-2
-                    font-semibold
-                  "
-              >
-                <Edit size={18} />
-                Edit
-              </button>
-
-              <button
-                onClick={() => deleteInventory(item._id)}
-                className="
-                    flex-1
-                    bg-red-500
-                    hover:bg-red-600
-                    text-white
-                    py-3
-                    rounded-2xl
-                    flex
-                    items-center
-                    justify-center
-                    gap-2
-                    font-semibold
-                  "
-              >
-                <Trash2 size={18} />
-                Delete
-              </button>
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500">Rows per page</span>
+            <select
+              className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
+              value={pageSize}
+              onChange={(event) => setPageSize(Number(event.target.value))}
+            >
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
           </div>
-        ))}
+        </div>
+
+        {/* TABLE */}
+
+        <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+          <table className="w-full min-w-[1160px] text-left text-sm">
+            <thead className="bg-[#001B54] text-white">
+              <tr>
+                {[
+                  "Item Code",
+                  "Item Description",
+                  "UOM",
+                  "Category",
+                  "Opening",
+                  "Incoming",
+                  "Outgoing",
+                  "Closing",
+                  "Minimum",
+                  "Status",
+                  "Action",
+                ].map((heading) => (
+                  <th
+                    key={heading}
+                    className="whitespace-nowrap px-4 py-4 text-xs font-bold"
+                  >
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr>
+                  <td colSpan={11} className="py-14 text-center">
+                    <Loader2
+                      className="mx-auto animate-spin text-[#001B54]"
+                      size={29}
+                    />
+                    <p className="mt-3 text-sm text-slate-500">
+                      Loading inventory...
+                    </p>
+                  </td>
+                </tr>
+              ) : paginatedItems.length ? (
+                paginatedItems.map((item) => (
+                  <tr key={item._id} className="transition hover:bg-[#F9FBFF]">
+                    <td className="px-4 py-4">
+                      <span className="font-bold text-[#001B54]">
+                        {item.itemCode || "—"}
+                      </span>
+                    </td>
+
+                    <td className="max-w-[240px] px-4 py-4">
+                      <p className="font-semibold text-slate-800">
+                        {item.itemDescription ||
+                          item.itemName ||
+                          "Unnamed Item"}
+                      </p>
+                      {item.itemDescription &&
+                        item.itemName &&
+                        item.itemDescription !== item.itemName && (
+                          <p className="mt-1 text-xs text-slate-400">
+                            {item.itemName}
+                          </p>
+                        )}
+                    </td>
+
+                    <td className="px-4 py-4 text-slate-600">
+                      {item.unit || "Piece"}
+                    </td>
+
+                    <td className="px-4 py-4 text-slate-600">
+                      {item.category || "—"}
+                    </td>
+
+                    <td className="px-4 py-4 text-slate-600">
+                      {item.openingQuantity == null
+                        ? "—"
+                        : formatQty(item.openingQuantity)}
+                    </td>
+
+                    <td className="px-4 py-4 font-bold text-emerald-700">
+                      +{formatQty(item.incomingQuantity)}
+                    </td>
+
+                    <td className="px-4 py-4 font-semibold text-red-600">
+                      -{formatQty(item.outgoingQuantity)}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <span className="rounded-lg bg-blue-50 px-3 py-2 font-extrabold text-[#001B54]">
+                        {formatQty(item.currentStock)}
+                      </span>
+                    </td>
+
+                    <td className="px-4 py-4 text-slate-600">
+                      {formatQty(item.minimumStock)}
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <StockStatus item={item} />
+                    </td>
+
+                    <td className="px-4 py-4">
+                      <button
+                        type="button"
+                        onClick={() => openEdit(item)}
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-[#001B54] transition hover:border-[#D0AE61] hover:bg-amber-50"
+                      >
+                        <Edit3 size={15} />
+                        Edit
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={11} className="px-4 py-14 text-center">
+                    <Package size={35} className="mx-auto text-slate-300" />
+                    <p className="mt-3 font-semibold text-slate-600">
+                      No inventory items found
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Try changing the filters or import new stock.
+                    </p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* PAGINATION */}
+
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-slate-500">
+            Page {safePage} of {totalPages}
+          </p>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={safePage <= 1}
+              onClick={() => setPage((old) => Math.max(1, old - 1))}
+              className="rounded-lg border border-slate-200 p-2 text-slate-600 disabled:opacity-40"
+              aria-label="Previous page"
+            >
+              <ChevronLeft size={19} />
+            </button>
+
+            <span className="min-w-12 text-center text-sm font-bold text-[#001B54]">
+              {safePage}
+            </span>
+
+            <button
+              type="button"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage((old) => Math.min(totalPages, old + 1))}
+              className="rounded-lg border border-slate-200 p-2 text-slate-600 disabled:opacity-40"
+              aria-label="Next page"
+            >
+              <ChevronRight size={19} />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* STOCK ACCOUNTING NOTE */}
+
+      <div className="flex items-start gap-3 rounded-2xl border border-[#E6D7B5] bg-[#FFF9EA] p-4">
+        <ShieldCheck size={21} className="mt-0.5 shrink-0 text-[#9A752D]" />
+
+        <div>
+          <p className="text-sm font-bold text-[#001B54]">
+            Inventory Stock Control
+          </p>
+
+          <p className="mt-1 text-xs leading-5 text-slate-600">
+            Stock quantities are managed through Stock Inward, Material Issue
+            and authorized stock transactions. Manual edits on this page are
+            limited to item details and minimum stock.
+          </p>
+
+          <p className="mt-2 text-xs leading-5 text-slate-500">
+            Legacy items without a reconciled opening balance show "—". Closing
+            stock reflects the current available balance.
+          </p>
+        </div>
       </div>
 
       {/* EDIT MODAL */}
 
-      {openModal && (
-        <div
-          className="
-              fixed
-              inset-0
-              bg-black/40
-              flex
-              items-center
-              justify-center
-              z-50
-              p-4
-            "
-        >
+      {selectedItem && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#00142E]/70 p-4 backdrop-blur-sm">
           <div
-            className="
-                bg-white
-                rounded-3xl
-                w-full
-                max-w-md
-                p-6
-                shadow-2xl
-              "
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edit-inventory-title"
+            className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl md:p-7"
           >
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Update Stock</h2>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-[#A3833A]">
+                  Inventory Record
+                </p>
 
-              <button onClick={() => setOpenModal(false)}>
-                <X />
+                <h2
+                  id="edit-inventory-title"
+                  className="mt-1 text-xl font-extrabold text-[#001B54]"
+                >
+                  Edit Item Details
+                </h2>
+
+                <p className="mt-2 text-xs text-slate-500">
+                  Item Code:{" "}
+                  <strong>{selectedItem.itemCode || "Not assigned"}</strong>
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSelectedItem(null)}
+                className="rounded-xl bg-slate-100 p-2.5 text-slate-600 hover:bg-slate-200"
+                aria-label="Close editor"
+              >
+                <X size={19} />
               </button>
             </div>
 
-            <div className="mt-6">
-              <label className="font-semibold">Item Name</label>
+            <form onSubmit={saveEdit} noValidate className="mt-6 space-y-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                {[
+                  ["itemName", "Item Name"],
+                  ["itemDescription", "Item Description"],
+                  ["category", "Category"],
+                  ["otherCategory", "Other Category"],
+                  ["unit", "UOM"],
+                  ["minimumStock", "Minimum Stock"],
+                ].map(([key, label]) => (
+                  <label
+                    key={key}
+                    className={key === "itemDescription" ? "sm:col-span-2" : ""}
+                  >
+                    <span className="mb-1.5 block text-xs font-bold text-slate-600">
+                      {label}
+                    </span>
 
-              <input
-                type="text"
-                value={selectedItem?.itemName || ""}
-                disabled
-                className="
-                    w-full
-                    border
-                    rounded-2xl
-                    px-4
-                    py-3
-                    mt-2
-                    bg-gray-100
-                  "
-              />
-            </div>
+                    <input
+                      type={key === "minimumStock" ? "number" : "text"}
+                      min={key === "minimumStock" ? "0" : undefined}
+                      step={key === "minimumStock" ? "0.001" : undefined}
+                      className={fieldClass}
+                      value={editForm[key]}
+                      onChange={(event) =>
+                        setEditForm((old) => ({
+                          ...old,
+                          [key]: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
 
-            <div className="mt-5">
-              <label className="font-semibold">Current Stock</label>
+              <div className="rounded-xl bg-blue-50 p-4">
+                <p className="text-xs font-semibold text-blue-800">
+                  Current Available Stock
+                </p>
+                <p className="mt-1 text-2xl font-extrabold text-[#001B54]">
+                  {formatQty(selectedItem.currentStock)}{" "}
+                  <span className="text-sm font-medium text-slate-500">
+                    {selectedItem.unit}
+                  </span>
+                </p>
+                <p className="mt-2 text-xs text-slate-500">
+                  To increase stock, use Stock Inward. Existing quantities
+                  cannot be directly overwritten here.
+                </p>
+              </div>
 
-              <input
-                type="number"
-                value={editStock}
-                onChange={(e) => setEditStock(e.target.value)}
-                className="
-                    w-full
-                    border
-                    rounded-2xl
-                    px-4
-                    py-3
-                    mt-2
-                    focus:outline-none
-                  "
-              />
-            </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSelectedItem(null)}
+                  disabled={saving}
+                  className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600"
+                >
+                  Cancel
+                </button>
 
-            <button
-              onClick={updateStock}
-              className="
-                  mt-6
-                  w-full
-                  bg-gradient-to-r
-                  from-[#001B54]
-                  to-[#7A0019]
-                  text-white
-                  py-4
-                  rounded-2xl
-                  flex
-                  items-center
-                  justify-center
-                  gap-2
-                  font-semibold
-                "
-            >
-              <Save size={18} />
-              Update Stock
-            </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#001B54] px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
+                >
+                  {saving && <Loader2 size={17} className="animate-spin" />}
+                  {saving ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
     </div>
   );
-};
-
-export default InventoryManagement;
+}
