@@ -36,7 +36,7 @@ const MAIN_MENU = [
     icon: ClipboardList,
   },
   {
-    label: "Emergency Job Cards",
+    label: "Job Cards",
     path: "/maintenance/job-cards",
     icon: Printer,
   },

@@ -1,886 +1,964 @@
-import { useEffect, useState } from "react";
-
-import axios from "axios";
-
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
-
+import api from "../../services/api";
 import {
-  BarChart3,
-  ClipboardList,
-  CheckCircle2,
-  AlertTriangle,
-  RotateCcw,
-  Building2,
   Activity,
-  Loader2,
-  Calendar,
-  TrendingUp,
-  Award,
-  Clock,
+  AlertTriangle,
+  ArrowDown,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  ClipboardList,
+  Clock3,
   Download,
   FileSpreadsheet,
   FileText,
+  Loader2,
+  Package,
+  RefreshCw,
+  RotateCcw,
+  Search,
+  SlidersHorizontal,
+  Wrench,
 } from "lucide-react";
 
-const Reports = () => {
-  // ======================================
-  // STATES
-  // ======================================
+// ==========================================================
+// AMI MAINTENANCE — PROFESSIONAL REPORT CENTER
+// Clean UI | Clickable KPIs | Detailed Reports | PDF & Excel
+// ==========================================================
 
-  const [report, setReport] = useState(null);
+const PAGE_SIZE = 15;
+const API_REPORT = "/maintenance/reports";
+const API_COMPLAINTS = "/maintenance/worker/complaints";
 
-  const [loading, setLoading] = useState(true);
+const INPUT =
+  "w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-[#102B52] outline-none focus:border-[#D6AD59] focus:ring-2 focus:ring-amber-100";
 
-  // ======================================
-  // FETCH REPORTS
-  // ======================================
+const upper = (v) =>
+  String(v ?? "")
+    .trim()
+    .toUpperCase();
+const lower = (v) =>
+  String(v ?? "")
+    .trim()
+    .toLowerCase();
+const ident = (v) => String(v?._id ?? v ?? "");
 
-  useEffect(() => {
-    fetchReports();
-  }, []);
+const closed = (c) => ["RESOLVED", "CLOSED"].includes(upper(c.status));
 
-  const fetchReports = async () => {
-    try {
-      setLoading(true);
+function dayKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
 
-      const token = localStorage.getItem("token");
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
 
-      const response = await axios.get(
-        "https://complaine-backend.vercel.app/api/maintenance/reports",
+  const get = (type) => parts.find((p) => p.type === type)?.value;
 
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
 
-      setReport(response?.data?.report || null);
-    } catch (error) {
-      console.log(error);
+function displayDate(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
 
-      toast.error(error?.response?.data?.message || "Failed to fetch reports");
-    } finally {
-      setLoading(false);
+  return new Intl.DateTimeFormat("en-IN", {
+    timeZone: "Asia/Kolkata",
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function shiftDay(date, count) {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + count);
+  return d.toISOString().slice(0, 10);
+}
+
+function periodDates(period) {
+  const today = dayKey(new Date());
+
+  switch (period) {
+    case "TODAY":
+      return [today, today];
+    case "YESTERDAY":
+      return [shiftDay(today, -1), shiftDay(today, -1)];
+    case "WEEK": {
+      const weekday = new Date(`${today}T12:00:00Z`).getUTCDay();
+      return [shiftDay(today, -((weekday + 6) % 7)), today];
     }
-  };
+    case "MONTH":
+      return [`${today.slice(0, 7)}-01`, today];
+    case "YEAR":
+      return [`${today.slice(0, 4)}-01-01`, today];
+    default:
+      return ["", ""];
+  }
+}
 
-  // ======================================
-  // EXPORT REPORTS
-  // ======================================
+function getLocation(c) {
+  const area = upper(c.complaintArea);
 
-  const downloadPDF = async () => {
-    const token = localStorage.getItem("token");
+  if (area === "HOSTEL" || (!area && c.hostel)) {
+    const hostel = upper(c.hostel)
+      .replace(/[^A-Z0-9]/g, "")
+      .replace(/^(BOYS|GIRLS|FACULTY|STAFF)?HOSTEL/, "");
+    return hostel || "UNSPECIFIED HOSTEL";
+  }
 
-    try {
-      const response = await axios.get(
-        "https://complaine-backend.vercel.app/api/maintenance/reports/export/pdf",
-        {
-          responseType: "blob",
+  if (area === "DEPARTMENT" || (!area && c.block)) {
+    return upper(c.block) || "UNSPECIFIED DEPARTMENT BLOCK";
+  }
 
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-
-      const link = document.createElement("a");
-
-      link.href = url;
-
-      link.setAttribute(
-        "download",
-        `Maintenance_Report_${new Date().toLocaleDateString()}.pdf`,
-      );
-
-      document.body.appendChild(link);
-
-      link.click();
-
-      link.remove();
-
-      toast.success(response.data.message);
-    } catch (error) {
-      toast.error("PDF Export Failed");
-    }
-  };
-
-  const downloadExcel = async () => {
-    const token = localStorage.getItem("token");
-
-    try {
-      const response = await axios.get(
-        "https://complaine-backend.vercel.app/api/maintenance/reports/export/excel",
-        {
-          responseType: "blob",
-
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-
-      const link = document.createElement("a");
-
-      link.href = url;
-
-      const today = new Date();
-
-      const fileName = `Maintenance_Report_${today.getDate()}-${today.getMonth() + 1}-${today.getFullYear()}.xlsx`;
-
-      link.setAttribute("download", fileName);
-
-      document.body.appendChild(link);
-
-      link.click();
-
-      link.remove();
-
-      window.URL.revokeObjectURL(url);
-
-      toast.success("Excel Report Downloaded Successfully");
-    } catch (error) {
-      console.log(error);
-
-      toast.error("Excel Export Failed");
-    }
-  };
-
-  const downloadCSV = async () => {
-    const token = localStorage.getItem("token");
-
-    try {
-      const response = await axios.get(
-        "https://complaine-backend.vercel.app/api/maintenance/reports/export/csv",
-        {
-          responseType: "blob",
-
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-
-      const link = document.createElement("a");
-
-      link.href = url;
-
-      const today = new Date();
-
-      const fileName = `Maintenance_Report_${today.getDate()}-${today.getMonth() + 1}-${today.getFullYear()}.csv`;
-
-      link.setAttribute("download", fileName);
-
-      document.body.appendChild(link);
-
-      link.click();
-
-      link.remove();
-
-      window.URL.revokeObjectURL(url);
-
-      toast.success("CSV Report Downloaded Successfully");
-    } catch (error) {
-      console.log(error);
-
-      toast.error("CSV Export Failed");
-    }
-  };
-  // ======================================
-  // LOADING
-  // ======================================
-
-  if (loading) {
+  if (area === "CAMPUS") {
     return (
-      <div
-        className="
-          flex
-          items-center
-          justify-center
-
-          min-h-screen
-        "
-      >
-        <Loader2
-          size={60}
-          className="
-            animate-spin
-            text-[#001B54]
-          "
-        />
-      </div>
+      upper(String(c.issueLocation || "").split(" - ")[0]) ||
+      "UNSPECIFIED CAMPUS LOCATION"
     );
   }
 
+  return "UNSPECIFIED LOCATION";
+}
+
+function technicianName(c) {
+  return c.assignedTo?.name || c.workerAssigned?.name || "Not Assigned";
+}
+
+function isOverdue(c, now) {
+  if (!now || !c.deadline || closed(c)) return false;
+  const deadline = new Date(c.deadline).getTime();
+  return Number.isFinite(deadline) && deadline < now;
+}
+
+function isAwaiting(c) {
   return (
-    <div className="space-y-8">
-      {/* ======================================
-          HEADER
-      ====================================== */}
+    upper(c.status) === "COMPLETED" ||
+    upper(c.status) === "AWAITING_STUDENT_CONFIRMATION"
+  );
+}
 
-      <div
-        className="
-          relative
-          overflow-hidden
+function kpiMatch(c, key, now) {
+  switch (key) {
+    case "PENDING":
+      return upper(c.status) === "PENDING";
+    case "IN_PROGRESS":
+      return ["IN_PROGRESS", "ASSIGNED"].includes(upper(c.status));
+    case "COMPLETED":
+      return isAwaiting(c);
+    case "RESOLVED":
+      return closed(c);
+    case "REOPENED":
+      return upper(c.status) === "REOPENED";
+    case "OVERDUE":
+      return isOverdue(c, now);
+    case "MATERIAL":
+      return (
+        c.materialRequired === true || upper(c.status) === "WAITING_MATERIAL"
+      );
+    default:
+      return true;
+  }
+}
 
-          bg-gradient-to-br
-          from-[#020024]
-          via-[#001B54]
-          to-[#8B0000]
+function StatusTag({ status }) {
+  const s = upper(status);
 
-          text-white
+  const tone = ["RESOLVED", "CLOSED"].includes(s)
+    ? "bg-emerald-50 text-emerald-700"
+    : s === "REOPENED"
+      ? "bg-rose-50 text-rose-700"
+      : ["ASSIGNED", "IN_PROGRESS"].includes(s)
+        ? "bg-blue-50 text-blue-700"
+        : "bg-amber-50 text-amber-800";
 
-          rounded-3xl
+  return (
+    <span
+      className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${tone}`}
+    >
+      {s.replaceAll("_", " ") || "UNKNOWN"}
+    </span>
+  );
+}
 
-          p-6
-          md:p-8
+const KPI_CONFIG = [
+  { key: "ALL", label: "Total Complaints", icon: ClipboardList },
+  { key: "PENDING", label: "Pending", icon: Clock3 },
+  { key: "IN_PROGRESS", label: "Assigned / In Progress", icon: Activity },
+  { key: "COMPLETED", label: "Work Done", icon: CheckCircle2 },
+  { key: "RESOLVED", label: "Resolved", icon: Wrench },
+  { key: "REOPENED", label: "Reopened", icon: RotateCcw },
+  { key: "OVERDUE", label: "Overdue", icon: AlertTriangle },
+  { key: "MATERIAL", label: "Material Required", icon: Package },
+];
 
-          shadow-2xl
-        "
-      >
-        {/* GLOW */}
+export default function Reports() {
+  const detailRef = useRef(null);
 
-        <div
-          className="
-            absolute
+  const [complaints, setComplaints] = useState([]);
+  const [summary, setSummary] = useState(null);
+  const [now, setNow] = useState(null);
 
-            top-0
-            right-0
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [downloading, setDownloading] = useState("");
+  const [error, setError] = useState("");
+  const [detailError, setDetailError] = useState("");
 
-            w-72
-            h-72
+  const [period, setPeriod] = useState("ALL");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [location, setLocation] = useState("ALL");
+  const [category, setCategory] = useState("ALL");
+  const [status, setStatus] = useState("ALL");
+  const [priority, setPriority] = useState("ALL");
+  const [technician, setTechnician] = useState("ALL");
+  const [search, setSearch] = useState("");
 
-            bg-white/10
+  const [activeKpi, setActiveKpi] = useState("ALL");
+  const [page, setPage] = useState(1);
 
-            rounded-full
+  const filters = useMemo(
+    () => ({
+      period,
+      fromDate,
+      toDate,
+      location,
+      category,
+      status,
+      priority,
+      technician,
+      search,
+    }),
+    [
+      period,
+      fromDate,
+      toDate,
+      location,
+      category,
+      status,
+      priority,
+      technician,
+      search,
+    ],
+  );
 
-            blur-3xl
-          "
-        ></div>
+  const invalidDates = Boolean(fromDate && toDate && fromDate > toDate);
 
-        <div className="flex flex-col lg:flex-row lg:items-center gap-5 relative z-10">
-          {/* ICON */}
+  const loadReports = useCallback(
+    async (silent = false) => {
+      if (silent) setRefreshing(true);
+      else setLoading(true);
 
-          <div
-            className="
-              w-24
-              h-24
+      try {
+        const response = await api.get(API_REPORT, {
+          params: filters,
+        });
 
-              rounded-3xl
+        if (!response.data?.success || !response.data?.report) {
+          throw new Error("Invalid report response");
+        }
 
-              bg-gradient-to-br
-              from-yellow-400
-              via-yellow-500
-              to-orange-500
+        setSummary(response.data.report);
+        setError("");
+      } catch (err) {
+        setSummary(null);
+        setError(
+          err.response?.data?.message || err.message || "Unable to load report",
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [filters],
+  );
 
-              flex
-              items-center
-              justify-center
+  const loadDetails = useCallback(async () => {
+    try {
+      const response = await api.get(API_COMPLAINTS);
 
-              shadow-2xl
-            "
-          >
-            <BarChart3 size={45} className="text-white" />
-          </div>
+      if (!Array.isArray(response.data?.complaints)) {
+        throw new Error("Invalid complaint records response");
+      }
 
-          {/* TEXT */}
+      setComplaints(response.data.complaints);
+      setDetailError("");
+    } catch (err) {
+      setComplaints([]);
+      setDetailError(
+        err.response?.data?.message || "Detailed complaint records unavailable",
+      );
+    }
+  }, []);
 
+  useEffect(() => {
+    if (invalidDates) return;
+
+    void loadReports();
+  }, [loadReports, invalidDates]);
+
+  useEffect(() => {
+    void loadDetails();
+    setNow(Date.now());
+
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+    }, 60000);
+
+    return () => window.clearInterval(timer);
+  }, [loadDetails]);
+
+  function changePeriod(value) {
+    setPeriod(value);
+
+    if (value !== "CUSTOM") {
+      const [from, to] = periodDates(value);
+      setFromDate(from);
+      setToDate(to);
+    }
+
+    setPage(1);
+    setActiveKpi("ALL");
+  }
+
+  const locations = useMemo(
+    () => [...new Set(complaints.map(getLocation))].sort(),
+    [complaints],
+  );
+
+  const categories = useMemo(
+    () =>
+      [...new Set(complaints.map((c) => c.category).filter(Boolean))].sort(),
+    [complaints],
+  );
+
+  const statuses = useMemo(
+    () =>
+      [
+        ...new Set(complaints.map((c) => upper(c.status)).filter(Boolean)),
+      ].sort(),
+    [complaints],
+  );
+
+  const priorities = useMemo(
+    () =>
+      [
+        ...new Set(complaints.map((c) => upper(c.priority)).filter(Boolean)),
+      ].sort(),
+    [complaints],
+  );
+
+  const technicians = useMemo(() => {
+    const map = new Map();
+
+    complaints.forEach((c) => {
+      const worker = c.assignedTo;
+      if (worker?._id) {
+        map.set(ident(worker), worker.name || ident(worker));
+      }
+    });
+
+    return [...map].sort((a, b) => a[1].localeCompare(b[1]));
+  }, [complaints]);
+
+  const filtered = useMemo(() => {
+    if (invalidDates) return [];
+
+    const q = lower(search);
+
+    return complaints.filter((c) => {
+      const day = dayKey(c.createdAt);
+
+      const searchable = [
+        c.complaintId,
+        c.title,
+        c.description,
+        c.category,
+        getLocation(c),
+        c.roomNumber,
+        c.createdBy?.name,
+        technicianName(c),
+      ]
+        .map(lower)
+        .join(" ");
+
+      return (
+        (!fromDate || (day && day >= fromDate)) &&
+        (!toDate || (day && day <= toDate)) &&
+        (location === "ALL" || getLocation(c) === location) &&
+        (category === "ALL" || upper(c.category) === upper(category)) &&
+        (status === "ALL" || upper(c.status) === status) &&
+        (priority === "ALL" || upper(c.priority) === priority) &&
+        (technician === "ALL" || ident(c.assignedTo) === technician) &&
+        (!q || searchable.includes(q))
+      );
+    });
+  }, [
+    complaints,
+    fromDate,
+    toDate,
+    invalidDates,
+    location,
+    category,
+    status,
+    priority,
+    technician,
+    search,
+  ]);
+
+  const detailRows = useMemo(
+    () => filtered.filter((c) => kpiMatch(c, activeKpi, now)),
+    [filtered, activeKpi, now],
+  );
+
+  const values = useMemo(() => {
+    if (!summary) return {};
+
+    return {
+      ALL: summary.totalComplaints ?? 0,
+      PENDING: summary.pendingComplaints ?? 0,
+      IN_PROGRESS:
+        (summary.assignedComplaints ?? 0) + (summary.inProgressComplaints ?? 0),
+      COMPLETED: summary.completedWork ?? 0,
+      RESOLVED: summary.resolvedComplaints ?? 0,
+      REOPENED: summary.currentlyReopened ?? 0,
+      OVERDUE: summary.overdueIssues ?? 0,
+      MATERIAL: summary.materialRequired ?? 0,
+    };
+  }, [summary]);
+
+  const safePage = Math.min(
+    page,
+    Math.max(1, Math.ceil(detailRows.length / PAGE_SIZE)),
+  );
+
+  const totalPages = Math.max(1, Math.ceil(detailRows.length / PAGE_SIZE));
+
+  const visibleRows = detailRows.slice(
+    (safePage - 1) * PAGE_SIZE,
+    safePage * PAGE_SIZE,
+  );
+
+  function openKpi(key) {
+    setActiveKpi(key);
+    setPage(1);
+
+    window.requestAnimationFrame(() => {
+      detailRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }
+
+  function resetFilters() {
+    setPeriod("ALL");
+    setFromDate("");
+    setToDate("");
+    setLocation("ALL");
+    setCategory("ALL");
+    setStatus("ALL");
+    setPriority("ALL");
+    setTechnician("ALL");
+    setSearch("");
+    setActiveKpi("ALL");
+    setPage(1);
+  }
+
+  async function refreshAll() {
+    await Promise.all([loadReports(true), loadDetails()]);
+    toast.success("Report refresh finished", { duration: 1200 });
+  }
+
+  async function downloadReport(format) {
+    if (!summary || invalidDates || downloading) return;
+
+    setDownloading(format);
+
+    try {
+      const response = await api.get(`${API_REPORT}/export/${format}`, {
+        params: filters,
+        responseType: "blob",
+      });
+
+      const isPDF = format === "pdf";
+      const contentType = isPDF
+        ? "application/pdf"
+        : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+      const blob = new Blob([response.data], {
+        type: contentType,
+      });
+
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+
+      anchor.href = url;
+      anchor.download = `AMI_MAINTENANCE_${period}_${dayKey(new Date())}.${isPDF ? "pdf" : "xlsx"}`;
+
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+      toast.success(`${isPDF ? "PDF" : "Excel"} downloaded`, {
+        duration: 1300,
+      });
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Report download failed");
+    } finally {
+      setDownloading("");
+    }
+  }
+
+  return (
+    <div className="min-w-0 space-y-5 pb-8 text-[#102B52]">
+      {/* HEADER */}
+
+      <section className="rounded-[24px] bg-gradient-to-r from-[#0A1E3B] to-[#204779] p-6 text-white shadow-md sm:p-7">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h1
-              className="
-                text-3xl
-                md:text-5xl
+            <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#E8C477]">
+              AMI MAINTENANCE · REPORT CENTER
+            </p>
 
-                font-extrabold
-
-                tracking-wide
-              "
-            >
+            <h1 className="mt-2 text-2xl font-black sm:text-[30px]">
               Maintenance Reports
             </h1>
 
-            <p
-              className="
-                mt-3
-
-                text-blue-100
-
-                text-lg
-              "
-            >
-              Smart Campus ERP Analytics & Reporting Dashboard
+            <p className="mt-2 text-xs leading-5 text-slate-300">
+              Location-wise, date-wise and Technician-wise reporting.
             </p>
           </div>
-          <div className="lg:ml-auto flex gap-3 flex-wrap">
+
+          <button
+            type="button"
+            disabled={refreshing}
+            onClick={refreshAll}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-2.5 text-xs font-bold hover:bg-white/20 disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+            Refresh
+          </button>
+        </div>
+      </section>
+
+      {/* FILTERS */}
+
+      <section className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="flex items-center gap-2 text-sm font-black">
+            <SlidersHorizontal size={18} className="text-[#B18431]" />
+            Report Filters
+          </h2>
+
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="text-xs font-bold text-[#A87D30] hover:underline"
+          >
+            Reset
+          </button>
+        </div>
+
+        <div className="mb-4 flex flex-wrap gap-2">
+          {[
+            ["ALL", "All Time"],
+            ["TODAY", "Today"],
+            ["YESTERDAY", "Yesterday"],
+            ["WEEK", "Weekly"],
+            ["MONTH", "Monthly"],
+            ["YEAR", "Yearly"],
+            ["CUSTOM", "Custom"],
+          ].map(([value, label]) => (
             <button
-              onClick={downloadPDF}
-              className="
-      bg-red-600
-      hover:bg-red-700
-      text-white
-      px-4
-      py-2
-      rounded-xl
-      flex
-      items-center
-      gap-2
-      transition-all
-    "
+              key={value}
+              type="button"
+              onClick={() => changePeriod(value)}
+              className={`rounded-lg px-3 py-2 text-[11px] font-bold ${
+                period === value
+                  ? "bg-[#102B52] text-white"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
             >
-              <FileText size={18} />
-              PDF
+              {label}
             </button>
+          ))}
+        </div>
 
-            <button
-              onClick={downloadExcel}
-              className="
-      bg-green-600
-      hover:bg-green-700
-      text-white
-      px-4
-      py-2
-      rounded-xl
-      flex
-      items-center
-      gap-2
-      transition-all
-    "
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <label className="space-y-1">
+            <span className="text-[11px] font-bold">From Date</span>
+            <input
+              type="date"
+              className={INPUT}
+              value={fromDate}
+              onChange={(e) => {
+                setFromDate(e.target.value);
+                setPeriod("CUSTOM");
+                setPage(1);
+              }}
+            />
+          </label>
+
+          <label className="space-y-1">
+            <span className="text-[11px] font-bold">To Date</span>
+            <input
+              type="date"
+              className={INPUT}
+              value={toDate}
+              onChange={(e) => {
+                setToDate(e.target.value);
+                setPeriod("CUSTOM");
+                setPage(1);
+              }}
+            />
+          </label>
+
+          <label className="space-y-1">
+            <span className="text-[11px] font-bold">Location</span>
+            <select
+              value={location}
+              className={INPUT}
+              onChange={(e) => {
+                setLocation(e.target.value);
+                setPage(1);
+              }}
             >
-              <FileSpreadsheet size={18} />
-              Excel
-            </button>
+              <option value="ALL">All Locations</option>
+              {locations.map((loc) => (
+                <option key={loc} value={loc}>
+                  {loc}
+                </option>
+              ))}
+            </select>
+          </label>
 
-            <button
-              onClick={downloadCSV}
-              className="
-      bg-blue-600
-      hover:bg-blue-700
-      text-white
-      px-4
-      py-2
-      rounded-xl
-      flex
-      items-center
-      gap-2
-      transition-all
-    "
+          <label className="space-y-1">
+            <span className="text-[11px] font-bold">Category</span>
+            <select
+              value={category}
+              className={INPUT}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                setPage(1);
+              }}
             >
-              <Download size={18} />
-              CSV
-            </button>
-          </div>
-        </div>
-      </div>
+              <option value="ALL">All Categories</option>
+              {categories.map((cat) => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </label>
 
-      {/* ======================================
-          REPORT STATS
-      ====================================== */}
-
-      <div
-        className="
-          grid
-          grid-cols-1
-          sm:grid-cols-2
-          xl:grid-cols-4
-          2xl:grid-cols-8
-
-          gap-6
-        "
-      >
-        {/* TODAY */}
-        <div className="bg-cyan-100 rounded-3xl p-6 shadow-2xl">
-          <Calendar size={35} className="text-cyan-700" />
-          <h2 className="text-5xl font-extrabold text-cyan-700 mt-5">
-            {report?.todayComplaints || 0}
-          </h2>
-          <p className="mt-3 text-cyan-700 font-semibold">Today's Complaints</p>
-        </div>
-
-        {/* MONTHLY */}
-        <div className="bg-purple-100 rounded-3xl p-6 shadow-2xl">
-          <Clock size={35} className="text-purple-700" />
-          <h2 className="text-5xl font-extrabold text-purple-700 mt-5">
-            {report?.monthlyComplaints || 0}
-          </h2>
-          <p className="mt-3 text-purple-700 font-semibold">
-            Monthly Complaints
-          </p>
-        </div>
-
-        {/* RESOLUTION RATE */}
-        <div className="bg-emerald-100 rounded-3xl p-6 shadow-2xl">
-          <TrendingUp size={35} className="text-emerald-700" />
-          <h2 className="text-5xl font-extrabold text-emerald-700 mt-5">
-            {report?.resolutionRate || 0}%
-          </h2>
-          <p className="mt-3 text-emerald-700 font-semibold">Resolution Rate</p>
-        </div>
-
-        {/* ACTIVE */}
-        <div className="bg-orange-100 rounded-3xl p-6 shadow-2xl">
-          <Activity size={35} className="text-orange-700" />
-          <h2 className="text-5xl font-extrabold text-orange-700 mt-5">
-            {report?.activeComplaints || 0}
-          </h2>
-          <p className="mt-3 text-orange-700 font-semibold">
-            Active Complaints
-          </p>
-        </div>
-        {/* TOTAL */}
-
-        <div
-          className="
-            bg-blue-100
-
-            rounded-3xl
-
-            p-6
-
-            shadow-2xl
-          "
-        >
-          <ClipboardList size={35} className="text-blue-700" />
-
-          <h2
-            className="
-              text-5xl
-
-              font-extrabold
-
-              text-blue-700
-
-              mt-5
-            "
-          >
-            {report?.totalComplaints || 0}
-          </h2>
-
-          <p
-            className="
-              mt-3
-
-              text-blue-700
-
-              font-semibold
-            "
-          >
-            Total Complaints
-          </p>
-        </div>
-
-        {/* RESOLVED */}
-
-        <div
-          className="
-            bg-green-100
-
-            rounded-3xl
-
-            p-6
-
-            shadow-2xl
-          "
-        >
-          <CheckCircle2 size={35} className="text-green-700" />
-
-          <h2
-            className="
-              text-5xl
-
-              font-extrabold
-
-              text-green-700
-
-              mt-5
-            "
-          >
-            {report?.resolvedComplaints || 0}
-          </h2>
-
-          <p
-            className="
-              mt-3
-
-              text-green-700
-
-              font-semibold
-            "
-          >
-            Resolved Complaints
-          </p>
-        </div>
-
-        {/* OVERDUE */}
-
-        <div
-          className="
-            bg-red-100
-
-            rounded-3xl
-
-            p-6
-
-            shadow-2xl
-          "
-        >
-          <AlertTriangle size={35} className="text-red-700" />
-
-          <h2
-            className="
-              text-5xl
-
-              font-extrabold
-
-              text-red-700
-
-              mt-5
-            "
-          >
-            {report?.overdueIssues || 0}
-          </h2>
-
-          <p
-            className="
-              mt-3
-
-              text-red-700
-
-              font-semibold
-            "
-          >
-            Overdue Issues
-          </p>
-        </div>
-
-        {/* REOPENED */}
-
-        <div
-          className="
-            bg-yellow-100
-
-            rounded-3xl
-
-            p-6
-
-            shadow-2xl
-          "
-        >
-          <RotateCcw size={35} className="text-yellow-700" />
-
-          <h2
-            className="
-              text-5xl
-
-              font-extrabold
-
-              text-yellow-700
-
-              mt-5
-            "
-          >
-            {report?.reopenedCases || 0}
-          </h2>
-
-          <p
-            className="
-              mt-3
-
-              text-yellow-700
-
-              font-semibold
-            "
-          >
-            Reopened Cases
-          </p>
-        </div>
-      </div>
-
-      {/* ======================================
-          ANALYTICS
-      ====================================== */}
-
-      <div
-        className="
-          grid
-          grid-cols-1
-          xl:grid-cols-2
-
-          gap-8
-        "
-      >
-        {/* BUILDING ANALYTICS */}
-
-        <div
-          className="
-            bg-white
-
-            rounded-3xl
-
-            shadow-2xl
-
-            p-8
-          "
-        >
-          <div className="flex items-center gap-4 mb-8">
-            <Building2 size={32} className="text-blue-700" />
-
-            <h2
-              className="
-                text-3xl
-
-                font-extrabold
-
-                text-[#001B54]
-              "
+          <label className="space-y-1">
+            <span className="text-[11px] font-bold">Status</span>
+            <select
+              value={status}
+              className={INPUT}
+              onChange={(e) => {
+                setStatus(e.target.value);
+                setPage(1);
+              }}
             >
-              Building Wise Issues
-            </h2>
-          </div>
+              <option value="ALL">All Statuses</option>
+              {statuses.map((s) => (
+                <option key={s} value={s}>
+                  {s.replaceAll("_", " ")}
+                </option>
+              ))}
+            </select>
+          </label>
 
-          <div className="space-y-6">
-            {report?.buildingData?.length > 0 ? (
-              report?.buildingData?.map((building, index) => {
-                const percentage = Math.min(
-                  building.total * 10,
-
-                  100,
-                );
-
-                return (
-                  <div key={index}>
-                    <div
-                      className="
-                          flex
-                          justify-between
-
-                          mb-2
-                        "
-                    >
-                      <span
-                        className="
-                            font-semibold
-                          "
-                      >
-                        {building._id}
-                      </span>
-
-                      <span
-                        className="
-                            font-bold
-                            text-blue-700
-                          "
-                      >
-                        {building.total}
-                      </span>
-                    </div>
-
-                    <div
-                      className="
-                          h-4
-
-                          bg-gray-200
-
-                          rounded-full
-
-                          overflow-hidden
-                        "
-                    >
-                      <div
-                        className="
-                            h-full
-
-                            bg-gradient-to-r
-                            from-blue-500
-                            to-blue-700
-
-                            rounded-full
-                          "
-                        style={{
-                          width: `${percentage}%`,
-                        }}
-                      ></div>
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              <p className="text-gray-500">No analytics available</p>
-            )}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-3xl shadow-2xl p-8">
-          <h2 className="text-3xl font-extrabold text-[#001B54] mb-8">
-            Category Analytics
-          </h2>
-
-          <div className="space-y-4">
-            {report?.categoryData?.length > 0 ? (
-              report.categoryData.map((item, index) => (
-                <div
-                  key={index}
-                  className="flex justify-between bg-gray-50 p-4 rounded-2xl"
-                >
-                  <span className="font-bold">{item._id || "Unknown"}</span>
-
-                  <span className="font-bold text-blue-700">{item.total}</span>
-                </div>
-              ))
-            ) : (
-              <p className="text-gray-500">No category analytics available</p>
-            )}
-          </div>
-        </div>
-
-        {/* WORKER EFFICIENCY */}
-
-        <div
-          className="
-            bg-white
-
-            rounded-3xl
-
-            shadow-2xl
-
-            p-8
-          "
-        >
-          <div className="flex items-center gap-4 mb-8">
-            <Activity size={32} className="text-green-700" />
-
-            <h2
-              className="
-                text-3xl
-
-                font-extrabold
-
-                text-[#001B54]
-              "
+          <label className="space-y-1">
+            <span className="text-[11px] font-bold">Priority</span>
+            <select
+              value={priority}
+              className={INPUT}
+              onChange={(e) => {
+                setPriority(e.target.value);
+                setPage(1);
+              }}
             >
-              Worker Efficiency
-            </h2>
-          </div>
+              <option value="ALL">All Priorities</option>
+              {priorities.map((p) => (
+                <option key={p} value={p}>
+                  {p}
+                </option>
+              ))}
+            </select>
+          </label>
 
-          <div className="space-y-6">
-            {report?.workerEfficiency?.length > 0 ? (
-              report?.workerEfficiency?.map((worker, index) => (
-                <div
-                  key={index}
-                  className="
-                      bg-blue-50
+          <label className="space-y-1">
+            <span className="text-[11px] font-bold">Technician</span>
+            <select
+              className={INPUT}
+              value={technician}
+              onChange={(e) => {
+                setTechnician(e.target.value);
+                setPage(1);
+              }}
+            >
+              <option value="ALL">All Technicians</option>
+              {technicians.map(([workerId, name]) => (
+                <option key={workerId} value={workerId}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-                      rounded-3xl
-
-                      p-5
-
-                      shadow-md
-                    "
-                >
-                  <div
-                    className="
-                        flex
-                        justify-between
-                      "
-                  >
-                    <span
-                      className="
-                          font-bold
-                          text-lg
-                        "
-                    >
-                      {worker.name}
-                    </span>
-
-                    <span
-                      className="
-                          font-extrabold
-                          text-blue-700
-                          text-lg
-                        "
-                    >
-                      {worker.efficiency}%
-                    </span>
-                  </div>
-
-                  {/* BAR */}
-
-                  <div
-                    className="
-                        h-4
-
-                        bg-gray-200
-
-                        rounded-full
-
-                        mt-5
-
-                        overflow-hidden
-                      "
-                  >
-                    <div
-                      className="
-                          h-full
-
-                          bg-gradient-to-r
-                          from-green-400
-                          to-green-600
-
-                          rounded-full
-                        "
-                      style={{
-                        width: `${worker.efficiency}%`,
-                      }}
-                    ></div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <p className="text-gray-500">No worker data available</p>
-            )}
-          </div>
-          <div
-            className="
-    bg-gradient-to-r
-    from-yellow-400
-    via-yellow-500
-    to-orange-500
-    rounded-3xl
-    p-6
-    text-white
-    shadow-2xl
-    mt-6
-  "
-          >
-            <div className="flex items-center gap-3">
-              <Award size={35} />
-
-              <h2 className="text-2xl font-extrabold">Top Worker</h2>
+          <label className="space-y-1">
+            <span className="text-[11px] font-bold">Search</span>
+            <div className="relative">
+              <Search
+                size={15}
+                className="absolute left-3 top-3.5 text-slate-400"
+              />
+              <input
+                value={search}
+                className={`${INPUT} pl-9`}
+                placeholder="Complaint ID / Issue"
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPage(1);
+                }}
+              />
             </div>
+          </label>
+        </div>
 
-            <div className="mt-5">
-              <h3 className="text-3xl font-bold">
-                {report?.topWorker?.name || "N/A"}
-              </h3>
+        {invalidDates && (
+          <p className="mt-3 text-xs font-semibold text-rose-600">
+            From Date cannot be later than To Date.
+          </p>
+        )}
+      </section>
 
-              <p className="text-lg mt-2">
-                Efficiency: {report?.topWorker?.efficiency || 0}%
-              </p>
+      {/* ERROR */}
 
-              <p className="text-lg">
-                Completed Jobs: {report?.topWorker?.completedJobs || 0}
-              </p>
+      {error && (
+        <p
+          role="alert"
+          className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700"
+        >
+          {error}
+        </p>
+      )}
+
+      {/* KPI BOXES */}
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-black">Report Overview</h2>
+          <span className="text-[11px] text-slate-500">
+            Click a box to view details{" "}
+            <ArrowDown size={13} className="inline" />
+          </span>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {KPI_CONFIG.map((item) => {
+            const Icon = item.icon;
+            const active = activeKpi === item.key;
+
+            return (
+              <button
+                key={item.key}
+                type="button"
+                disabled={!summary || loading || invalidDates}
+                onClick={() => openKpi(item.key)}
+                className={`rounded-[18px] border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50 ${
+                  active
+                    ? "border-[#D6AD59] bg-amber-50/40"
+                    : "border-slate-200 bg-white"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <Icon size={20} className="text-[#B18431]" />
+                  <ArrowDown size={14} className="text-slate-400" />
+                </div>
+
+                <p className="mt-4 text-[27px] font-black">
+                  {loading ? "…" : (values[item.key] ?? "—")}
+                </p>
+
+                <p className="mt-1 text-[11px] font-semibold text-slate-500">
+                  {item.label}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* DETAIL TABLE */}
+
+      <section
+        ref={detailRef}
+        className="scroll-mt-24 overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
+          <div>
+            <h2 className="text-base font-black">Detailed Complaint Records</h2>
+            <p className="mt-1 text-xs text-slate-500">
+              {KPI_CONFIG.find((item) => item.key === activeKpi)?.label} ·{" "}
+              {detailRows.length} loaded matching records
+            </p>
+          </div>
+
+          {activeKpi !== "ALL" && (
+            <button
+              type="button"
+              onClick={() => openKpi("ALL")}
+              className="rounded-lg bg-slate-100 px-3 py-2 text-xs font-bold"
+            >
+              Show All
+            </button>
+          )}
+        </div>
+
+        {detailError && (
+          <p className="p-4 text-xs text-rose-600">{detailError}</p>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[950px] text-left text-xs">
+            <thead className="bg-[#F8FAFD] text-slate-500">
+              <tr>
+                {[
+                  "Complaint",
+                  "Registered",
+                  "Location",
+                  "Category",
+                  "Technician",
+                  "Priority",
+                  "Status",
+                ].map((heading) => (
+                  <th key={heading} className="px-4 py-3 font-bold">
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-100">
+              {visibleRows.map((c) => (
+                <tr key={c._id} className="hover:bg-slate-50">
+                  <td className="px-4 py-3">
+                    <p className="font-extrabold">{c.complaintId}</p>
+                    <p
+                      className="mt-1 max-w-[220px] truncate text-slate-500"
+                      title={c.title}
+                    >
+                      {c.title}
+                    </p>
+                  </td>
+
+                  <td className="px-4 py-3">{displayDate(c.createdAt)}</td>
+
+                  <td className="px-4 py-3">
+                    <p className="font-semibold">{getLocation(c)}</p>
+                    <p className="text-slate-400">
+                      {c.roomNumber || c.issueLocation || "—"}
+                    </p>
+                  </td>
+
+                  <td className="px-4 py-3">{c.category || "—"}</td>
+                  <td className="px-4 py-3">{technicianName(c)}</td>
+                  <td className="px-4 py-3">{c.priority || "—"}</td>
+                  <td className="px-4 py-3">
+                    <StatusTag status={c.status} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {!detailError && detailRows.length === 0 && (
+            <p className="py-12 text-center text-xs text-slate-500">
+              No matching records available.
+            </p>
+          )}
+        </div>
+
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between border-t p-4">
+            <span className="text-xs text-slate-500">
+              Page {safePage} of {totalPages}
+            </span>
+
+            <div className="flex gap-2">
+              <button
+                className="rounded-lg border px-3 py-2 text-xs disabled:opacity-40"
+                disabled={safePage === 1}
+                onClick={() => setPage(safePage - 1)}
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              <button
+                className="rounded-lg border px-3 py-2 text-xs disabled:opacity-40"
+                disabled={safePage === totalPages}
+                onClick={() => setPage(safePage + 1)}
+              >
+                <ChevronRight size={16} />
+              </button>
             </div>
           </div>
+        )}
+      </section>
+
+      {/* DOWNLOAD */}
+
+      <section className="flex flex-wrap items-center justify-between gap-4 rounded-[22px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div>
+          <h2 className="text-sm font-black">Export Maintenance Report</h2>
+          <p className="mt-1 text-xs text-slate-500">
+            PDF or Excel with selected date, location, category and filters.
+          </p>
         </div>
-      </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={!summary || Boolean(downloading) || invalidDates}
+            onClick={() => downloadReport("excel")}
+            className="inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-xs font-bold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+          >
+            {downloading === "excel" ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <FileSpreadsheet size={16} />
+            )}
+            Excel
+            <Download size={14} />
+          </button>
+
+          <button
+            type="button"
+            disabled={!summary || Boolean(downloading) || invalidDates}
+            onClick={() => downloadReport("pdf")}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#102B52] px-4 py-3 text-xs font-bold text-white hover:bg-[#204779] disabled:opacity-50"
+          >
+            {downloading === "pdf" ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <FileText size={16} />
+            )}
+            PDF
+            <Download size={14} />
+          </button>
+        </div>
+      </section>
     </div>
   );
-};
-
-export default Reports;
+}

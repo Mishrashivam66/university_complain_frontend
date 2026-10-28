@@ -1,1101 +1,976 @@
-import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import api from "../../services/api";
 
 import {
-  ShieldCheck,
-  CheckCircle2,
-  Loader2,
-  Search,
-  User,
-  ClipboardList,
-  RefreshCw,
-  MapPin,
-  Clock3,
-  X,
+  Activity,
   AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  Check,
+  CheckCheck,
+  CheckCircle2,
+  ChevronDown,
+  ClipboardCheck,
+  ClipboardList,
+  Clock3,
+  FileCheck2,
+  FilterX,
+  Loader2,
+  MapPin,
+  RefreshCw,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  UserRound,
+  Users,
+  Wrench,
+  X,
 } from "lucide-react";
 
-const API = "https://complaine-backend.vercel.app/api/maintenance/job-cards";
+// ======================================================
+// AMI MAINTENANCE — PREMIUM VERIFICATION CENTER
+// Existing backend verification endpoint preserved.
+// ======================================================
 
-const Verification = () => {
-  // ==========================================
-  // STATES
-  // ==========================================
+const API = "/maintenance/job-cards";
+
+const INPUT =
+  "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-[#102B52] outline-none transition focus:border-[#D6AD59] focus:ring-2 focus:ring-amber-100 disabled:opacity-50";
+
+const PRIMARY =
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-[#102B52] px-4 py-3 text-xs font-extrabold text-white transition hover:bg-[#204779] disabled:cursor-not-allowed disabled:opacity-50";
+
+const SECONDARY =
+  "inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs font-bold text-[#102B52] transition hover:bg-slate-50 disabled:opacity-50";
+
+const GOLD =
+  "inline-flex items-center justify-center gap-2 rounded-xl bg-[#D6AD59] px-4 py-3 text-xs font-extrabold text-[#081B35] transition hover:bg-[#E8C477] disabled:cursor-not-allowed disabled:opacity-50";
+
+const upper = (value) =>
+  String(value ?? "")
+    .trim()
+    .toUpperCase();
+
+const lower = (value) =>
+  String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+const idOf = (value) => String(value?._id ?? value ?? "");
+
+const readable = (value) => String(value || "—").replaceAll("_", " ");
+
+function isCompleted(item) {
+  return ["COMPLETED", "CLOSED"].includes(upper(item?.status));
+}
+
+function getComplaintId(item) {
+  return idOf(item?.complaint);
+}
+
+function locationOf(job) {
+  return job.hostel || job.block || "Other";
+}
+
+function getPendingItems(job) {
+  return (job.complaints || []).filter((item) => !isCompleted(item));
+}
+
+function pendingIds(job) {
+  return getPendingItems(job).map(getComplaintId).filter(Boolean);
+}
+
+// ======================================================
+// COMPONENTS
+// ======================================================
+
+function StatCard({ icon: Icon, title, value, detail, tone = "blue" }) {
+  const colors = {
+    blue: "bg-blue-50 text-blue-600",
+    amber: "bg-amber-50 text-amber-600",
+    purple: "bg-indigo-50 text-indigo-600",
+    green: "bg-emerald-50 text-emerald-600",
+  };
+
+  return (
+    <div className="group rounded-[22px] border border-slate-200/80 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-[#D6AD59]/40 hover:shadow-md">
+      <div className="flex items-start justify-between gap-3">
+        <div
+          className={`flex h-12 w-12 items-center justify-center rounded-2xl ${colors[tone]}`}
+        >
+          <Icon size={23} strokeWidth={1.8} />
+        </div>
+
+        <Activity size={15} className="text-slate-300" />
+      </div>
+
+      <p className="mt-5 text-[30px] font-black tracking-tight text-[#102B52]">
+        {value}
+      </p>
+
+      <p className="mt-1 text-xs font-bold text-slate-600">{title}</p>
+
+      <p className="mt-2 text-[11px] leading-5 text-slate-400">{detail}</p>
+    </div>
+  );
+}
+
+function InfoBox({ icon: Icon, label, value }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-slate-100 bg-[#F8FAFD] p-3.5">
+      <div className="flex items-center gap-2 text-[#A87D30]">
+        <Icon size={15} />
+        <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+          {label}
+        </p>
+      </div>
+
+      <p className="mt-2 break-words text-[13px] font-extrabold text-[#102B52]">
+        {value || "—"}
+      </p>
+    </div>
+  );
+}
+
+function LoadingSkeleton() {
+  return (
+    <div className="animate-pulse space-y-6">
+      <div className="h-48 rounded-[26px] bg-slate-200" />
+
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div key={index} className="h-36 rounded-2xl bg-slate-200" />
+        ))}
+      </div>
+
+      <div className="h-24 rounded-2xl bg-slate-200" />
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className="h-72 rounded-3xl bg-slate-200" />
+        <div className="h-72 rounded-3xl bg-slate-200" />
+      </div>
+    </div>
+  );
+}
+
+// ======================================================
+// MAIN VERIFICATION PAGE
+// ======================================================
+
+export default function Verification() {
+  const navigate = useNavigate();
 
   const [jobCards, setJobCards] = useState([]);
-
   const [loading, setLoading] = useState(true);
-
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
-
-  const [selectedWorker, setSelectedWorker] = useState("ALL");
-
-  // ==========================================
-  // SELECTED COMPLAINTS
-  // { [jobCardId]: [complaintMongoId, ...] }
-  // ==========================================
+  const [workerFilter, setWorkerFilter] = useState("ALL");
+  const [locationFilter, setLocationFilter] = useState("ALL");
+  const [categoryFilter, setCategoryFilter] = useState("ALL");
 
   const [selectedComplaints, setSelectedComplaints] = useState({});
 
-  // ==========================================
-  // UPDATE STATE
-  // ==========================================
-
   const [updatingJobs, setUpdatingJobs] = useState({});
+  const [confirmationId, setConfirmationId] = useState(null);
 
-  // ==========================================
-  // CUSTOM CONFIRMATION MODAL
-  // ==========================================
+  const [expandedJobs, setExpandedJobs] = useState({});
 
-  const [confirmationJob, setConfirmationJob] = useState(null);
+  // ====================================================
+  // FETCH DATA
+  // ====================================================
 
-  // ==========================================
-  // HEADERS
-  // ==========================================
+  const fetchJobCards = useCallback(async ({ silent = false, signal } = {}) => {
+    if (silent) setRefreshing(true);
+    else setLoading(true);
 
-  const getHeaders = () => ({
-    Authorization: `Bearer ${localStorage.getItem("token")}`,
-  });
-
-  // ==========================================
-  // NORMALIZE
-  // ==========================================
-
-  const normalize = (value) => value?.toString()?.trim()?.toLowerCase() || "";
-
-  // ==========================================
-  // FETCH JOB CARDS
-  // ==========================================
-
-  const fetchJobCards = async (showLoader = true) => {
     try {
-      if (showLoader) {
-        setLoading(true);
-      } else {
-        setRefreshing(true);
+      const response = await api.get(API, { signal });
+
+      const items = response?.data?.jobCards;
+
+      if (!Array.isArray(items)) {
+        throw new Error("Invalid verification response");
       }
 
-      const response = await axios.get(API, {
-        headers: getHeaders(),
-      });
+      if (signal?.aborted) return;
 
-      setJobCards(response?.data?.jobCards || []);
-    } catch (error) {
-      console.log("VERIFICATION LOAD ERROR:", error);
+      setJobCards(items);
+      setError("");
 
-      toast.error(
-        error?.response?.data?.message || "Failed to load verification jobs",
-      );
+      if (silent) {
+        toast.success("Verification records refreshed", {
+          duration: 1200,
+        });
+      }
+    } catch (err) {
+      if (
+        signal?.aborted ||
+        err?.code === "ERR_CANCELED" ||
+        err?.name === "CanceledError"
+      ) {
+        return;
+      }
 
-      setJobCards([]);
+      console.error("VERIFICATION LOAD ERROR:", err);
+
+      const message =
+        err?.response?.data?.message || "Unable to load verification records";
+
+      setError(message);
+
+      if (!silent) {
+        toast.error(message, { duration: 2000 });
+      }
     } finally {
-      if (showLoader) {
+      if (!signal?.aborted) {
         setLoading(false);
-      } else {
         setRefreshing(false);
       }
     }
-  };
-
-  // ==========================================
-  // INITIAL LOAD
-  // ==========================================
-
-  useEffect(() => {
-    fetchJobCards();
   }, []);
 
-  // ==========================================
-  // GET COMPLAINT MONGO ID
-  // ==========================================
+  useEffect(() => {
+    const controller = new AbortController();
 
-  const getComplaintMongoId = (item) => {
-    if (typeof item?.complaint === "object") {
-      return item?.complaint?._id?.toString() || "";
-    }
+    void fetchJobCards({
+      signal: controller.signal,
+    });
 
-    return item?.complaint?.toString() || "";
-  };
+    return () => controller.abort();
+  }, [fetchJobCards]);
 
-  // ==========================================
-  // CHECK COMPLETED
-  // ==========================================
+  // ====================================================
+  // DERIVED DATA
+  // ====================================================
 
-  const isComplaintCompleted = (item) => {
-    return ["COMPLETED", "CLOSED"].includes(
-      String(item?.status || "").toUpperCase(),
-    );
-  };
-
-  // ==========================================
-  // PRINTED + ACTIVE JOB CARDS ONLY
-  // ==========================================
-
-  const verificationJobs = useMemo(() => {
-    return jobCards.filter(
-      (job) =>
-        job?.printStatus === "PRINTED" &&
-        job?.status !== "COMPLETED" &&
-        job?.status !== "CLOSED",
-    );
-  }, [jobCards]);
-
-  // ==========================================
-  // UNIQUE WORKERS
-  // ==========================================
+  const verificationJobs = useMemo(
+    () =>
+      jobCards.filter(
+        (job) =>
+          upper(job.printStatus) === "PRINTED" &&
+          !["COMPLETED", "CLOSED"].includes(upper(job.status)),
+      ),
+    [jobCards],
+  );
 
   const workers = useMemo(() => {
     const map = new Map();
 
     verificationJobs.forEach((job) => {
-      const worker = job?.assignedWorker;
+      const worker = job.assignedWorker;
 
       if (worker?._id) {
-        map.set(worker._id, worker);
+        map.set(idOf(worker._id), worker);
       }
     });
 
     return [...map.values()].sort((a, b) =>
-      (a?.name || "").localeCompare(b?.name || ""),
+      String(a.name || "").localeCompare(String(b.name || "")),
     );
   }, [verificationJobs]);
 
-  // ==========================================
-  // FILTER JOB CARDS
-  // ==========================================
+  const locations = useMemo(
+    () => [...new Set(verificationJobs.map(locationOf))].sort(),
+    [verificationJobs],
+  );
+
+  const categories = useMemo(
+    () =>
+      [
+        ...new Set(verificationJobs.map((job) => job.category).filter(Boolean)),
+      ].sort(),
+    [verificationJobs],
+  );
+
+  const totalPending = useMemo(
+    () =>
+      verificationJobs.reduce(
+        (total, job) => total + getPendingItems(job).length,
+        0,
+      ),
+    [verificationJobs],
+  );
+
+  const completedCount = useMemo(
+    () =>
+      jobCards.reduce(
+        (total, job) =>
+          total + (job.complaints || []).filter(isCompleted).length,
+        0,
+      ),
+    [jobCards],
+  );
 
   const filteredJobs = useMemo(() => {
-    const q = normalize(search);
+    const query = lower(search);
 
     return verificationJobs.filter((job) => {
-      const workerId = job?.assignedWorker?._id?.toString() || "";
+      const searchable = [
+        job.jobCardId,
+        job.hostel,
+        job.block,
+        job.category,
+        job.assignedWorker?.name,
+        ...(job.complaints || []).flatMap((item) => [
+          item.complaint?.complaintId,
+          item.title || item.complaint?.title,
+          item.roomNumber,
+          item.floor,
+        ]),
+      ]
+        .map(lower)
+        .join(" ");
 
-      const matchesWorker =
-        selectedWorker === "ALL" || workerId === selectedWorker;
-
-      const matchesSearch =
-        !q ||
-        normalize(job.jobCardId).includes(q) ||
-        normalize(job.hostel).includes(q) ||
-        normalize(job.block).includes(q) ||
-        normalize(job.category).includes(q) ||
-        normalize(job?.assignedWorker?.name).includes(q) ||
-        job?.complaints?.some(
-          (item) =>
-            normalize(item?.complaint?.complaintId).includes(q) ||
-            normalize(item?.title || item?.complaint?.title).includes(q) ||
-            normalize(item?.roomNumber).includes(q) ||
-            normalize(item?.floor).includes(q),
-        );
-
-      return matchesWorker && matchesSearch;
+      return (
+        (!query || searchable.includes(query)) &&
+        (workerFilter === "ALL" || idOf(job.assignedWorker) === workerFilter) &&
+        (locationFilter === "ALL" || locationOf(job) === locationFilter) &&
+        (categoryFilter === "ALL" || job.category === categoryFilter)
+      );
     });
-  }, [verificationJobs, search, selectedWorker]);
+  }, [verificationJobs, search, workerFilter, locationFilter, categoryFilter]);
 
-  // ==========================================
-  // PENDING COMPLAINT COUNT
-  // ==========================================
+  const confirmationJob = useMemo(
+    () => jobCards.find((job) => idOf(job._id) === confirmationId) || null,
+    [jobCards, confirmationId],
+  );
 
-  const totalPendingComplaints = useMemo(() => {
-    return verificationJobs.reduce((count, job) => {
-      const pending = (job?.complaints || []).filter(
-        (item) => !isComplaintCompleted(item),
-      ).length;
+  function validSelectedIds(job) {
+    const valid = new Set(pendingIds(job));
 
-      return count + pending;
-    }, 0);
-  }, [verificationJobs]);
+    return (selectedComplaints[idOf(job._id)] || []).filter((id) =>
+      valid.has(id),
+    );
+  }
 
-  // ==========================================
-  // COMPLETED COMPLAINT COUNT
-  // ==========================================
+  function toggleComplaint(job, complaintId) {
+    if (!complaintId || updatingJobs[idOf(job._id)]) return;
 
-  const completedComplaints = useMemo(() => {
-    return jobCards.reduce((count, job) => {
-      const completed = (job?.complaints || []).filter(
-        isComplaintCompleted,
-      ).length;
+    const jobId = idOf(job._id);
 
-      return count + completed;
-    }, 0);
-  }, [jobCards]);
-
-  // ==========================================
-  // GET SELECTED IDS
-  // ==========================================
-
-  const getSelectedIds = (jobId) => selectedComplaints[jobId] || [];
-
-  // ==========================================
-  // TOGGLE COMPLAINT
-  // ==========================================
-
-  const toggleComplaint = (jobId, complaintId) => {
-    if (!complaintId) return;
-
-    setSelectedComplaints((prev) => {
-      const current = prev[jobId] || [];
+    setSelectedComplaints((previous) => {
+      const selected = previous[jobId] || [];
 
       return {
-        ...prev,
-
-        [jobId]: current.includes(complaintId)
-          ? current.filter((id) => id !== complaintId)
-          : [...current, complaintId],
+        ...previous,
+        [jobId]: selected.includes(complaintId)
+          ? selected.filter((id) => id !== complaintId)
+          : [...selected, complaintId],
       };
     });
-  };
+  }
 
-  // ==========================================
-  // SELECT ALL PENDING
-  // ==========================================
-
-  const selectAllPending = (job) => {
-    const pendingIds = (job?.complaints || [])
-      .filter((item) => !isComplaintCompleted(item))
-      .map(getComplaintMongoId)
-      .filter(Boolean);
-
-    const current = getSelectedIds(job._id);
+  function selectAllPending(job) {
+    const jobId = idOf(job._id);
+    const valid = pendingIds(job);
+    const current = validSelectedIds(job);
 
     const allSelected =
-      pendingIds.length > 0 && pendingIds.every((id) => current.includes(id));
+      valid.length > 0 && valid.every((id) => current.includes(id));
 
-    setSelectedComplaints((prev) => ({
-      ...prev,
-
-      [job._id]: allSelected ? [] : pendingIds,
+    setSelectedComplaints((previous) => ({
+      ...previous,
+      [jobId]: allSelected ? [] : valid,
     }));
-  };
+  }
 
-  // ==========================================
-  // OPEN CONFIRMATION MODAL
-  // ==========================================
-
-  const openConfirmation = (job) => {
-    const complaintIds = getSelectedIds(job._id);
-
-    if (complaintIds.length === 0) {
-      return toast.error("Select at least one completed complaint");
-    }
-
-    setConfirmationJob(job);
-  };
-
-  // ==========================================
-  // CLOSE CONFIRMATION MODAL
-  // ==========================================
-
-  const closeConfirmation = () => {
-    if (confirmationJob && updatingJobs[confirmationJob._id]) {
+  function openConfirmation(job) {
+    if (!validSelectedIds(job).length) {
+      toast.error("Select at least one complaint", {
+        duration: 1500,
+      });
       return;
     }
 
-    setConfirmationJob(null);
-  };
+    setConfirmationId(idOf(job._id));
+  }
 
-  // ==========================================
-  // COMPLETE SELECTED COMPLAINTS
-  // ==========================================
-
-  const handleCompleteSelected = async (job) => {
-    const complaintIds = getSelectedIds(job._id);
-
-    if (complaintIds.length === 0) {
-      setConfirmationJob(null);
-
-      return toast.error("Select at least one completed complaint");
+  function closeConfirmation() {
+    if (confirmationJob && updatingJobs[idOf(confirmationJob._id)]) {
+      return;
     }
 
+    setConfirmationId(null);
+  }
+
+  // ====================================================
+  // COMPLETE SELECTED COMPLAINTS
+  // ====================================================
+
+  async function handleCompleteSelected(job) {
+    if (!job) return;
+
+    const jobId = idOf(job._id);
+    const complaintIds = validSelectedIds(job);
+
+    if (!complaintIds.length || updatingJobs[jobId]) {
+      return;
+    }
+
+    setUpdatingJobs((previous) => ({
+      ...previous,
+      [jobId]: true,
+    }));
+
     try {
-      // ======================================
-      // UPDATING STATE
-      // ======================================
-
-      setUpdatingJobs((prev) => ({
-        ...prev,
-
-        [job._id]: true,
-      }));
-
-      // ======================================
-      // BACKEND API
-      // ======================================
-
-      const response = await axios.put(
-        `${API}/${job._id}/complete-complaints`,
-
-        {
-          complaintIds,
-        },
-
-        {
-          headers: getHeaders(),
-        },
-      );
+      const response = await api.put(`${API}/${jobId}/complete-complaints`, {
+        complaintIds,
+      });
 
       const updatedJobCard = response?.data?.jobCard;
 
-      // ======================================
-      // UPDATE LOCAL JOB CARDS
-      // ======================================
-
       if (updatedJobCard?._id) {
-        setJobCards((prev) =>
-          prev.map((item) =>
-            item._id === updatedJobCard._id ? updatedJobCard : item,
+        setJobCards((previous) =>
+          previous.map((current) =>
+            idOf(current._id) === idOf(updatedJobCard._id)
+              ? updatedJobCard
+              : current,
           ),
         );
       } else {
-        await fetchJobCards(false);
+        await fetchJobCards();
       }
 
-      // ======================================
-      // CLEAR SELECTION
-      // ======================================
-
-      setSelectedComplaints((prev) => ({
-        ...prev,
-
-        [job._id]: [],
+      setSelectedComplaints((previous) => ({
+        ...previous,
+        [jobId]: [],
       }));
 
-      // ======================================
-      // CLOSE CUSTOM MODAL
-      // ======================================
-
-      setConfirmationJob(null);
-
-      // ======================================
-      // SUCCESS MESSAGE
-      // ======================================
+      setConfirmationId(null);
 
       toast.success(
         `${complaintIds.length} complaint${
           complaintIds.length !== 1 ? "s" : ""
-        } completed successfully`,
+        } updated successfully`,
+        { duration: 1400 },
       );
-    } catch (error) {
-      console.log("VERIFICATION UPDATE ERROR:", error);
+    } catch (err) {
+      console.error("VERIFICATION COMPLETION ERROR:", err);
 
       toast.error(
-        error?.response?.data?.message ||
+        err?.response?.data?.message ||
           "Failed to complete selected complaints",
+        { duration: 2500 },
       );
     } finally {
-      setUpdatingJobs((prev) => ({
-        ...prev,
-
-        [job._id]: false,
+      setUpdatingJobs((previous) => ({
+        ...previous,
+        [jobId]: false,
       }));
     }
-  };
+  }
 
-  // ==========================================
-  // LOADING
-  // ==========================================
+  function resetFilters() {
+    setSearch("");
+    setWorkerFilter("ALL");
+    setLocationFilter("ALL");
+    setCategoryFilter("ALL");
+  }
 
   if (loading) {
-    return (
-      <div className="flex min-h-[70vh] items-center justify-center">
-        <Loader2 size={52} className="animate-spin text-[#001B54]" />
-      </div>
-    );
+    return <LoadingSkeleton />;
   }
 
   return (
-    <>
-      <div className="space-y-6">
-        {/* ======================================
-            HEADER
-        ====================================== */}
+    <main className="min-w-0 space-y-6 pb-8 text-[#102B52]">
+      {/* HEADER */}
 
-        <section
-          className="
-            rounded-3xl
-            bg-gradient-to-r
-            from-[#001B54]
-            via-[#002B7F]
-            to-[#7A0019]
-            p-6
-            text-white
-            shadow-2xl
-            md:p-8
-          "
-        >
-          <div
-            className="
-              flex
-              flex-col
-              gap-5
-              lg:flex-row
-              lg:items-center
-              lg:justify-between
-            "
-          >
-            <div className="flex items-center gap-4">
-              <ShieldCheck size={46} />
+      <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-[#081B35] via-[#102E55] to-[#204779] p-6 text-white shadow-[0_12px_35px_rgba(8,27,53,0.12)] sm:p-8">
+        <div className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full border-[42px] border-white/[0.04]" />
 
-              <div>
-                <h1
-                  className="
-                    text-3xl
-                    font-extrabold
-                    md:text-5xl
-                  "
-                >
-                  Verification
-                </h1>
-
-                <p className="mt-2 text-blue-100">
-                  Verify returned Job Cards and complete confirmed complaints.
-                </p>
-              </div>
+        <div className="relative z-10 flex flex-col justify-between gap-6 lg:flex-row lg:items-center">
+          <div className="max-w-2xl">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#D6AD59]/30 bg-[#D6AD59]/10 px-3 py-1.5">
+              <Sparkles size={13} className="text-[#E8C477]" />
+              <span className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#F0D494]">
+                AMI MAINTENANCE · QUALITY CONTROL
+              </span>
             </div>
 
-            <button
-              onClick={() => fetchJobCards(false)}
-              disabled={refreshing}
-              className="
-                flex
-                items-center
-                justify-center
-                gap-2
-                rounded-2xl
-                bg-white
-                px-5
-                py-3
-                font-bold
-                text-[#001B54]
-                disabled:opacity-60
-              "
-            >
-              <RefreshCw
-                size={18}
-                className={refreshing ? "animate-spin" : ""}
-              />
+            <h1 className="mt-4 text-[27px] font-black tracking-tight sm:text-[34px]">
+              Job Card Verification
+            </h1>
 
-              {refreshing ? "Refreshing..." : "Refresh"}
-            </button>
-          </div>
-        </section>
-
-        {/* ======================================
-            STATS
-        ====================================== */}
-
-        <section
-          className="
-            grid
-            grid-cols-2
-            gap-4
-            xl:grid-cols-4
-          "
-        >
-          <Stat
-            icon={<ClipboardList size={25} />}
-            value={verificationJobs.length}
-            label="Printed Active Job Cards"
-            box="bg-blue-100"
-            text="text-blue-700"
-          />
-
-          <Stat
-            icon={<User size={25} />}
-            value={workers.length}
-            label="Active Workers"
-            box="bg-purple-100"
-            text="text-purple-700"
-          />
-
-          <Stat
-            icon={<Clock3 size={25} />}
-            value={totalPendingComplaints}
-            label="Pending Verification"
-            box="bg-yellow-100"
-            text="text-yellow-700"
-          />
-
-          <Stat
-            icon={<CheckCircle2 size={25} />}
-            value={completedComplaints}
-            label="Completed Complaints"
-            box="bg-green-100"
-            text="text-green-700"
-          />
-        </section>
-
-        {/* ======================================
-            SEARCH + WORKER FILTER
-        ====================================== */}
-
-        <section
-          className="
-            rounded-3xl
-            bg-white
-            p-5
-            shadow-xl
-          "
-        >
-          <div
-            className="
-              grid
-              grid-cols-1
-              gap-4
-              lg:grid-cols-[1fr_280px]
-            "
-          >
-            <div className="relative">
-              <Search
-                size={19}
-                className="
-                  absolute
-                  left-4
-                  top-1/2
-                  -translate-y-1/2
-                  text-gray-400
-                "
-              />
-
-              <input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search Job Card, complaint, room, worker..."
-                className="
-                  w-full
-                  rounded-2xl
-                  border
-                  border-gray-200
-                  py-3
-                  pl-11
-                  pr-4
-                  outline-none
-                  focus:ring-2
-                  focus:ring-[#001B54]
-                "
-              />
-            </div>
-
-            <select
-              value={selectedWorker}
-              onChange={(event) => setSelectedWorker(event.target.value)}
-              className="
-                rounded-2xl
-                border
-                border-gray-200
-                px-4
-                py-3
-              "
-            >
-              <option value="ALL">All Workers</option>
-
-              {workers.map((worker) => (
-                <option key={worker._id} value={worker._id}>
-                  {worker.name}
-                  {" - "}
-                  {worker.department || "Worker"}
-                </option>
-              ))}
-            </select>
-          </div>
-        </section>
-
-        {/* ======================================
-            NO JOBS
-        ====================================== */}
-
-        {filteredJobs.length === 0 ? (
-          <section
-            className="
-              rounded-3xl
-              bg-white
-              p-12
-              text-center
-              shadow-xl
-            "
-          >
-            <CheckCircle2
-              size={58}
-              className="
-                mx-auto
-                text-green-300
-              "
-            />
-
-            <h2
-              className="
-                mt-4
-                text-2xl
-                font-bold
-                text-[#001B54]
-              "
-            >
-              No Jobs Pending Verification
-            </h2>
-
-            <p className="mt-2 text-gray-500">
-              Printed active Job Cards will appear here.
+            <p className="mt-3 max-w-xl text-[13px] leading-6 text-slate-300">
+              Review returned printed Job Cards, verify completed maintenance
+              work and update selected complaints with confidence.
             </p>
-          </section>
-        ) : (
-          // ======================================
-          // JOB CARD LIST
-          // ======================================
 
-          <section
-            className="
-              grid
-              grid-cols-1
-              gap-6
-              xl:grid-cols-2
-            "
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => navigate("/maintenance/job-cards")}
+                className="inline-flex items-center gap-2 rounded-xl bg-[#D6AD59] px-4 py-3 text-xs font-extrabold text-[#081B35] transition hover:bg-[#E8C477]"
+              >
+                <ArrowLeft size={16} />
+                Back to Job Cards
+              </button>
+
+              <button
+                type="button"
+                disabled={refreshing}
+                onClick={() => fetchJobCards({ silent: true })}
+                className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-xs font-bold text-white transition hover:bg-white/20 disabled:opacity-50"
+              >
+                <RefreshCw
+                  size={16}
+                  className={refreshing ? "animate-spin" : ""}
+                />
+                {refreshing ? "Refreshing..." : "Refresh"}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-2xl border border-white/15 bg-white/[0.07] p-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#D6AD59]/20 text-[#E8C477]">
+              <ShieldCheck size={25} />
+            </div>
+
+            <div>
+              <p className="text-[10px] font-bold uppercase text-slate-300">
+                Operations Portal
+              </p>
+              <p className="mt-1 text-sm font-extrabold">Maintenance Manager</p>
+              <p className="mt-1 text-[11px] text-slate-300">AMI MAINTENANCE</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* API ERROR */}
+
+      {error && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-200 bg-rose-50 p-4"
+        >
+          <p className="flex items-center gap-2 text-xs font-semibold text-rose-700">
+            <AlertTriangle size={17} />
+            {error}
+          </p>
+
+          <button
+            type="button"
+            onClick={() => fetchJobCards({ silent: true })}
+            className="text-xs font-bold text-rose-700 underline"
           >
-            {filteredJobs.map((job) => {
-              const pendingItems = (job?.complaints || []).filter(
-                (item) => !isComplaintCompleted(item),
-              );
+            Retry
+          </button>
+        </div>
+      )}
 
-              const selectedCount = getSelectedIds(job._id).length;
+      {/* STATISTICS */}
 
-              const updating = updatingJobs[job._id] || false;
+      <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+        <StatCard
+          title="Printed Active Job Cards"
+          value={verificationJobs.length}
+          detail="Available for review"
+          icon={ClipboardList}
+          tone="blue"
+        />
 
-              return (
-                <article
-                  key={job._id}
-                  className="
-                    overflow-hidden
-                    rounded-3xl
-                    border
-                    border-gray-100
-                    bg-white
-                    shadow-xl
-                  "
-                >
-                  {/* ==============================
-                      JOB HEADER
-                  ============================== */}
+        <StatCard
+          title="Assigned Technicians"
+          value={workers.length}
+          detail="Technicians in active printed cards"
+          icon={Users}
+          tone="purple"
+        />
 
-                  <div
-                    className="
-                      bg-gradient-to-r
-                      from-[#001B54]
-                      to-[#7A0019]
-                      p-5
-                      text-white
-                    "
-                  >
-                    <div
-                      className="
-                        flex
-                        items-start
-                        justify-between
-                        gap-4
-                      "
-                    >
-                      <div>
-                        <p className="text-xs text-blue-100">Job Card</p>
+        <StatCard
+          title="Pending Verification"
+          value={totalPending}
+          detail="Items not yet marked complete"
+          icon={Clock3}
+          tone="amber"
+        />
 
-                        <h2
-                          className="
-                            mt-1
-                            text-2xl
-                            font-extrabold
-                          "
-                        >
-                          {job.jobCardId}
-                        </h2>
+        <StatCard
+          title="Completed Complaints"
+          value={completedCount}
+          detail="Across loaded Job Cards"
+          icon={CheckCircle2}
+          tone="green"
+        />
+      </div>
 
-                        <p
-                          className="
-                            mt-2
-                            text-sm
-                            text-blue-100
-                          "
-                        >
-                          Worker: {job?.assignedWorker?.name || "--"}
-                        </p>
-                      </div>
+      {/* FILTER PANEL */}
 
-                      <span
-                        className="
-                          rounded-full
-                          bg-white
-                          px-3
-                          py-1.5
-                          text-xs
-                          font-bold
-                          text-[#001B54]
-                        "
-                      >
-                        {pendingItems.length} Pending
-                      </span>
+      <section className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-base font-extrabold">Verification Queue</h2>
+
+            <p className="mt-1 text-xs text-slate-500">
+              Find Job Cards by complaint, location, category or assigned
+              Technician.
+            </p>
+          </div>
+
+          <span className="rounded-xl bg-[#F8FAFD] px-3 py-2 text-xs font-extrabold text-[#102B52]">
+            {filteredJobs.length} Job Cards
+          </span>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <label className="relative md:col-span-2 xl:col-span-1">
+            <Search
+              size={17}
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              className={`${INPUT} pl-10`}
+              value={search}
+              placeholder="Search Job Card, complaint, room..."
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+
+          <select
+            className={INPUT}
+            value={workerFilter}
+            onChange={(event) => setWorkerFilter(event.target.value)}
+          >
+            <option value="ALL">All Technicians</option>
+            {workers.map((worker) => (
+              <option key={worker._id} value={idOf(worker._id)}>
+                {worker.name} · {worker.department || "Technician"}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className={INPUT}
+            value={locationFilter}
+            onChange={(event) => setLocationFilter(event.target.value)}
+          >
+            <option value="ALL">All Locations</option>
+            {locations.map((location) => (
+              <option key={location} value={location}>
+                {location}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className={INPUT}
+            value={categoryFilter}
+            onChange={(event) => setCategoryFilter(event.target.value)}
+          >
+            <option value="ALL">All Categories</option>
+            {categories.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {(search ||
+          workerFilter !== "ALL" ||
+          locationFilter !== "ALL" ||
+          categoryFilter !== "ALL") && (
+          <button
+            type="button"
+            onClick={resetFilters}
+            className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-[#A87D30] hover:underline"
+          >
+            <FilterX size={15} />
+            Clear Filters
+          </button>
+        )}
+      </section>
+
+      {/* JOB CARDS */}
+
+      {filteredJobs.length === 0 ? (
+        <div className="rounded-[24px] border border-slate-200 bg-white px-5 py-16 text-center shadow-sm">
+          <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+            <FileCheck2 size={29} />
+          </div>
+
+          <h3 className="mt-4 text-base font-extrabold">No Job Cards Found</h3>
+
+          <p className="mx-auto mt-2 max-w-sm text-xs leading-6 text-slate-500">
+            Printed and active Job Cards matching your filters will appear here.
+          </p>
+        </div>
+      ) : (
+        <div className="grid items-start gap-5 xl:grid-cols-2">
+          {filteredJobs.map((job) => {
+            const jobId = idOf(job._id);
+            const items = job.complaints || [];
+            const pending = getPendingItems(job);
+            const selected = validSelectedIds(job);
+            const updating = Boolean(updatingJobs[jobId]);
+
+            const allSelected =
+              pending.length > 0 &&
+              pendingIds(job).every((id) => selected.includes(id));
+
+            const completed = items.length - pending.length;
+
+            const percent = items.length ? (completed / items.length) * 100 : 0;
+
+            const expanded = expandedJobs[jobId] !== false;
+
+            return (
+              <article
+                key={jobId}
+                className="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm transition hover:shadow-md"
+              >
+                {/* CARD HEADER */}
+
+                <div className="bg-gradient-to-r from-[#081B35] to-[#204779] p-5 text-white">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#E8C477]">
+                        PRINTED JOB CARD
+                      </p>
+
+                      <h3 className="mt-2 break-all text-xl font-black">
+                        {job.jobCardId}
+                      </h3>
+
+                      <p className="mt-2 flex items-center gap-2 text-xs text-slate-300">
+                        <UserRound size={14} />
+                        {job.assignedWorker?.name || "Technician unavailable"}
+                      </p>
+                    </div>
+
+                    <span className="rounded-full border border-amber-200/30 bg-[#D6AD59]/15 px-3 py-1.5 text-[10px] font-extrabold text-[#E8C477]">
+                      {pending.length} Pending
+                    </span>
+                  </div>
+                </div>
+
+                {/* CARD BODY */}
+
+                <div className="space-y-5 p-4 sm:p-5">
+                  <div className="grid grid-cols-2 gap-3">
+                    <InfoBox
+                      icon={MapPin}
+                      label="Location"
+                      value={locationOf(job)}
+                    />
+
+                    <InfoBox
+                      icon={Wrench}
+                      label="Category"
+                      value={job.category}
+                    />
+
+                    <InfoBox
+                      icon={ClipboardList}
+                      label="Total Complaints"
+                      value={items.length}
+                    />
+
+                    <InfoBox
+                      icon={CheckCheck}
+                      label="Completed"
+                      value={completed}
+                    />
+                  </div>
+
+                  {/* PROGRESS */}
+
+                  <div>
+                    <div className="flex justify-between text-xs font-bold">
+                      <span>Verification Progress</span>
+                      <span>{percent.toFixed(0)}%</span>
+                    </div>
+
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full bg-[#D6AD59] transition-all duration-300"
+                        style={{
+                          width: `${percent}%`,
+                        }}
+                      />
                     </div>
                   </div>
 
-                  {/* ==============================
-                      JOB BODY
-                  ============================== */}
+                  {/* COMPLAINT HEADER */}
 
-                  <div className="p-5">
-                    {/* LOCATION + CATEGORY */}
-
-                    <div
-                      className="
-                        grid
-                        grid-cols-2
-                        gap-3
-                      "
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                    <button
+                      type="button"
+                      className="flex items-center gap-2 text-left text-sm font-extrabold"
+                      onClick={() =>
+                        setExpandedJobs((previous) => ({
+                          ...previous,
+                          [jobId]: !expanded,
+                        }))
+                      }
                     >
-                      <Info
-                        icon={<MapPin size={17} />}
-                        label="Location"
-                        value={job.hostel || job.block || "--"}
+                      <ClipboardCheck size={18} />
+                      Complaint Verification
+                      <ChevronDown
+                        size={16}
+                        className={`transition-transform ${
+                          expanded ? "rotate-180" : ""
+                        }`}
                       />
+                    </button>
 
-                      <Info
-                        icon={<ClipboardList size={17} />}
-                        label="Category"
-                        value={job.category || "--"}
-                      />
-                    </div>
-
-                    {/* ==============================
-                        COMPLAINT VERIFICATION HEADER
-                    ============================== */}
-
-                    <div
-                      className="
-                        mt-5
-                        flex
-                        items-center
-                        justify-between
-                        gap-3
-                      "
+                    <button
+                      type="button"
+                      disabled={updating || pending.length === 0}
+                      onClick={() => selectAllPending(job)}
+                      className="rounded-xl bg-amber-50 px-3 py-2 text-[11px] font-extrabold text-[#946B25] hover:bg-amber-100 disabled:opacity-50"
                     >
-                      <div>
-                        <p
-                          className="
-                            font-bold
-                            text-[#001B54]
-                          "
-                        >
-                          Complaint Verification
-                        </p>
+                      {allSelected ? "Clear Selection" : "Select All Pending"}
+                    </button>
+                  </div>
 
-                        <p
-                          className="
-                            text-xs
-                            text-gray-500
-                          "
-                        >
-                          Tick only completed work from returned physical card.
-                        </p>
-                      </div>
+                  {expanded && (
+                    <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                      {items.map((item, index) => {
+                        const complaintId = getComplaintId(item);
+                        const done = isCompleted(item);
 
-                      <button
-                        onClick={() => selectAllPending(job)}
-                        disabled={pendingItems.length === 0}
-                        className="
-                          rounded-xl
-                          bg-blue-50
-                          px-3
-                          py-2
-                          text-xs
-                          font-bold
-                          text-[#001B54]
-                          disabled:opacity-50
-                        "
-                      >
-                        Select All Pending
-                      </button>
-                    </div>
-
-                    {/* ==============================
-                        COMPLAINT LIST
-                    ============================== */}
-
-                    <div className="mt-4 space-y-3">
-                      {(job?.complaints || []).map((item, index) => {
-                        const complaintId = getComplaintMongoId(item);
-
-                        const completed = isComplaintCompleted(item);
-
-                        const checked =
-                          completed ||
-                          getSelectedIds(job._id).includes(complaintId);
+                        const checked = done || selected.includes(complaintId);
 
                         return (
                           <label
-                            key={complaintId || index}
-                            className={`
-                                flex
-                                items-start
-                                gap-3
-                                rounded-2xl
-                                border
-                                p-4
-
-                                ${
-                                  completed
-                                    ? `
-                                      border-green-200
-                                      bg-green-50
-                                    `
-                                    : `
-                                      border-gray-200
-                                      bg-gray-50
-                                    `
-                                }
-                              `}
+                            key={item._id || complaintId || index}
+                            className={`flex gap-3 rounded-xl border p-3.5 transition ${
+                              done
+                                ? "border-emerald-200 bg-emerald-50/60"
+                                : checked
+                                  ? "border-[#D6AD59] bg-amber-50/50"
+                                  : "border-slate-200 bg-[#FAFBFD] hover:border-amber-200"
+                            } ${
+                              done || !complaintId
+                                ? "cursor-default"
+                                : "cursor-pointer"
+                            }`}
                           >
                             <input
                               type="checkbox"
                               checked={checked}
-                              disabled={completed || !complaintId}
-                              onChange={() =>
-                                toggleComplaint(job._id, complaintId)
-                              }
-                              className="
-                                  mt-1
-                                  h-5
-                                  w-5
-                                  accent-green-600
-                                "
+                              disabled={done || !complaintId || updating}
+                              onChange={() => toggleComplaint(job, complaintId)}
+                              className="mt-1 h-4 w-4 shrink-0 accent-[#102B52]"
                             />
 
-                            <div
-                              className="
-                                  min-w-0
-                                  flex-1
-                                "
-                            >
-                              <div
-                                className="
-                                    flex
-                                    flex-wrap
-                                    items-center
-                                    gap-2
-                                  "
-                              >
-                                <span
-                                  className="
-                                      font-extrabold
-                                      text-[#001B54]
-                                    "
-                                >
-                                  {item?.complaint?.complaintId ||
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <p className="text-xs font-black text-[#102B52]">
+                                  {item.complaint?.complaintId ||
                                     `Complaint ${index + 1}`}
-                                </span>
+                                </p>
 
-                                {completed && (
-                                  <span
-                                    className="
-                                        rounded-full
-                                        bg-green-600
-                                        px-2.5
-                                        py-1
-                                        text-[10px]
-                                        font-bold
-                                        text-white
-                                      "
-                                  >
-                                    COMPLETED
-                                  </span>
-                                )}
+                                <span
+                                  className={`rounded-full px-2.5 py-1 text-[9px] font-extrabold ${
+                                    done
+                                      ? "bg-emerald-100 text-emerald-700"
+                                      : checked
+                                        ? "bg-amber-100 text-amber-800"
+                                        : "bg-slate-200 text-slate-600"
+                                  }`}
+                                >
+                                  {done
+                                    ? "COMPLETED"
+                                    : checked
+                                      ? "SELECTED"
+                                      : readable(item.status)}
+                                </span>
                               </div>
 
-                              <p
-                                className="
-                                    mt-1
-                                    font-semibold
-                                    text-gray-700
-                                  "
-                              >
+                              <p className="mt-1.5 text-[12px] font-semibold text-slate-700">
                                 {item.title ||
-                                  item?.complaint?.title ||
+                                  item.complaint?.title ||
                                   "No title"}
                               </p>
 
-                              <p
-                                className="
-                                    mt-1
-                                    text-xs
-                                    text-gray-500
-                                  "
-                              >
-                                Room: {item.roomNumber || "-"} • Floor:{" "}
-                                {item.floor || "-"}
+                              <p className="mt-2 flex flex-wrap items-center gap-2 text-[11px] text-slate-500">
+                                <MapPin size={12} />
+                                Room {item.roomNumber || "—"}
+                                <span>·</span>
+                                Floor {item.floor || "—"}
                               </p>
                             </div>
                           </label>
                         );
                       })}
                     </div>
+                  )}
 
-                    {/* ==============================
-                        VERIFY BUTTON
-                    ============================== */}
+                  {/* ACTION FOOTER */}
+
+                  <div className="border-t border-slate-100 pt-4">
+                    <div className="mb-3 flex items-center justify-between">
+                      <span className="text-xs text-slate-500">
+                        Selected for verification
+                      </span>
+
+                      <span className="text-sm font-black text-[#102B52]">
+                        {selected.length}
+                      </span>
+                    </div>
 
                     <button
+                      type="button"
+                      className={`${PRIMARY} w-full`}
+                      disabled={!selected.length || updating}
                       onClick={() => openConfirmation(job)}
-                      disabled={selectedCount === 0 || updating}
-                      className="
-                        mt-5
-                        flex
-                        w-full
-                        items-center
-                        justify-center
-                        gap-2
-                        rounded-2xl
-                        bg-green-600
-                        px-5
-                        py-4
-                        font-extrabold
-                        text-white
-                        transition
-                        hover:bg-green-700
-                        disabled:cursor-not-allowed
-                        disabled:opacity-50
-                      "
                     >
                       {updating ? (
-                        <>
-                          <Loader2 size={19} className="animate-spin" />
-                          Updating...
-                        </>
+                        <Loader2 size={16} className="animate-spin" />
                       ) : (
-                        <>
-                          <ShieldCheck size={19} />
-                          Verify & Complete Selected ({selectedCount})
-                        </>
+                        <ShieldCheck size={17} />
                       )}
+
+                      {updating
+                        ? "Updating..."
+                        : `Verify & Complete Selected (${selected.length})`}
+                      <ArrowRight size={15} />
                     </button>
                   </div>
-                </article>
-              );
-            })}
-          </section>
-        )}
-      </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      )}
 
-      {/* ==========================================
-          CUSTOM CONFIRMATION MODAL
-      ========================================== */}
+      {/* CONFIRMATION MODAL */}
 
       {confirmationJob && (
         <div
-          className="
-            fixed
-            inset-0
-            z-[200]
-
-            flex
-            items-center
-            justify-center
-
-            bg-black/55
-            backdrop-blur-sm
-
-            p-4
-          "
+          role="dialog"
+          aria-modal="true"
+          aria-label="Confirm Job Card verification"
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-slate-950/65 p-4 backdrop-blur-sm"
         >
-          {/* OVERLAY */}
-
           <button
             type="button"
-            aria-label="Close confirmation"
             onClick={closeConfirmation}
-            className="
-              absolute
-              inset-0
-              h-full
-              w-full
-              cursor-default
-            "
+            aria-label="Close confirmation"
+            className="absolute inset-0 h-full w-full"
           />
 
-          {/* MODAL */}
-
-          <div
-            className="
-              relative
-              z-10
-
-              w-full
-              max-w-md
-
-              overflow-hidden
-
-              rounded-3xl
-              bg-white
-
-              shadow-2xl
-            "
-          >
-            {/* MODAL HEADER */}
-
-            <div
-              className="
-                bg-gradient-to-r
-                from-[#001B54]
-                to-[#7A0019]
-
-                px-6
-                py-5
-
-                text-white
-              "
-            >
-              <div
-                className="
-                  flex
-                  items-center
-                  justify-between
-                  gap-4
-                "
-              >
-                <div
-                  className="
-                    flex
-                    items-center
-                    gap-3
-                  "
-                >
-                  <div
-                    className="
-                      flex
-                      h-11
-                      w-11
-                      items-center
-                      justify-center
-
-                      rounded-2xl
-
-                      bg-white/15
-                    "
-                  >
-                    <ShieldCheck size={25} />
+          <div className="relative z-10 w-full max-w-md overflow-hidden rounded-[24px] bg-white shadow-2xl">
+            <div className="bg-gradient-to-r from-[#081B35] to-[#204779] p-5 text-white">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#D6AD59]/20 text-[#E8C477]">
+                    <ShieldCheck size={22} />
                   </div>
 
                   <div>
-                    <p
-                      className="
-                        text-xs
-                        text-blue-100
-                      "
-                    >
+                    <p className="text-[10px] font-bold uppercase text-[#E8C477]">
                       Final Verification
                     </p>
-
-                    <h2
-                      className="
-                        text-xl
-                        font-extrabold
-                      "
-                    >
+                    <h2 className="mt-1 text-lg font-black">
                       Confirm Completion
                     </h2>
                   </div>
@@ -1104,394 +979,92 @@ const Verification = () => {
                 <button
                   type="button"
                   onClick={closeConfirmation}
-                  disabled={updatingJobs[confirmationJob._id]}
-                  className="
-                    flex
-                    h-10
-                    w-10
-                    items-center
-                    justify-center
-
-                    rounded-xl
-
-                    bg-white/15
-
-                    transition
-
-                    hover:bg-white/25
-
-                    disabled:opacity-50
-                  "
+                  disabled={Boolean(updatingJobs[idOf(confirmationJob._id)])}
+                  className="rounded-xl bg-white/10 p-2.5 hover:bg-white/20 disabled:opacity-50"
+                  aria-label="Close"
                 >
-                  <X size={20} />
+                  <X size={19} />
                 </button>
               </div>
             </div>
 
-            {/* MODAL BODY */}
-
-            <div className="p-6">
-              {/* WARNING ICON */}
-
-              <div
-                className="
-                  mx-auto
-                  flex
-                  h-16
-                  w-16
-                  items-center
-                  justify-center
-
-                  rounded-full
-
-                  bg-green-100
-                "
-              >
-                <CheckCircle2 size={34} className="text-green-600" />
+            <div className="space-y-4 p-5 sm:p-6">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                <FileCheck2 size={29} />
               </div>
 
-              <h3
-                className="
-                  mt-5
-                  text-center
-                  text-xl
-                  font-extrabold
-                  text-[#001B54]
-                "
-              >
+              <h3 className="text-center text-lg font-black">
                 Complete Selected Complaints?
               </h3>
 
-              <p
-                className="
-                  mt-2
-                  text-center
-                  text-sm
-                  leading-6
-                  text-gray-600
-                "
-              >
+              <p className="text-center text-xs leading-6 text-slate-500">
                 You are about to mark{" "}
-                <span
-                  className="
-                    font-extrabold
-                    text-green-700
-                  "
-                >
-                  {getSelectedIds(confirmationJob._id).length}
-                </span>{" "}
-                complaint
-                {getSelectedIds(confirmationJob._id).length !== 1 ? "s" : ""} as
-                completed.
+                <b className="text-[#102B52]">
+                  {validSelectedIds(confirmationJob).length}
+                </b>{" "}
+                selected complaint(s) as completed through the existing Job Card
+                verification workflow.
               </p>
 
-              {/* IMPORTANT NOTE */}
-
-              <div
-                className="
-                  mt-5
-                  flex
-                  items-start
-                  gap-3
-
-                  rounded-2xl
-
-                  border
-                  border-yellow-200
-
-                  bg-yellow-50
-
-                  p-4
-                "
-              >
-                <AlertTriangle
-                  size={20}
-                  className="
-                    mt-0.5
-                    shrink-0
-                    text-yellow-700
-                  "
+              <div className="grid grid-cols-2 gap-3">
+                <InfoBox
+                  icon={ClipboardList}
+                  label="Job Card"
+                  value={confirmationJob.jobCardId}
                 />
 
-                <p
-                  className="
-                    text-xs
-                    leading-5
-                    text-yellow-800
-                  "
-                >
-                  Confirm only after checking the returned physical Job Card and
-                  verifying that the selected work is actually completed.
+                <InfoBox
+                  icon={UserRound}
+                  label="Technician"
+                  value={confirmationJob.assignedWorker?.name}
+                />
+              </div>
+
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                <p className="flex items-start gap-2 text-xs leading-6 text-amber-900">
+                  <AlertTriangle size={17} className="mt-1 shrink-0" />
+                  Confirm only the work actually completed and checked against
+                  the returned physical Job Card. Student satisfaction
+                  confirmation remains separate.
                 </p>
               </div>
 
-              {/* JOB DETAILS */}
-
-              <div
-                className="
-                  mt-5
-                  rounded-2xl
-                  border
-                  border-gray-200
-                  bg-gray-50
-                  p-4
-                "
-              >
-                <div
-                  className="
-                    grid
-                    grid-cols-2
-                    gap-4
-                  "
-                >
-                  <div>
-                    <p
-                      className="
-                        text-xs
-                        text-gray-500
-                      "
-                    >
-                      Job Card
-                    </p>
-
-                    <p
-                      className="
-                        mt-1
-                        font-extrabold
-                        text-[#001B54]
-                      "
-                    >
-                      {confirmationJob.jobCardId}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p
-                      className="
-                        text-xs
-                        text-gray-500
-                      "
-                    >
-                      Worker
-                    </p>
-
-                    <p
-                      className="
-                        mt-1
-                        font-bold
-                        text-gray-800
-                      "
-                    >
-                      {confirmationJob?.assignedWorker?.name || "--"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p
-                      className="
-                        text-xs
-                        text-gray-500
-                      "
-                    >
-                      Location
-                    </p>
-
-                    <p
-                      className="
-                        mt-1
-                        font-bold
-                        text-gray-800
-                      "
-                    >
-                      {confirmationJob.hostel || confirmationJob.block || "--"}
-                    </p>
-                  </div>
-
-                  <div>
-                    <p
-                      className="
-                        text-xs
-                        text-gray-500
-                      "
-                    >
-                      Selected
-                    </p>
-
-                    <p
-                      className="
-                        mt-1
-                        font-extrabold
-                        text-green-700
-                      "
-                    >
-                      {getSelectedIds(confirmationJob._id).length} Complaint
-                      {getSelectedIds(confirmationJob._id).length !== 1
-                        ? "s"
-                        : ""}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* ACTION BUTTONS */}
-
-              <div
-                className="
-                  mt-6
-                  grid
-                  grid-cols-2
-                  gap-3
-                "
-              >
+              <div className="grid grid-cols-2 gap-3 pt-2">
                 <button
                   type="button"
+                  className={SECONDARY}
                   onClick={closeConfirmation}
-                  disabled={updatingJobs[confirmationJob._id]}
-                  className="
-                    rounded-2xl
-                    bg-gray-100
-                    py-3.5
-
-                    font-bold
-                    text-gray-700
-
-                    transition
-
-                    hover:bg-gray-200
-
-                    disabled:opacity-50
-                  "
+                  disabled={Boolean(updatingJobs[idOf(confirmationJob._id)])}
                 >
                   Cancel
                 </button>
 
                 <button
                   type="button"
+                  className={GOLD}
+                  disabled={
+                    Boolean(updatingJobs[idOf(confirmationJob._id)]) ||
+                    validSelectedIds(confirmationJob).length === 0
+                  }
                   onClick={() => handleCompleteSelected(confirmationJob)}
-                  disabled={updatingJobs[confirmationJob._id]}
-                  className="
-                    flex
-                    items-center
-                    justify-center
-                    gap-2
-
-                    rounded-2xl
-
-                    bg-green-600
-
-                    py-3.5
-
-                    font-extrabold
-                    text-white
-
-                    transition
-
-                    hover:bg-green-700
-
-                    disabled:cursor-not-allowed
-                    disabled:opacity-50
-                  "
                 >
-                  {updatingJobs[confirmationJob._id] ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Updating...
-                    </>
+                  {updatingJobs[idOf(confirmationJob._id)] ? (
+                    <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    <>
-                      <CheckCircle2 size={18} />
-                      Confirm
-                    </>
+                    <Check size={16} />
                   )}
+                  Confirm
                 </button>
               </div>
             </div>
           </div>
         </div>
       )}
-    </>
+
+      <footer className="flex items-center gap-2 border-t border-slate-200 pt-4 text-[11px] text-slate-400">
+        <ShieldCheck size={14} />
+        AMI MAINTENANCE · Job Card Verification
+      </footer>
+    </main>
   );
-};
-
-// ==========================================
-// STAT CARD
-// ==========================================
-
-const Stat = ({ icon, value, label, box, text }) => {
-  return (
-    <div
-      className={`
-        ${box}
-        rounded-3xl
-        p-5
-        shadow-lg
-      `}
-    >
-      <div className={text}>{icon}</div>
-
-      <p
-        className={`
-          mt-3
-          text-3xl
-          font-extrabold
-          ${text}
-        `}
-      >
-        {value}
-      </p>
-
-      <p
-        className={`
-          mt-1
-          text-xs
-          font-semibold
-          sm:text-sm
-          ${text}
-        `}
-      >
-        {label}
-      </p>
-    </div>
-  );
-};
-
-// ==========================================
-// INFO CARD
-// ==========================================
-
-const Info = ({ icon, label, value }) => {
-  return (
-    <div
-      className="
-        rounded-2xl
-        bg-gray-50
-        p-4
-      "
-    >
-      <div
-        className="
-          flex
-          items-center
-          gap-2
-          text-[#001B54]
-        "
-      >
-        {icon}
-
-        <p className="text-xs font-bold">{label}</p>
-      </div>
-
-      <p
-        className="
-          mt-2
-          font-semibold
-          text-gray-800
-        "
-      >
-        {value}
-      </p>
-    </div>
-  );
-};
-
-export default Verification;
+}
