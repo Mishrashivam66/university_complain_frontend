@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -23,17 +24,21 @@ import {
 
 import api from "../../services/api";
 
+// ==========================================
+// CONFIG
+// ==========================================
+
 const API = "/store/inventory";
 
 const fieldClass =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#D0AE61] focus:ring-2 focus:ring-[#D0AE61]/20";
 
+const clean = (value) => String(value ?? "").trim();
+
 const formatQty = (value) =>
   Number(value || 0).toLocaleString("en-IN", {
     maximumFractionDigits: 3,
   });
-
-const clean = (value) => String(value ?? "").trim();
 
 const statusOf = (item) => {
   if (item.isActive === false) return "Inactive";
@@ -59,6 +64,20 @@ const badgeClass = (status) => {
   return "bg-slate-100 text-slate-600 ring-slate-200";
 };
 
+const blankEdit = {
+  itemCode: "",
+  itemName: "",
+  itemDescription: "",
+  category: "",
+  otherCategory: "",
+  unit: "",
+  minimumStock: "",
+};
+
+// ==========================================
+// COMPONENTS
+// ==========================================
+
 function StockStatus({ item }) {
   const status = statusOf(item);
 
@@ -74,7 +93,7 @@ function StockStatus({ item }) {
   );
 }
 
-function StatCard({ title, value, icon: Icon, color, subtitle }) {
+function StatCard({ title, value, Icon, color, subtitle }) {
   return (
     <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -82,11 +101,14 @@ function StatCard({ title, value, icon: Icon, color, subtitle }) {
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             {title}
           </p>
+
           <h3 className="mt-3 text-3xl font-extrabold text-[#001B54]">
             {value}
           </h3>
+
           <p className="mt-2 text-xs text-slate-400">{subtitle}</p>
         </div>
+
         <div className={`rounded-xl p-3 ${color}`}>
           <Icon size={22} />
         </div>
@@ -101,7 +123,7 @@ function Toast({ toast, onClose }) {
   return (
     <div
       role="status"
-      className={`fixed right-4 top-4 z-[100] flex max-w-sm items-start gap-3 rounded-2xl border bg-white p-4 shadow-xl ${
+      className={`fixed right-4 top-4 z-[110] flex max-w-sm items-start gap-3 rounded-2xl border bg-white p-4 shadow-xl ${
         toast.type === "error" ? "border-red-200" : "border-emerald-200"
       }`}
     >
@@ -127,14 +149,9 @@ function Toast({ toast, onClose }) {
   );
 }
 
-const blankEdit = {
-  itemName: "",
-  itemDescription: "",
-  category: "",
-  otherCategory: "",
-  unit: "",
-  minimumStock: "",
-};
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
 
 export default function InventoryManagement() {
   const navigate = useNavigate();
@@ -157,6 +174,10 @@ export default function InventoryManagement() {
 
   const [toast, setToast] = useState(null);
 
+  // ==========================================
+  // NOTIFICATIONS
+  // ==========================================
+
   const notify = (message, type = "success") => {
     setToast({ message, type });
   };
@@ -165,9 +186,7 @@ export default function InventoryManagement() {
     if (!toast) return;
 
     const timer = setTimeout(
-      () => {
-        setToast(null);
-      },
+      () => setToast(null),
       toast.type === "error" ? 3500 : 1400,
     );
 
@@ -185,14 +204,12 @@ export default function InventoryManagement() {
     try {
       setError("");
 
-      const response = await api.get(`${API}/all`);
+      const { data } = await api.get(`${API}/all`);
 
-      // Existing addInventoryController returns
-      // data.inventory, not data.items.
-      const list = response.data?.inventory ?? response.data?.items ?? [];
+      const list = data?.inventory ?? data?.items ?? [];
 
       if (!Array.isArray(list)) {
-        throw new Error("Invalid inventory response format.");
+        throw new Error("Invalid inventory API response format.");
       }
 
       setInventory(list);
@@ -219,7 +236,7 @@ export default function InventoryManagement() {
   }, [fetchInventory]);
 
   // ==========================================
-  // CALCULATIONS
+  // STATS & FILTERS
   // ==========================================
 
   const stats = useMemo(() => {
@@ -227,18 +244,27 @@ export default function InventoryManagement() {
 
     return {
       total: active.length,
+
       available: active.filter((item) => statusOf(item) === "Available").length,
+
       lowStock: active.filter((item) => statusOf(item) === "Low Stock").length,
+
       outOfStock: active.filter((item) => statusOf(item) === "Out of Stock")
         .length,
+
+      missingCode: active.filter((item) => !clean(item.itemCode)).length,
     };
   }, [inventory]);
 
-  const categories = useMemo(() => {
-    return [
-      ...new Set(inventory.map((item) => clean(item.category)).filter(Boolean)),
-    ].sort();
-  }, [inventory]);
+  const categories = useMemo(
+    () =>
+      [
+        ...new Set(
+          inventory.map((item) => clean(item.category)).filter(Boolean),
+        ),
+      ].sort(),
+    [inventory],
+  );
 
   const filteredItems = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -259,7 +285,11 @@ export default function InventoryManagement() {
 
       const matchesCategory = category === "ALL" || item.category === category;
 
-      const matchesStatus = filter === "ALL" || statusOf(item) === filter;
+      const matchesStatus =
+        filter === "ALL" ||
+        (filter === "MISSING_CODE"
+          ? !clean(item.itemCode)
+          : statusOf(item) === filter);
 
       return matchesSearch && matchesCategory && matchesStatus;
     });
@@ -279,13 +309,14 @@ export default function InventoryManagement() {
   }, [search, filter, category, pageSize]);
 
   // ==========================================
-  // EDIT ITEM METADATA
+  // EDIT ITEM
   // ==========================================
 
   const openEdit = (item) => {
     setSelectedItem(item);
 
     setEditForm({
+      itemCode: item.itemCode || "",
       itemName: item.itemName || "",
       itemDescription: item.itemDescription || "",
       category: item.category || "",
@@ -298,7 +329,7 @@ export default function InventoryManagement() {
   const saveEdit = async (event) => {
     event.preventDefault();
 
-    if (!selectedItem) return;
+    if (!selectedItem || saving) return;
 
     if (
       !editForm.itemName.trim() ||
@@ -318,28 +349,59 @@ export default function InventoryManagement() {
       return;
     }
 
+    const oldCode = clean(selectedItem.itemCode);
+    const newCode = clean(editForm.itemCode).toUpperCase();
+
+    // Existing assigned codes remain unchanged here.
+    // Replacing identifiers needs a controlled
+    // stock-ledger code migration.
+    if (oldCode && oldCode.toUpperCase() !== newCode) {
+      notify(
+        "Existing Item Codes cannot be renamed here because stock history may reference them.",
+        "error",
+      );
+      return;
+    }
+
+    if (!oldCode && !newCode) {
+      notify("Enter a unique Item Code for this material.", "error");
+      return;
+    }
+
     setSaving(true);
 
     try {
-      // Metadata only. Stock quantities must
-      // be changed through auditable inward,
-      // issue or adjustment transactions.
-      await api.put(`${API}/${selectedItem._id}`, {
+      const payload = {
         itemName: editForm.itemName.trim(),
         itemDescription: editForm.itemDescription.trim(),
         category: editForm.category.trim(),
         otherCategory: editForm.otherCategory.trim(),
         unit: editForm.unit.trim(),
         minimumStock: Number(editForm.minimumStock),
-      });
+      };
+
+      // Assign a missing code; never replace a code
+      // or modify stock quantities from this form.
+      if (!oldCode) {
+        payload.itemCode = newCode;
+      }
+
+      const { data } = await api.put(`${API}/${selectedItem._id}`, payload);
+
+      if (data?.success === false) {
+        throw new Error(data.message || "Failed to update inventory.");
+      }
 
       setSelectedItem(null);
+
       notify("Inventory details updated successfully.");
 
       await fetchInventory();
     } catch (err) {
       notify(
-        err.response?.data?.message || "Failed to update inventory details.",
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to update inventory details.",
         "error",
       );
     } finally {
@@ -385,8 +447,6 @@ export default function InventoryManagement() {
 
     const escapeCSV = (value) => {
       const text = String(value ?? "");
-
-      // Prevent Excel formula injection.
       const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
 
       return `"${safe.replace(/"/g, '""')}"`;
@@ -411,7 +471,6 @@ export default function InventoryManagement() {
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
-
     URL.revokeObjectURL(url);
 
     notify("Inventory exported successfully.");
@@ -440,8 +499,8 @@ export default function InventoryManagement() {
             </h1>
 
             <p className="mt-3 max-w-2xl text-sm leading-6 text-blue-100">
-              Track university inventory, item codes, opening balances, incoming
-              stock, outgoing quantities and closing balances.
+              Track item codes, incoming stock, outgoing quantities and
+              available balances.
             </p>
           </div>
 
@@ -450,7 +509,7 @@ export default function InventoryManagement() {
               type="button"
               onClick={() => fetchInventory(true)}
               disabled={refreshing}
-              className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white transition hover:bg-white/20 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/20 disabled:opacity-50"
             >
               <RefreshCw
                 size={17}
@@ -462,7 +521,7 @@ export default function InventoryManagement() {
             <button
               type="button"
               onClick={() => navigate("/store/dashboard?view=stock-inward")}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#E6C777] px-4 py-3 text-sm font-extrabold text-[#001B54] shadow-lg transition hover:bg-[#F0D794]"
+              className="inline-flex items-center gap-2 rounded-xl bg-[#E6C777] px-4 py-3 text-sm font-extrabold text-[#001B54] shadow-lg"
             >
               <ArrowDownToLine size={18} />
               Stock Inward
@@ -472,29 +531,29 @@ export default function InventoryManagement() {
         </div>
       </section>
 
-      {/* STATS */}
+      {/* SUMMARY */}
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         <StatCard
           title="Total Items"
           value={stats.total}
-          icon={Package}
+          Icon={Package}
           color="bg-blue-50 text-blue-700"
-          subtitle="Active inventory items"
+          subtitle="Active inventory records"
         />
 
         <StatCard
           title="Available"
           value={stats.available}
-          icon={CheckCircle2}
+          Icon={CheckCircle2}
           color="bg-emerald-50 text-emerald-700"
-          subtitle="Above minimum stock"
+          subtitle="Above minimum balance"
         />
 
         <StatCard
           title="Low Stock"
           value={stats.lowStock}
-          icon={AlertTriangle}
+          Icon={AlertTriangle}
           color="bg-amber-50 text-amber-700"
           subtitle="Reorder threshold reached"
         />
@@ -502,21 +561,37 @@ export default function InventoryManagement() {
         <StatCard
           title="Out of Stock"
           value={stats.outOfStock}
-          icon={Boxes}
+          Icon={Boxes}
           color="bg-red-50 text-red-700"
           subtitle="Zero available balance"
         />
       </div>
 
-      {/* ERROR */}
-
       {error && (
-        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-medium text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {/* FILTERS */}
+      {stats.missingCode > 0 && (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <AlertTriangle size={19} className="mt-0.5 shrink-0 text-amber-700" />
+
+          <div>
+            <p className="text-sm font-bold text-amber-900">
+              {stats.missingCode} inventory items have no Item Code in the API
+              response.
+            </p>
+            <p className="mt-1 text-xs leading-5 text-amber-800">
+              Verify the deployed inventory route and MongoDB data. Missing
+              codes can be assigned through the item editor after verifying
+              their official material identification.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* INVENTORY REGISTER */}
 
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
@@ -525,20 +600,23 @@ export default function InventoryManagement() {
               <SlidersHorizontal size={20} />
               Inventory Register
             </h2>
+
             <p className="mt-1 text-xs text-slate-500">
-              Search and review imported or manually added materials.
+              Review and manage imported materials.
             </p>
           </div>
 
           <button
             type="button"
             onClick={exportCSV}
-            className="inline-flex items-center gap-2 rounded-xl border border-[#D7BE83] bg-[#FFFBF1] px-4 py-2.5 text-sm font-bold text-[#001B54] hover:bg-amber-50"
+            className="inline-flex items-center gap-2 rounded-xl border border-[#D7BE83] bg-[#FFFBF1] px-4 py-2.5 text-sm font-bold text-[#001B54]"
           >
             <Download size={17} />
             Export CSV
           </button>
         </div>
+
+        {/* FILTERS */}
 
         <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_1fr_auto]">
           <div className="relative">
@@ -546,11 +624,10 @@ export default function InventoryManagement() {
               size={18}
               className="absolute left-3.5 top-3.5 text-slate-400"
             />
-
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search item code, description or category..."
+              placeholder="Search item code, name or category..."
               className={`${fieldClass} pl-11`}
             />
           </div>
@@ -578,6 +655,7 @@ export default function InventoryManagement() {
             <option value="Low Stock">Low Stock</option>
             <option value="Out of Stock">Out of Stock</option>
             <option value="Inactive">Inactive</option>
+            <option value="MISSING_CODE">Missing Item Code</option>
           </select>
 
           <button
@@ -587,7 +665,7 @@ export default function InventoryManagement() {
               setFilter("ALL");
               setCategory("ALL");
             }}
-            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600"
           >
             <Filter size={16} />
             Clear
@@ -603,6 +681,7 @@ export default function InventoryManagement() {
 
           <div className="flex items-center gap-2">
             <span className="text-xs text-slate-500">Rows per page</span>
+
             <select
               className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs"
               value={pageSize}
@@ -649,8 +728,8 @@ export default function InventoryManagement() {
                 <tr>
                   <td colSpan={11} className="py-14 text-center">
                     <Loader2
-                      className="mx-auto animate-spin text-[#001B54]"
                       size={29}
+                      className="mx-auto animate-spin text-[#001B54]"
                     />
                     <p className="mt-3 text-sm text-slate-500">
                       Loading inventory...
@@ -659,11 +738,17 @@ export default function InventoryManagement() {
                 </tr>
               ) : paginatedItems.length ? (
                 paginatedItems.map((item) => (
-                  <tr key={item._id} className="transition hover:bg-[#F9FBFF]">
+                  <tr key={item._id} className="hover:bg-[#F9FBFF]">
                     <td className="px-4 py-4">
-                      <span className="font-bold text-[#001B54]">
-                        {item.itemCode || "—"}
-                      </span>
+                      {item.itemCode ? (
+                        <span className="break-all text-xs font-bold text-[#001B54]">
+                          {item.itemCode}
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold text-amber-700">
+                          Not assigned
+                        </span>
+                      )}
                     </td>
 
                     <td className="max-w-[240px] px-4 py-4">
@@ -689,7 +774,7 @@ export default function InventoryManagement() {
                       {item.category || "—"}
                     </td>
 
-                    <td className="px-4 py-4 text-slate-600">
+                    <td className="px-4 py-4">
                       {item.openingQuantity == null
                         ? "—"
                         : formatQty(item.openingQuantity)}
@@ -721,7 +806,7 @@ export default function InventoryManagement() {
                       <button
                         type="button"
                         onClick={() => openEdit(item)}
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-[#001B54] transition hover:border-[#D0AE61] hover:bg-amber-50"
+                        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-xs font-bold text-[#001B54] hover:border-[#D0AE61] hover:bg-amber-50"
                       >
                         <Edit3 size={15} />
                         Edit
@@ -735,9 +820,6 @@ export default function InventoryManagement() {
                     <Package size={35} className="mx-auto text-slate-300" />
                     <p className="mt-3 font-semibold text-slate-600">
                       No inventory items found
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">
-                      Try changing the filters or import new stock.
                     </p>
                   </td>
                 </tr>
@@ -758,7 +840,7 @@ export default function InventoryManagement() {
               type="button"
               disabled={safePage <= 1}
               onClick={() => setPage((old) => Math.max(1, old - 1))}
-              className="rounded-lg border border-slate-200 p-2 text-slate-600 disabled:opacity-40"
+              className="rounded-lg border border-slate-200 p-2 disabled:opacity-40"
               aria-label="Previous page"
             >
               <ChevronLeft size={19} />
@@ -772,7 +854,7 @@ export default function InventoryManagement() {
               type="button"
               disabled={safePage >= totalPages}
               onClick={() => setPage((old) => Math.min(totalPages, old + 1))}
-              className="rounded-lg border border-slate-200 p-2 text-slate-600 disabled:opacity-40"
+              className="rounded-lg border border-slate-200 p-2 disabled:opacity-40"
               aria-label="Next page"
             >
               <ChevronRight size={19} />
@@ -781,7 +863,7 @@ export default function InventoryManagement() {
         </div>
       </section>
 
-      {/* STOCK ACCOUNTING NOTE */}
+      {/* STOCK SAFETY NOTE */}
 
       <div className="flex items-start gap-3 rounded-2xl border border-[#E6D7B5] bg-[#FFF9EA] p-4">
         <ShieldCheck size={21} className="mt-0.5 shrink-0 text-[#9A752D]" />
@@ -791,15 +873,15 @@ export default function InventoryManagement() {
             Inventory Stock Control
           </p>
 
-          <p className="mt-1 text-xs leading-5 text-slate-600">
-            Stock quantities are managed through Stock Inward, Material Issue
-            and authorized stock transactions. Manual edits on this page are
-            limited to item details and minimum stock.
+          <p className="mt-2 text-xs leading-5 text-slate-600">
+            Stock quantities are updated through Stock Inward, Material Issue
+            and authorized stock transactions. Item metadata can be edited here,
+            but stock cannot be directly overwritten.
           </p>
 
           <p className="mt-2 text-xs leading-5 text-slate-500">
-            Legacy items without a reconciled opening balance show "—". Closing
-            stock reflects the current available balance.
+            Legacy items without reconciled opening balances show "—". Their
+            closing balance reflects current stock.
           </p>
         </div>
       </div>
@@ -816,8 +898,8 @@ export default function InventoryManagement() {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wide text-[#A3833A]">
-                  Inventory Record
+                <p className="text-xs font-bold uppercase text-[#A3833A]">
+                  INVENTORY RECORD
                 </p>
 
                 <h2
@@ -826,17 +908,13 @@ export default function InventoryManagement() {
                 >
                   Edit Item Details
                 </h2>
-
-                <p className="mt-2 text-xs text-slate-500">
-                  Item Code:{" "}
-                  <strong>{selectedItem.itemCode || "Not assigned"}</strong>
-                </p>
               </div>
 
               <button
                 type="button"
+                disabled={saving}
                 onClick={() => setSelectedItem(null)}
-                className="rounded-xl bg-slate-100 p-2.5 text-slate-600 hover:bg-slate-200"
+                className="rounded-xl bg-slate-100 p-2.5"
                 aria-label="Close editor"
               >
                 <X size={19} />
@@ -844,6 +922,30 @@ export default function InventoryManagement() {
             </div>
 
             <form onSubmit={saveEdit} noValidate className="mt-6 space-y-4">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-bold text-slate-600">
+                  Item Code *
+                </span>
+
+                <input
+                  className={fieldClass}
+                  value={editForm.itemCode}
+                  disabled={Boolean(clean(selectedItem.itemCode))}
+                  onChange={(event) =>
+                    setEditForm((old) => ({
+                      ...old,
+                      itemCode: event.target.value.toUpperCase(),
+                    }))
+                  }
+                  placeholder="Enter verified unique Item Code"
+                />
+
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Existing codes are locked to protect stock history. Missing
+                  codes can be assigned once.
+                </p>
+              </label>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 {[
                   ["itemName", "Item Name"],
@@ -882,24 +984,21 @@ export default function InventoryManagement() {
                 <p className="text-xs font-semibold text-blue-800">
                   Current Available Stock
                 </p>
+
                 <p className="mt-1 text-2xl font-extrabold text-[#001B54]">
                   {formatQty(selectedItem.currentStock)}{" "}
                   <span className="text-sm font-medium text-slate-500">
                     {selectedItem.unit}
                   </span>
                 </p>
-                <p className="mt-2 text-xs text-slate-500">
-                  To increase stock, use Stock Inward. Existing quantities
-                  cannot be directly overwritten here.
-                </p>
               </div>
 
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => setSelectedItem(null)}
                   disabled={saving}
-                  className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-600"
+                  onClick={() => setSelectedItem(null)}
+                  className="flex-1 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold"
                 >
                   Cancel
                 </button>
