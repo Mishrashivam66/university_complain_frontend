@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-
+import DailyStoreReport from "./DailyStoreReport";
 import {
   ArrowLeft,
   CalendarDays,
@@ -853,6 +853,12 @@ export default function StoreReports({ onBack }) {
           </button>
         </div>
       </section>
+
+      {/* ==========================================
+    CONSOLIDATED DAILY STORE REPORT
+========================================== */}
+
+      <DailyStoreReport />
 
       {/* DATE FILTER */}
 
