@@ -1,167 +1,151 @@
 import { useState } from "react";
-
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-
 import {
   LayoutDashboard,
   Users,
   ClipboardList,
+  ShieldAlert,
   AlertTriangle,
-  BellRing,
   FileBarChart2,
   LogOut,
   Menu,
   X,
   User,
-  ShieldAlert,
   Clock3,
   History,
-  BedDouble,
-  UtensilsCrossed,
+  ChevronDown,
+  ChevronRight,
+  Wrench,
+  ShieldCheck,
+  Settings2,
 } from "lucide-react";
-
-// ==========================================
-// NOTIFICATION BELL
-// ==========================================
 
 import NotificationBell from "../../modules/notifications/components/NotificationBell";
 
-// ==========================================
+// =====================================================
 // SAFE USER FETCH
-// ==========================================
-
+// =====================================================
 const getStoredUser = () => {
   try {
     const storedUser = localStorage.getItem("user");
-
     return storedUser ? JSON.parse(storedUser) : {};
   } catch (error) {
-    console.log("USER PARSE ERROR:", error);
-
+    console.error("USER PARSE ERROR:", error);
     return {};
   }
 };
 
-// ==========================================
-// WARDEN LAYOUT
-// ==========================================
+// =====================================================
+// WARDEN SIDEBAR GROUPS
+// Existing working paths are preserved.
+// =====================================================
+const menuGroups = [
+  {
+    id: "overview",
+    label: "OVERVIEW",
+    icon: LayoutDashboard,
+    items: [
+      {
+        name: "Dashboard",
+        path: "/warden/dashboard",
+        icon: LayoutDashboard,
+      },
+    ],
+  },
+  {
+    id: "student-security",
+    label: "STUDENT MANAGEMENT & SECURITY",
+    icon: ShieldCheck,
+    items: [
+      {
+        name: "Manage Students",
+        path: "/warden/manage-students",
+        icon: Users,
+      },
+      {
+        name: "Pending Students",
+        path: "/warden/pending-students",
+        icon: Clock3,
+      },
+    ],
+  },
+  {
+    id: "maintenance",
+    label: "MAINTENANCE OPERATIONS",
+    icon: Settings2,
+    items: [
+      {
+        name: "Hostel Complaints",
+        path: "/warden/complaints",
+        icon: ClipboardList,
+      },
+      {
+        name: "Emergency Alerts",
+        path: "/warden/emergency-alerts",
+        icon: ShieldAlert,
+      },
+      {
+        name: "Complaint Escalation",
+        path: "/warden/escalation",
+        icon: AlertTriangle,
+      },
+    ],
+  },
+  {
+    id: "reports",
+    label: "REPORTS & HISTORY",
+    icon: FileBarChart2,
+    items: [
+      {
+        name: "Student History",
+        path: "/warden/student-history",
+        icon: History,
+      },
+      {
+        name: "Warden Reports",
+        path: "/warden/reports",
+        icon: FileBarChart2,
+      },
+    ],
+  },
+];
 
+const getInitialExpanded = () => ({
+  overview: true,
+  "student-security": true,
+  maintenance: true,
+  reports: true,
+});
+
+// =====================================================
+// WARDEN LAYOUT
+// =====================================================
 const WardenLayout = () => {
   const navigate = useNavigate();
 
-  // ======================================
-  // STATE
-  // ======================================
-
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // ======================================
-  // USER
-  // ======================================
+  const [expandedGroups, setExpandedGroups] = useState(getInitialExpanded);
 
   const user = getStoredUser();
 
-  // ======================================
-  // MENU
-  // ======================================
+  const userInitial = user?.name?.trim()?.charAt(0)?.toUpperCase() || "W";
 
-  const menuItems = [
-    {
-      name: "Dashboard",
+  // ===================================================
+  // GROUP TOGGLE
+  // ===================================================
+  const toggleGroup = (groupId) => {
+    setExpandedGroups((previous) => ({
+      ...previous,
+      [groupId]: !previous[groupId],
+    }));
+  };
 
-      path: "/warden/dashboard",
-
-      icon: LayoutDashboard,
-    },
-
-    {
-      name: "Manage Students",
-
-      path: "/warden/manage-students",
-
-      icon: Users,
-    },
-
-    {
-      name: "Hostel Complaints",
-
-      path: "/warden/complaints",
-
-      icon: ClipboardList,
-    },
-
-    {
-      name: "Pending Students",
-
-      path: "/warden/pending-students",
-
-      icon: Clock3,
-    },
-
-    {
-      name: "Emergency Alerts",
-
-      path: "/warden/emergency-alerts",
-
-      icon: ShieldAlert,
-    },
-
-    {
-      name: "Complaint Escalation",
-
-      path: "/warden/escalation",
-
-      icon: AlertTriangle,
-    },
-
-    {
-      name: "Warden Reports",
-
-      path: "/warden/reports",
-
-      icon: FileBarChart2,
-    },
-
-    {
-      name: "Hostel Notices",
-
-      path: "/warden/notices",
-
-      icon: BellRing,
-    },
-
-    {
-      name: "Mess Complaints",
-
-      path: "/warden/mess-complaints",
-
-      icon: UtensilsCrossed,
-    },
-
-    {
-      name: "Student History",
-
-      path: "/warden/student-history",
-
-      icon: History,
-    },
-
-    {
-      name: "Room Allocation",
-
-      path: "/warden/room-allocation",
-
-      icon: BedDouble,
-    },
-  ];
-
-  // ======================================
-  // LOGOUT
-  // ======================================
-
+  // ===================================================
+  // LOGOUT - ORIGINAL BEHAVIOR PRESERVED
+  // ===================================================
   const handleLogout = () => {
     localStorage.removeItem("token");
-
     localStorage.removeItem("user");
 
     navigate("/", {
@@ -169,437 +153,336 @@ const WardenLayout = () => {
     });
   };
 
-  // ======================================
-  // USER INITIAL
-  // ======================================
+  // ===================================================
+  // SIDEBAR NAVIGATION
+  // ===================================================
+  const renderMenuGroup = (group) => {
+    const isExpanded = expandedGroups[group.id];
 
-  const userInitial = user?.name?.trim()?.charAt(0)?.toUpperCase() || "W";
+    return (
+      <section key={group.id} className="mb-5">
+        <button
+          type="button"
+          onClick={() => toggleGroup(group.id)}
+          aria-expanded={isExpanded}
+          className="
+            flex w-full items-center
+            justify-between gap-2
+            rounded-xl px-3 py-2.5
+            text-left text-[11px]
+            font-bold tracking-[0.12em]
+            text-[#B9CCE5]
+            transition-colors
+            hover:bg-white/10
+            hover:text-white
+          "
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            <group.icon size={15} className="shrink-0 text-[#E8C877]" />
+
+            <span className="leading-5">{group.label}</span>
+          </span>
+
+          {isExpanded ? (
+            <ChevronDown size={15} className="shrink-0" />
+          ) : (
+            <ChevronRight size={15} className="shrink-0" />
+          )}
+        </button>
+
+        {isExpanded && (
+          <div className="mt-1.5 space-y-1">
+            {group.items.map((item) => (
+              <NavLink
+                key={item.path}
+                to={item.path}
+                onClick={() => setSidebarOpen(false)}
+                className={({ isActive }) => `
+                  group flex w-full items-center
+                  gap-3 rounded-xl px-4 py-3
+                  text-[14px] font-medium
+                  transition-all duration-200
+                  ${
+                    isActive
+                      ? `
+                        bg-[#E8C877]
+                        text-[#092650]
+                        shadow-md
+                      `
+                      : `
+                        text-[#EDF3FC]
+                        hover:bg-white/10
+                        hover:text-white
+                      `
+                  }
+                `}
+              >
+                <item.icon size={19} className="shrink-0" />
+
+                <span className="min-w-0 flex-1">{item.name}</span>
+              </NavLink>
+            ))}
+          </div>
+        )}
+      </section>
+    );
+  };
 
   return (
-    <div
-      className="
-        flex
-        min-h-screen
-        bg-[#EEF3FF]
-      "
-    >
-      {/* ======================================
+    <div className="flex min-h-screen bg-[#F1F5FB]">
+      {/* ==========================================
           MOBILE OVERLAY
-      ====================================== */}
-
+      ========================================== */}
       {sidebarOpen && (
         <div
           className="
-            fixed
-            inset-0
-
-            bg-black/40
-
-            z-40
-
+            fixed inset-0 z-40
+            bg-[#06162C]/65
+            backdrop-blur-[2px]
             md:hidden
           "
           onClick={() => setSidebarOpen(false)}
+          aria-hidden="true"
         />
       )}
 
-      {/* ======================================
+      {/* ==========================================
           SIDEBAR
-      ====================================== */}
-
+      ========================================== */}
       <aside
         className={`
-          fixed
-          top-0
-          left-0
-
-          z-50
-
-          h-screen
-
-          w-80
-
+          fixed left-0 top-0 z-50
+          flex h-screen w-[290px]
+          max-w-[85vw]
+          flex-col
           bg-gradient-to-b
-          from-[#001B54]
-          via-[#002B7F]
-          to-[#7A0019]
-
+          from-[#061B3B]
+          via-[#082A56]
+          to-[#0B3766]
           text-white
-
           shadow-2xl
-
-          transform
-
           transition-transform
           duration-300
-
-          flex
-          flex-col
-
-          ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
-          }
+          md:translate-x-0
+          ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
         `}
       >
-        {/* ==================================
-            LOGO
-        ================================== */}
-
+        {/* ========================================
+            BRANDING
+        ======================================== */}
         <div
           className="
-            px-7
-            pt-7
-            pb-5
-
-            border-b
-            border-white/10
+            shrink-0
+            border-b border-white/10
+            px-5 pb-5 pt-6
           "
         >
-          <div
-            className="
-              flex
-              items-start
-              justify-between
-            "
-          >
-            <div>
-              <h1
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <div
                 className="
-                  text-[30px]
-
-                  font-extrabold
-
-                  tracking-wide
-
-                  leading-tight
+                  flex h-12 w-12 shrink-0
+                  items-center justify-center
+                  rounded-2xl
+                  bg-[#E8C877]
+                  text-[#082650]
+                  shadow-lg
                 "
               >
-                CAMPUSPULSE
-              </h1>
+                <Wrench size={24} strokeWidth={2.3} />
+              </div>
 
-              <p
-                className="
-                  text-yellow-300
+              <div className="min-w-0">
+                <h1
+                  className="
+                    text-[16px] font-extrabold
+                    leading-tight tracking-wide
+                    text-white
+                  "
+                >
+                  AMI MAINTENANCE
+                </h1>
 
-                  text-sm
-
-                  mt-1
-                "
-              >
-                Smart Campus ERP
-              </p>
+                <p
+                  className="
+                    mt-1 text-xs
+                    font-medium
+                    text-[#E8C877]
+                  "
+                >
+                  Warden Portal
+                </p>
+              </div>
             </div>
-
-            {/* MOBILE CLOSE */}
 
             <button
               type="button"
               onClick={() => setSidebarOpen(false)}
               className="
+                shrink-0 rounded-lg
+                p-1.5 text-white/80
+                hover:bg-white/10
+                hover:text-white
                 md:hidden
               "
               aria-label="Close sidebar"
             >
-              <X size={24} />
+              <X size={22} />
             </button>
           </div>
         </div>
 
-        {/* ==================================
-            NAVIGATION
-        ================================== */}
-
-        <div
+        {/* ========================================
+            SCROLLABLE MENU
+        ======================================== */}
+        <nav
           className="
-            flex-1
-
+            min-h-0 flex-1
             overflow-y-auto
-
-            px-5
-            py-5
-
-            space-y-2
+            px-3 py-5
+            overscroll-contain
+            [scrollbar-width:thin]
           "
+          aria-label="Warden navigation"
         >
-          {menuItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              onClick={() => setSidebarOpen(false)}
-              className={({ isActive }) => `
-                  flex
-                  items-center
+          {menuGroups.map(renderMenuGroup)}
+        </nav>
 
-                  gap-4
-
-                  px-5
-                  py-4
-
-                  rounded-2xl
-
-                  font-medium
-
-                  transition-all
-                  duration-300
-
-                  ${
-                    isActive
-                      ? `
-                        bg-yellow-400
-                        text-[#001B54]
-                        shadow-xl
-                      `
-                      : `
-                        text-white
-                        hover:bg-white/10
-                      `
-                  }
-                `}
-            >
-              <item.icon
-                size={22}
-                className="
-                    shrink-0
-                  "
-              />
-
-              <span
-                className="
-                    text-[15px]
-                  "
-              >
-                {item.name}
-              </span>
-            </NavLink>
-          ))}
-        </div>
-
-        {/* ==================================
-            USER CARD
-        ================================== */}
-
-        <div
-          className="
-            px-5
-            pt-4
-          "
-        >
+        {/* ========================================
+            WARDEN USER CARD
+        ======================================== */}
+        <div className="shrink-0 border-t border-white/10 px-4 pt-4">
           <div
             className="
+              flex items-center gap-3
+              rounded-2xl
+              border border-white/10
               bg-white/10
-
-              rounded-3xl
-
-              p-4
-
-              flex
-              items-center
-
-              gap-4
-
-              border
-              border-white/10
+              p-3.5
             "
           >
             <div
               className="
-                h-14
-                w-14
-
+                flex h-11 w-11 shrink-0
+                items-center justify-center
                 rounded-full
-
-                bg-white/20
-
-                flex
-                items-center
-                justify-center
-
-                text-xl
-                font-bold
-
-                shrink-0
+                border border-[#E8C877]/50
+                bg-[#E8C877]/20
+                text-lg font-bold
+                text-[#F5DF9D]
               "
             >
               {userInitial}
             </div>
 
-            <div
-              className="
-                flex-1
-                min-w-0
-              "
-            >
-              <h3
-                className="
-                  font-bold
-
-                  text-lg
-
-                  truncate
-                "
-              >
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-white">
                 {user?.name || "Warden"}
-              </h3>
-
-              <p
-                className="
-                  text-sm
-                  text-gray-300
-                "
-              >
-                Hostel Warden
               </p>
+
+              <p className="mt-0.5 text-xs text-[#C7D6EB]">Hostel Warden</p>
 
               {user?.assignedHostel && (
                 <p
                   className="
-                    mt-1
-
-                    text-xs
-
-                    text-yellow-200
-
-                    truncate
+                    mt-1 truncate
+                    text-xs font-medium
+                    text-[#E8C877]
                   "
                 >
-                  {user.assignedHostel}
+                  {typeof user.assignedHostel === "object"
+                    ? user.assignedHostel.name ||
+                      user.assignedHostel.hostelName ||
+                      "Assigned Hostel"
+                    : user.assignedHostel}
                 </p>
               )}
             </div>
           </div>
         </div>
 
-        {/* ==================================
+        {/* ========================================
             LOGOUT
-        ================================== */}
-
-        <div
-          className="
-            p-5
-          "
-        >
+        ======================================== */}
+        <div className="shrink-0 p-4">
           <button
             type="button"
             onClick={handleLogout}
             className="
-              w-full
-
-              bg-red-500
-
-              hover:bg-red-600
-
-              transition-all
-              duration-300
-
-              rounded-2xl
-
-              px-5
-              py-4
-
-              flex
-              items-center
-              justify-center
-
-              gap-3
-
+              flex w-full items-center
+              justify-center gap-3
+              rounded-xl
+              border border-red-400/20
+              bg-red-500/15
+              px-4 py-3
               font-semibold
-
-              shadow-lg
+              text-red-100
+              transition-all
+              duration-200
+              hover:bg-red-500
+              hover:text-white
             "
           >
-            <LogOut size={20} />
+            <LogOut size={19} />
             Logout
           </button>
         </div>
       </aside>
 
-      {/* ======================================
-          MAIN
-      ====================================== */}
-
+      {/* ==========================================
+          MAIN AREA
+      ========================================== */}
       <div
         className="
-          flex-1
-
-          flex
-          flex-col
-
-          md:ml-80
-
-          min-w-0
+          flex min-h-screen min-w-0
+          flex-1 flex-col
+          md:ml-[290px]
         "
       >
-        {/* ==================================
+        {/* ========================================
             TOPBAR
-        ================================== */}
-
+        ======================================== */}
         <header
           className="
-            sticky
-            top-0
-
-            z-30
-
+            sticky top-0 z-30
+            flex min-h-[76px]
+            items-center justify-between
+            gap-3
+            border-b border-slate-200
             bg-white/95
-
-            backdrop-blur-md
-
-            border-b
-            border-gray-200
-
-            px-4
-            md:px-6
-
-            py-4
-
-            flex
-            items-center
-            justify-between
-
+            px-4 py-4
             shadow-sm
+            backdrop-blur-md
+            sm:px-6
           "
         >
           {/* LEFT */}
-
-          <div
-            className="
-              flex
-              items-center
-
-              gap-4
-
-              min-w-0
-            "
-          >
+          <div className="flex min-w-0 items-center gap-3">
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
               className="
+                flex h-10 w-10
+                shrink-0 items-center
+                justify-center
+                rounded-xl
+                bg-[#F0F4FA]
+                text-[#082650]
+                hover:bg-[#E6EDF7]
                 md:hidden
-
-                shrink-0
               "
               aria-label="Open sidebar"
             >
-              <Menu size={26} />
+              <Menu size={23} />
             </button>
 
-            <div
-              className="
-                min-w-0
-              "
-            >
+            <div className="min-w-0">
               <h2
                 className="
-                  text-xl
+                  truncate text-lg
+                  font-extrabold
+                  text-[#082650]
                   sm:text-2xl
-                  md:text-3xl
-
-                  font-bold
-
-                  text-[#001B54]
-
-                  truncate
                 "
               >
                 Warden Panel
@@ -607,118 +490,64 @@ const WardenLayout = () => {
 
               <p
                 className="
-                  text-gray-500
-
-                  text-xs
-                  sm:text-sm
-
-                  hidden
+                  hidden text-xs
+                  text-slate-500
                   sm:block
                 "
               >
-                Hostel Management System
+                Hostel Security & Maintenance Management
               </p>
             </div>
           </div>
 
-          {/* ==================================
-              RIGHT
-          ================================== */}
-
-          <div
-            className="
-              flex
-              items-center
-
-              gap-3
-              md:gap-5
-            "
-          >
-            {/* ================================
-                NOTIFICATION BELL
-            ================================ */}
-
+          {/* RIGHT */}
+          <div className="flex shrink-0 items-center gap-3">
+            {/* EXISTING NOTIFICATIONS */}
             <NotificationBell />
-
-            {/* ================================
-                USER
-            ================================ */}
 
             <div
               className="
-                hidden
-                md:flex
-
-                items-center
-
-                gap-3
+                hidden items-center gap-3
+                border-l border-slate-200
+                pl-4 md:flex
               "
             >
               <div
                 className="
-                  bg-[#001B54]
-
-                  text-white
-
-                  h-11
-                  w-11
-
+                  flex h-10 w-10
+                  items-center justify-center
                   rounded-full
-
-                  flex
-                  items-center
-                  justify-center
-
-                  shrink-0
+                  bg-[#082650]
+                  text-white
                 "
               >
-                <User size={18} />
+                <User size={19} />
               </div>
 
-              <div
-                className="
-                  min-w-0
-                "
-              >
+              <div className="max-w-[190px] min-w-0">
                 <p
                   className="
-                    font-bold
-
-                    text-[#001B54]
-
-                    truncate
-
-                    max-w-[180px]
+                    truncate text-sm
+                    font-bold text-[#082650]
                   "
                 >
                   {user?.name || "Warden"}
                 </p>
 
-                <p
-                  className="
-                    text-xs
-                    text-gray-500
-                  "
-                >
-                  Hostel Warden
-                </p>
+                <p className="text-xs text-slate-500">Hostel Warden</p>
               </div>
             </div>
           </div>
         </header>
 
-        {/* ==================================
-            PAGE CONTENT
-        ================================== */}
-
+        {/* ========================================
+            PAGE CONTENT - EXISTING ROUTES
+        ======================================== */}
         <main
           className="
-            flex-1
-
-            p-4
-            md:p-6
-
-            overflow-auto
+            min-w-0 flex-1
+            overflow-x-hidden
+            p-4 sm:p-5 md:p-6
           "
         >
           <Outlet />
