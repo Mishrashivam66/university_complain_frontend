@@ -124,6 +124,24 @@ function locationDetails(complaint) {
 function isAssigned(complaint) {
   return Boolean(complaint.assignedTo || complaint.workerAssigned);
 }
+
+// Manual Job Cards are optional emergency/offline documents.
+// Never create a new card for resolved or work-done complaints.
+const JOB_CARD_ELIGIBLE_STATUSES = new Set([
+  "ASSIGNED",
+  "IN_PROGRESS",
+  "WAITING_MATERIAL",
+  "WAITING_FOR_MATERIAL",
+  "REOPENED",
+]);
+
+function canGenerateJobCard(complaint) {
+  return (
+    Boolean(complaint) &&
+    isAssigned(complaint) &&
+    JOB_CARD_ELIGIBLE_STATUSES.has(upper(complaint.status))
+  );
+}
 function isOverdue(complaint, now) {
   if (
     now === null ||
@@ -887,7 +905,14 @@ export default function Complaints() {
     if (!selected || working) return;
 
     if (!isAssigned(selected)) {
-      toast.error("Assign Technician first");
+      toast.error("Assign Technician first", { duration: 1200 });
+      return;
+    }
+
+    if (!canGenerateJobCard(selected)) {
+      toast.error("New Job Cards are disabled for this complaint status", {
+        duration: 1600,
+      });
       return;
     }
 
@@ -2035,12 +2060,16 @@ export default function Complaints() {
                       type="button"
                       className={`${PRIMARY} mt-5 w-full`}
                       disabled={
-                        !isAssigned(selected) || working || !available.jobCards
+                        !canGenerateJobCard(selected) ||
+                        working ||
+                        !available.jobCards
                       }
                       onClick={createJobCard}
                     >
                       <Printer size={15} />
-                      Generate Manual Job Card
+                      {canGenerateJobCard(selected)
+                        ? "Generate Manual Job Card"
+                        : "Job Card Generation Disabled"}
                     </button>
                   )}
                 </div>
