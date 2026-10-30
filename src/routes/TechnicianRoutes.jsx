@@ -1,19 +1,21 @@
 import { Navigate, Route } from "react-router-dom";
 
 import TechnicianDashboard from "../modules/technician/pages/TechnicianDashboard";
+import MyMaterials from "../modules/technician/MyMaterials";
 
 // ==========================================
-// AMIMAINTAIN - TECHNICIAN ROUTES
+// AMI MAINTENANCE — TECHNICIAN ROUTES
 // ==========================================
 
 const TechnicianRoutes = (
   <>
-    {/* MAIN TECHNICIAN DASHBOARD */}
-
+    {/* Main Technician Dashboard */}
     <Route path="/technician/dashboard" element={<TechnicianDashboard />} />
 
-    {/* OLD WORKER DASHBOARD URL COMPATIBILITY */}
+    {/* Technician Material Receiving */}
+    <Route path="/technician/my-materials" element={<MyMaterials />} />
 
+    {/* Legacy Worker URL */}
     <Route
       path="/worker/dashboard"
       element={<Navigate to="/technician/dashboard" replace />}
