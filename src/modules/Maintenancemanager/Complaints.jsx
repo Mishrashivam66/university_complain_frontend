@@ -104,6 +104,49 @@ function dateIST(value) {
   }).format(date);
 }
 
+function formatPreferredTime(value) {
+  if (!value || !/^\d{2}:\d{2}$/.test(value)) return "—";
+
+  const [hour, minute] = value.split(":").map(Number);
+  if (hour > 23 || minute > 59) return "—";
+
+  return `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${
+    hour >= 12 ? "PM" : "AM"
+  }`;
+}
+
+function PreferredVisitCard({ complaint }) {
+  const start = complaint?.preferredVisitTime?.startTime;
+  const end = complaint?.preferredVisitTime?.endTime;
+  const valid = Boolean(start && end);
+
+  return (
+    <div className="col-span-2 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+      <div className="flex items-center gap-2">
+        <Clock3 size={17} className="text-amber-700" />
+        <p className="text-xs font-extrabold uppercase text-amber-800">
+          Preferred Maintenance Visit Time
+        </p>
+      </div>
+      {valid ? (
+        <>
+          <p className="mt-3 text-lg font-black text-[#102B52]">
+            {formatPreferredTime(start)} – {formatPreferredTime(end)}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Student-selected availability window · IST (not a guaranteed
+            appointment)
+          </p>
+        </>
+      ) : (
+        <p className="mt-3 text-sm font-semibold text-slate-500">
+          Preferred visit time not available
+        </p>
+      )}
+    </div>
+  );
+}
+
 function locationOf(complaint) {
   return (
     complaint.hostel || complaint.block || complaint.complaintArea || "Other"
@@ -1658,6 +1701,8 @@ export default function Complaints() {
 
                     <InfoItem label="Priority" value={selected.priority} />
 
+                    <PreferredVisitCard complaint={selected} />
+
                     <InfoItem
                       label="Technician"
                       value={
@@ -1727,6 +1772,10 @@ export default function Complaints() {
               {drawerTab === "TECHNICIAN" && (
                 <div className="rounded-2xl bg-white p-5 shadow-sm">
                   <h3 className="text-sm font-black">Technician Assignment</h3>
+
+                  <div className="mt-4">
+                    <PreferredVisitCard complaint={selected} />
+                  </div>
 
                   <p className="mt-3 text-sm text-slate-600">
                     Assigned Technician:{" "}
