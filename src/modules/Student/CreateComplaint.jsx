@@ -1,13 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-
 import {
   ArrowLeft,
   ArrowRight,
   Building2,
-  CalendarDays,
   CheckCircle2,
   ClipboardList,
   Clock3,
@@ -20,53 +17,22 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
-
 import { createComplaint } from "../../services/studentService";
 
-// =====================================================
+// ==========================================
 // AMI MAINTENANCE
 // STUDENT CREATE COMPLAINT
-// =====================================================
+// ==========================================
 
-// =====================================================
-// PREFERRED VISIT WINDOWS - IST
-// =====================================================
-
-const VISIT_WINDOWS = [
-  {
-    from: "09:00 AM",
-    to: "11:00 AM",
-    start: 540,
-  },
-  {
-    from: "11:00 AM",
-    to: "01:00 PM",
-    start: 660,
-  },
-  {
-    from: "01:00 PM",
-    to: "03:00 PM",
-    start: 780,
-  },
-  {
-    from: "03:00 PM",
-    to: "05:00 PM",
-    start: 900,
-  },
-];
-
-// =====================================================
-// COMMON STYLES
-// =====================================================
+const WORK_START = 10 * 60;
+const WORK_END = 17 * 60;
+const MIN_DURATION = 120;
+const TIME_STEP = 30;
 
 const fieldStyle =
   "w-full min-w-0 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-[#102746] outline-none transition focus:border-[#C49A45] focus:ring-4 focus:ring-[#C49A45]/10";
 
 const labelStyle = "mb-2 block text-sm font-semibold text-[#102746]";
-
-// =====================================================
-// HELPERS
-// =====================================================
 
 const text = (value) => String(value ?? "").trim();
 
@@ -75,32 +41,90 @@ const normalized = (value) =>
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "");
 
-// =====================================================
-// HOSTEL NORMALIZATION
-//
-// Examples:
-// H1
-// Hostel H1
-// Boys Hostel H1
-//
-// All will normalize to H1.
-// =====================================================
+const toMinutes = (clock) => {
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(clock || "")) {
+    return null;
+  }
+
+  const [hours, minutes] = clock.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
+const toClock = (minutes) => {
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`;
+};
+
+const formatTime = (clock) => {
+  const minutes = toMinutes(clock);
+  if (minutes === null) return "Not selected";
+
+  const hour24 = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  const hour12 = hour24 % 12 || 12;
+
+  return `${hour12}:${String(mins).padStart(2, "0")} ${
+    hour24 >= 12 ? "PM" : "AM"
+  }`;
+};
+
+const makeOptions = (start, end) => {
+  const result = [];
+
+  for (let minute = start; minute <= end; minute += TIME_STEP) {
+    const value = toClock(minute);
+
+    result.push({
+      value,
+      label: formatTime(value),
+    });
+  }
+
+  return result;
+};
+
+const START_OPTIONS = makeOptions(WORK_START, WORK_END - MIN_DURATION);
+
+function validateVisitTime(startTime, endTime) {
+  const start = toMinutes(startTime);
+  const end = toMinutes(endTime);
+
+  if (start === null || end === null) {
+    return "Select both start time and end time";
+  }
+
+  if (start < WORK_START || start > WORK_END - MIN_DURATION) {
+    return "Start time must be between 10 AM and 3 PM";
+  }
+
+  if (end > WORK_END || end - start < MIN_DURATION) {
+    return "Select at least 2 hours, ending no later than 5 PM";
+  }
+
+  if (
+    (start - WORK_START) % TIME_STEP !== 0 ||
+    (end - WORK_START) % TIME_STEP !== 0
+  ) {
+    return "Select a time in 30-minute intervals";
+  }
+
+  return "";
+}
+
+// ==========================================
+// PROFILE HELPERS
+// ==========================================
 
 function hostelCode(value) {
   const raw = text(value).toUpperCase();
-
   const detected = raw.match(/\bH\d+[A-Z]?\b/);
 
-  if (detected) {
-    return detected[0];
-  }
+  if (detected) return detected[0];
 
   return normalized(value).replace(/^(BOYS|GIRLS|FACULTY|STAFF)?HOSTEL/, "");
 }
-
-// =====================================================
-// GET STORED STUDENT
-// =====================================================
 
 function readUser() {
   try {
@@ -109,10 +133,6 @@ function readUser() {
     return {};
   }
 }
-
-// =====================================================
-// REGISTERED STUDENT HOSTEL
-// =====================================================
 
 function studentHostel(user) {
   const value = user?.hostel;
@@ -126,25 +146,14 @@ function studentHostel(user) {
   return text(value);
 }
 
-// =====================================================
-// MATCH REGISTERED HOSTEL
-// =====================================================
-
 function matchedHostel(hostel, user) {
   const own = hostelCode(studentHostel(user));
-
-  if (!own) {
-    return false;
-  }
+  if (!own) return false;
 
   return [hostel.code, hostel.name].some(
     (value) => !!value && hostelCode(value) === own,
   );
 }
-
-// =====================================================
-// GET DEPARTMENT NAME
-// =====================================================
 
 function departmentName(user) {
   const value = user?.department || user?.branch;
@@ -156,90 +165,33 @@ function departmentName(user) {
   return text(value);
 }
 
-// =====================================================
-// DETECT FLOOR FROM ROOM
-//
-// G*  -> Ground Floor
-// F*  -> First Floor
-// S2* -> Second Floor
-// S3* -> Second Floor
-// =====================================================
-
 function detectFloor(roomNumber) {
   const value = normalized(roomNumber);
 
-  if (value.startsWith("G")) {
-    return "Ground Floor";
-  }
-
-  if (value.startsWith("F")) {
-    return "First Floor";
-  }
-
-  if (/^S[23]/.test(value)) {
-    return "Second Floor";
-  }
+  if (value.startsWith("G")) return "Ground Floor";
+  if (value.startsWith("F")) return "First Floor";
+  if (/^S[23]/.test(value)) return "Second Floor";
 
   return "";
 }
 
-// =====================================================
-// INDIA DATE AND TIME
-// =====================================================
-
-function indianNow() {
-  const values = Object.fromEntries(
-    new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Asia/Kolkata",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    })
-      .formatToParts(new Date())
-      .map(({ type, value }) => [type, value]),
-  );
-
-  return {
-    date: `${values.year}-${values.month}-${values.day}`,
-
-    minutes: Number(values.hour) * 60 + Number(values.minute),
-  };
-}
-
-// =====================================================
-// INITIAL FORM
-// =====================================================
-
 const initialForm = () => ({
   locationKey: "",
-
   complaintArea: "",
-
   hostel: "",
   block: "",
   roomNumber: "",
   floor: "",
   department: "",
-
   category: "",
   subCategory: "",
   customTitle: "",
-
   issueLocation: "",
   extraLocation: "",
-
   description: "",
-
-  visitDate: "",
-  slots: [],
+  preferredStartTime: "11:00",
+  preferredEndTime: "13:00",
 });
-
-// =====================================================
-// INITIAL ADMIN MASTER
-// =====================================================
 
 const emptyMaster = () => ({
   hostels: [],
@@ -248,9 +200,9 @@ const emptyMaster = () => ({
   categories: [],
 });
 
-// =====================================================
+// ==========================================
 // REUSABLE SECTION
-// =====================================================
+// ==========================================
 
 function Section({ number, title, help, children }) {
   return (
@@ -264,7 +216,6 @@ function Section({ number, title, help, children }) {
           <h2 className="text-xl font-black text-[#102746] sm:text-2xl">
             {title}
           </h2>
-
           <p className="mt-1 text-sm leading-relaxed text-slate-500">{help}</p>
         </div>
       </div>
@@ -274,40 +225,28 @@ function Section({ number, title, help, children }) {
   );
 }
 
-// =====================================================
+// ==========================================
 // MAIN COMPONENT
-// =====================================================
+// ==========================================
 
 export default function CreateComplaint() {
   const navigate = useNavigate();
-
   const inFlight = useRef(false);
 
-  // ===================================================
-  // STATE
-  // ===================================================
-
   const [user, setUser] = useState(readUser);
-
   const [master, setMaster] = useState(emptyMaster);
-
   const [loading, setLoading] = useState(true);
-
   const [error, setError] = useState("");
-
   const [form, setForm] = useState(initialForm);
-
   const [step, setStep] = useState(1);
-
   const [submitting, setSubmitting] = useState(false);
-
   const [submitted, setSubmitted] = useState(null);
 
   const isHosteller = user?.isHosteller === true;
 
-  // ===================================================
-  // LOAD ADMIN CREATED CONFIGURATION
-  // ===================================================
+  // ======================================
+  // LOAD ADMIN CONFIGURATION
+  // ======================================
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -315,27 +254,12 @@ export default function CreateComplaint() {
 
     const [config, profile] = await Promise.allSettled([
       api.get("/student/complaint-form-config"),
-
       api.get("/auth/profile"),
     ]);
 
-    // ===============================================
-    // ADMIN MASTER DATA
-    // ===============================================
-
     if (config.status === "fulfilled" && config.value.data?.success !== false) {
       const data = config.value.data || {};
-
-      const arr = (value) => (Array.isArray(value) ? value : []);
-
-      // ===========================================
-      // SORTING
-      //
-      // Hostels -> By Name
-      // Blocks  -> By Code A, B, C, D...
-      // Other   -> By Name
-      // Categories -> By Name
-      // ===========================================
+      const arr = (value) => (Array.isArray(value) ? [...value] : []);
 
       const byName = (a, b) =>
         text(a.name).localeCompare(text(b.name), undefined, {
@@ -347,19 +271,13 @@ export default function CreateComplaint() {
         text(a.code || a.name).localeCompare(
           text(b.code || b.name),
           undefined,
-          {
-            numeric: true,
-            sensitivity: "base",
-          },
+          { numeric: true, sensitivity: "base" },
         );
 
       setMaster({
         hostels: arr(data.hostels).sort(byName),
-
         academicBlocks: arr(data.academicBlocks).sort(byBlockCode),
-
         otherLocations: arr(data.otherLocations).sort(byName),
-
         categories: arr(data.categories).sort(byName),
       });
     } else {
@@ -371,16 +289,11 @@ export default function CreateComplaint() {
       );
     }
 
-    // ===============================================
-    // STUDENT PROFILE
-    // ===============================================
-
     if (profile.status === "fulfilled") {
       const current = profile.value.data?.user;
 
       if (current) {
         setUser(current);
-
         localStorage.setItem("user", JSON.stringify(current));
       }
     }
@@ -388,60 +301,38 @@ export default function CreateComplaint() {
     setLoading(false);
   }, []);
 
-  // ===================================================
-  // INITIAL FETCH
-  // ===================================================
-
   useEffect(() => {
     load();
   }, [load]);
 
-  // ===================================================
+  // ======================================
   // SELECTED LOCATION
-  // ===================================================
+  // ======================================
 
   const selected = useMemo(() => {
     const [kind, id] = form.locationKey.split(":");
 
     const groups = {
       HOSTEL: master.hostels,
-
       BLOCK: master.academicBlocks,
-
       OTHER: master.otherLocations,
     };
 
     return (groups[kind] || []).find((item) => text(item.id) === id) || null;
   }, [form.locationKey, master]);
 
-  // ===================================================
-  // SELECTED CATEGORY
-  // ===================================================
-
   const category = useMemo(
     () => master.categories.find((item) => item.name === form.category),
     [master, form.category],
   );
 
-  // ===================================================
-  // SUBCATEGORIES
-  // ===================================================
-
   const subCategories = Array.isArray(category?.subCategories)
     ? category.subCategories
     : [];
 
-  // ===================================================
-  // CUSTOM ISSUE TITLE
-  // ===================================================
-
   const customTitle = !subCategories.length || form.subCategory === "__OTHER__";
 
   const title = customTitle ? text(form.customTitle) : text(form.subCategory);
-
-  // ===================================================
-  // EXACT ISSUE LOCATION
-  // ===================================================
 
   const location =
     selected?.type === "OTHER"
@@ -450,9 +341,24 @@ export default function CreateComplaint() {
         : selected.name
       : text(form.issueLocation);
 
-  // ===================================================
-  // UPDATE FIELD
-  // ===================================================
+  const endOptions = useMemo(() => {
+    const start = toMinutes(form.preferredStartTime);
+
+    if (start === null) return [];
+
+    return makeOptions(start + MIN_DURATION, WORK_END);
+  }, [form.preferredStartTime]);
+
+  const duration = useMemo(() => {
+    const start = toMinutes(form.preferredStartTime);
+    const end = toMinutes(form.preferredEndTime);
+
+    if (start === null || end === null || end <= start) {
+      return 0;
+    }
+
+    return (end - start) / 60;
+  }, [form.preferredStartTime, form.preferredEndTime]);
 
   const change = (key, value) => {
     setForm((old) => ({
@@ -461,11 +367,42 @@ export default function CreateComplaint() {
     }));
   };
 
-  // ===================================================
+  // ======================================
+  // TIME SELECTION
+  // ======================================
+
+  const changeStartTime = (value) => {
+    setForm((old) => {
+      const start = toMinutes(value);
+      const currentEnd = toMinutes(old.preferredEndTime);
+
+      if (start === null) return old;
+
+      const minimumEnd = start + MIN_DURATION;
+
+      const nextEnd =
+        currentEnd === null || currentEnd < minimumEnd
+          ? toClock(minimumEnd)
+          : old.preferredEndTime;
+
+      return {
+        ...old,
+        preferredStartTime: value,
+        preferredEndTime: nextEnd,
+      };
+    });
+  };
+
+  // ======================================
   // CHOOSE LOCATION
-  // ===================================================
+  // ======================================
 
   const chooseLocation = (value) => {
+    if (!value) {
+      setForm(initialForm());
+      return;
+    }
+
     const [kind, id] = value.split(":");
 
     const groups = {
@@ -477,103 +414,41 @@ export default function CreateComplaint() {
     const place = (groups[kind] || []).find((item) => text(item.id) === id);
 
     if (!place) {
-      setForm(initialForm());
+      toast.error("Invalid complaint location");
       return;
     }
-
-    // ===============================================
-    // HOSTEL AUTHORIZATION
-    // ===============================================
 
     if (kind === "HOSTEL" && (!isHosteller || !matchedHostel(place, user))) {
       toast.error(
         "Hostel complaint is permitted only for your registered hostel",
       );
-
       return;
     }
 
-    // ===============================================
-    // SET LOCATION
-    // ===============================================
-
     setForm((old) => ({
       ...old,
-
       locationKey: value,
-
       complaintArea:
         kind === "HOSTEL"
           ? "HOSTEL"
           : kind === "BLOCK"
             ? "DEPARTMENT"
             : "CAMPUS",
-
       hostel: kind === "HOSTEL" ? place.name : "",
-
       block: kind === "BLOCK" ? place.code : "",
-
       roomNumber: kind === "HOSTEL" ? text(user.roomNumber) : "",
-
       floor: kind === "HOSTEL" ? detectFloor(user.roomNumber) : "",
-
       department: kind === "BLOCK" ? departmentName(user) : "",
-
       issueLocation: "",
       extraLocation: "",
     }));
   };
 
-  // ===================================================
-  // CHECK UNAVAILABLE SLOT
-  // ===================================================
-
-  const unavailable = (slot) => {
-    if (!form.visitDate) {
-      return true;
-    }
-
-    const now = indianNow();
-
-    return (
-      form.visitDate < now.date ||
-      (form.visitDate === now.date && slot.start <= now.minutes)
-    );
-  };
-
-  // ===================================================
-  // SELECT EXACTLY 3 SLOTS
-  // ===================================================
-
-  const toggleSlot = (index) => {
-    if (unavailable(VISIT_WINDOWS[index])) {
-      return;
-    }
-
-    if (!form.slots.includes(index) && form.slots.length === 3) {
-      toast.info("Please choose exactly 3 time slots");
-
-      return;
-    }
-
-    change(
-      "slots",
-
-      form.slots.includes(index)
-        ? form.slots.filter((x) => x !== index)
-        : [...form.slots, index].sort((a, b) => a - b),
-    );
-  };
-
-  // ===================================================
+  // ======================================
   // VALIDATION
-  // ===================================================
+  // ======================================
 
   const validate = (number) => {
-    // ===============================================
-    // STEP 1
-    // ===============================================
-
     if (number === 1) {
       if (!selected) {
         return "Select a Hostel, Academic Block or Other Location";
@@ -590,10 +465,6 @@ export default function CreateComplaint() {
         return "Your registered room number is missing";
       }
     }
-
-    // ===============================================
-    // STEP 2
-    // ===============================================
 
     if (number === 2) {
       if (!category) {
@@ -629,35 +500,12 @@ export default function CreateComplaint() {
       }
     }
 
-    // ===============================================
-    // STEP 3
-    // ===============================================
-
     if (number === 3) {
-      const now = indianNow();
-
-      if (
-        !/^\d{4}-\d{2}-\d{2}$/.test(form.visitDate) ||
-        form.visitDate < now.date
-      ) {
-        return "Select a valid date";
-      }
-
-      if (form.slots.length !== 3) {
-        return "Select exactly 3 preferred 2-hour slots";
-      }
-
-      if (form.slots.some((index) => unavailable(VISIT_WINDOWS[index]))) {
-        return "One slot already started; choose a different date";
-      }
+      return validateVisitTime(form.preferredStartTime, form.preferredEndTime);
     }
 
     return "";
   };
-
-  // ===================================================
-  // NEXT / PREVIOUS STEP
-  // ===================================================
 
   const navigateStep = (delta) => {
     if (delta > 0) {
@@ -665,7 +513,6 @@ export default function CreateComplaint() {
 
       if (problem) {
         toast.error(problem);
-
         return;
       }
     }
@@ -678,29 +525,21 @@ export default function CreateComplaint() {
     });
   };
 
-  // ===================================================
+  // ======================================
   // SUBMIT COMPLAINT
-  // ===================================================
+  // ======================================
 
   const submit = async (event) => {
     event.preventDefault();
 
-    if (step !== 3 || inFlight.current) {
-      return;
-    }
-
-    // ===============================================
-    // VALIDATE ALL STEPS
-    // ===============================================
+    if (step !== 3 || inFlight.current) return;
 
     for (const number of [1, 2, 3]) {
       const problem = validate(number);
 
       if (problem) {
         toast.error(problem);
-
         setStep(number);
-
         return;
       }
     }
@@ -708,69 +547,32 @@ export default function CreateComplaint() {
     inFlight.current = true;
     setSubmitting(true);
 
-    // ===============================================
-    // PREFERRED VISIT SLOTS
-    // ===============================================
-
-    const preferredVisitSlots = form.slots.map((index, preference) => ({
-      preference: preference + 1,
-
-      date: form.visitDate,
-
-      startTime: VISIT_WINDOWS[index].from,
-
-      endTime: VISIT_WINDOWS[index].to,
-    }));
-
-    // ===============================================
-    // DESCRIPTION
-    // ===============================================
-
     const description = text(form.extraLocation)
-      ? `${text(form.description)}\nLocation detail: ${text(form.extraLocation)}`
+      ? `${text(form.description)}\nLocation detail: ${text(
+          form.extraLocation,
+        )}`
       : text(form.description);
-
-    // ===============================================
-    // API PAYLOAD
-    // ===============================================
 
     const payload = {
       locationKey: form.locationKey,
-
       complaintArea: form.complaintArea,
-
       hostel: form.hostel,
-
       block: form.block,
-
       roomNumber: form.roomNumber,
-
       floor: form.floor,
-
       department: form.department,
-
       category: category.name,
-
       subCategory: title,
-
       title,
-
       description,
-
       issueLocation: location,
-
       priority: category.priority,
 
-      preferredVisitSlots,
-
-      availableFrom: preferredVisitSlots[0].startTime,
-
-      availableTo: preferredVisitSlots[0].endTime,
+      preferredVisitTime: {
+        startTime: form.preferredStartTime,
+        endTime: form.preferredEndTime,
+      },
     };
-
-    // ===============================================
-    // CREATE COMPLAINT API
-    // ===============================================
 
     try {
       const response = await createComplaint(payload);
@@ -779,21 +581,20 @@ export default function CreateComplaint() {
 
       setSubmitted({
         id: complaint.complaintId || complaint._id || "Registered",
-
         title,
-
         location: selected.name,
+        startTime: form.preferredStartTime,
+        endTime: form.preferredEndTime,
       });
 
       setForm(initialForm());
-
       setStep(1);
 
       toast.success("Complaint registered successfully");
     } catch (err) {
       toast.error(
         err?.response?.data?.message ||
-          "Submission not confirmed; please check My Complaints before trying again",
+          "Submission not confirmed; check My Complaints before trying again",
       );
     } finally {
       inFlight.current = false;
@@ -801,18 +602,15 @@ export default function CreateComplaint() {
     }
   };
 
-  // ===================================================
+  // ======================================
   // MAIN UI
-  // ===================================================
+  // ======================================
 
   return (
     <main className="mx-auto max-w-5xl space-y-6 pb-10 text-[#102746]">
-      {/* ============================================
-          PREMIUM HEADER
-      ============================================ */}
-
+      {/* HEADER */}
       <header className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#091F3C] via-[#102F56] to-[#184779] p-6 text-white shadow-lg sm:p-8">
-        <div className="relative flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-4">
           <div>
             <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 text-xs font-bold tracking-wider text-amber-200">
               <ShieldCheck size={15} />
@@ -824,8 +622,8 @@ export default function CreateComplaint() {
             </h1>
 
             <p className="mt-2 max-w-xl text-sm leading-6 text-slate-200">
-              Submit your complaint in three simple steps. Our Maintenance
-              Manager will confirm a preferred visit time.
+              Submit your complaint in three simple steps. Select a convenient
+              maintenance visit window.
             </p>
           </div>
 
@@ -836,10 +634,7 @@ export default function CreateComplaint() {
         </div>
       </header>
 
-      {/* ============================================
-          THREE STEP PROGRESS
-      ============================================ */}
-
+      {/* PROGRESS */}
       <nav
         aria-label="Form progress"
         className="grid grid-cols-3 gap-2 sm:gap-3"
@@ -880,7 +675,6 @@ export default function CreateComplaint() {
 
               <div className="min-w-0">
                 <p className="text-[10px] text-slate-500">Step {number}</p>
-
                 <p className="truncate text-xs font-bold sm:text-sm">
                   {stepLabel}
                 </p>
@@ -890,14 +684,10 @@ export default function CreateComplaint() {
         })}
       </nav>
 
-      {/* ============================================
-          LOADING / ERROR / FORM
-      ============================================ */}
-
+      {/* LOADING / ERROR / FORM */}
       {loading ? (
         <div className="flex min-h-60 flex-col items-center justify-center rounded-3xl bg-white">
           <Loader2 size={28} className="animate-spin text-amber-600" />
-
           <p className="mt-3 text-sm text-slate-500">
             Loading locations from Admin...
           </p>
@@ -907,9 +697,7 @@ export default function CreateComplaint() {
           <p className="font-bold text-red-700">
             Unable to load complaint form
           </p>
-
           <p className="mt-2 text-sm text-slate-500">{error}</p>
-
           <button
             type="button"
             onClick={load}
@@ -921,10 +709,7 @@ export default function CreateComplaint() {
         </div>
       ) : (
         <form onSubmit={submit}>
-          {/* ========================================
-              STEP 1 - LOCATION
-          ======================================== */}
-
+          {/* STEP 1 */}
           {step === 1 && (
             <Section
               number="01"
@@ -951,8 +736,6 @@ export default function CreateComplaint() {
                     Select Hostel / Academic Block / Other Location
                   </option>
 
-                  {/* HOSTELS */}
-
                   {master.hostels.length > 0 && (
                     <optgroup label="HOSTELS — ADMIN CREATED">
                       {master.hostels.map((item) => (
@@ -962,7 +745,6 @@ export default function CreateComplaint() {
                           disabled={!isHosteller || !matchedHostel(item, user)}
                         >
                           {item.name}
-
                           {!isHosteller
                             ? " (Hostellers only)"
                             : !matchedHostel(item, user)
@@ -973,8 +755,6 @@ export default function CreateComplaint() {
                     </optgroup>
                   )}
 
-                  {/* ACADEMIC BLOCKS */}
-
                   {master.academicBlocks.length > 0 && (
                     <optgroup label="ACADEMIC BLOCKS — ADMIN CREATED">
                       {master.academicBlocks.map((item) => (
@@ -984,8 +764,6 @@ export default function CreateComplaint() {
                       ))}
                     </optgroup>
                   )}
-
-                  {/* OTHER LOCATIONS */}
 
                   {master.otherLocations.length > 0 && (
                     <optgroup label="OTHER LOCATIONS — ADMIN CREATED">
@@ -999,8 +777,6 @@ export default function CreateComplaint() {
                 </select>
               </div>
 
-              {/* NO LOCATIONS */}
-
               {master.hostels.length +
                 master.academicBlocks.length +
                 master.otherLocations.length ===
@@ -1009,8 +785,6 @@ export default function CreateComplaint() {
                   No active locations available. Contact Admin.
                 </p>
               )}
-
-              {/* SELECTED LOCATION DETAILS */}
 
               {selected && (
                 <div className="mt-6 rounded-2xl border border-amber-200 bg-[#FFFAEF] p-5">
@@ -1029,13 +803,10 @@ export default function CreateComplaint() {
                     />
                   </div>
 
-                  {/* HOSTEL ROOM DETAILS */}
-
                   {selected.type === "HOSTEL" ? (
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <label className={labelStyle}>Registered Room</label>
-
                         <input
                           readOnly
                           className={`${fieldStyle} bg-slate-50`}
@@ -1047,7 +818,6 @@ export default function CreateComplaint() {
                         <label className={labelStyle}>
                           Floor (auto-detected)
                         </label>
-
                         <input
                           readOnly
                           className={`${fieldStyle} bg-slate-50`}
@@ -1056,12 +826,9 @@ export default function CreateComplaint() {
                       </div>
                     </div>
                   ) : selected.type === "BLOCK" ? (
-                    /* ACADEMIC BLOCK DETAILS */
-
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <label className={labelStyle}>Academic Block</label>
-
                         <input
                           readOnly
                           className={`${fieldStyle} bg-slate-50`}
@@ -1071,7 +838,6 @@ export default function CreateComplaint() {
 
                       <div>
                         <label className={labelStyle}>Department</label>
-
                         <input
                           readOnly
                           className={`${fieldStyle} bg-slate-50`}
@@ -1087,20 +853,15 @@ export default function CreateComplaint() {
                 </div>
               )}
 
-              {/* STUDENT LOCATION ACCESS NOTE */}
-
               <p className="mt-4 flex items-start gap-2 text-xs text-slate-500">
                 <ShieldCheck size={16} className="shrink-0 text-amber-700" />
-                Admin manages location records. Hostel options are visible to
-                everyone but available only to the registered hosteller.
+                Admin manages location records. Hostel options are available
+                only to the registered hosteller.
               </p>
             </Section>
           )}
 
-          {/* ========================================
-              STEP 2 - ISSUE DETAILS
-          ======================================== */}
-
+          {/* STEP 2 */}
           {step === 2 && (
             <Section
               number="02"
@@ -1108,8 +869,6 @@ export default function CreateComplaint() {
               help="Choose an Admin maintenance category and tell us the repair location."
             >
               <div className="space-y-5">
-                {/* MAINTENANCE CATEGORY */}
-
                 <div>
                   <label className={labelStyle}>Maintenance Category *</label>
 
@@ -1119,9 +878,7 @@ export default function CreateComplaint() {
                     onChange={(event) =>
                       setForm((old) => ({
                         ...old,
-
                         category: event.target.value,
-
                         subCategory: "",
                         customTitle: "",
                       }))
@@ -1150,8 +907,6 @@ export default function CreateComplaint() {
                   )}
                 </div>
 
-                {/* SUBCATEGORY */}
-
                 {subCategories.length > 0 && (
                   <div>
                     <label className={labelStyle}>Exact Issue *</label>
@@ -1176,8 +931,6 @@ export default function CreateComplaint() {
                   </div>
                 )}
 
-                {/* CUSTOM TITLE */}
-
                 {customTitle && (
                   <div>
                     <label className={labelStyle}>Issue Title *</label>
@@ -1193,8 +946,6 @@ export default function CreateComplaint() {
                     />
                   </div>
                 )}
-
-                {/* ISSUE LOCATION */}
 
                 <div>
                   <label className={labelStyle}>Exact Issue Location *</label>
@@ -1236,8 +987,6 @@ export default function CreateComplaint() {
                   )}
                 </div>
 
-                {/* ADDITIONAL LOCATION DETAILS */}
-
                 <div>
                   <label className={labelStyle}>
                     Additional Location Detail (Optional)
@@ -1253,8 +1002,6 @@ export default function CreateComplaint() {
                     placeholder="Landmark or access instructions"
                   />
                 </div>
-
-                {/* DESCRIPTION */}
 
                 <div>
                   <label className={labelStyle}>Problem Description *</label>
@@ -1278,155 +1025,153 @@ export default function CreateComplaint() {
             </Section>
           )}
 
-          {/* ========================================
-              STEP 3 - PREFERRED VISIT DATE
-          ======================================== */}
-
+          {/* STEP 3 - FLEXIBLE VISIT TIME */}
           {step === 3 && (
             <Section
               number="03"
               title="When are you available?"
-              help="Choose exactly 3 non-overlapping 2-hour windows. The Manager will confirm one."
+              help="Select one convenient time window between 10 AM and 5 PM. Minimum availability is 2 hours."
             >
               <div className="space-y-6">
-                {/* VISIT DATE */}
+                <div className="rounded-2xl border border-amber-200 bg-[#FFFAEF] p-5">
+                  <div className="mb-5 flex items-center gap-3">
+                    <span className="rounded-xl bg-[#102746] p-3 text-amber-200">
+                      <Clock3 size={22} />
+                    </span>
 
-                <div>
-                  <label className={labelStyle}>Preferred Visit Date *</label>
+                    <div>
+                      <h3 className="font-extrabold text-[#102746]">
+                        Preferred Maintenance Visit Time
+                      </h3>
 
-                  <div className="relative max-w-sm">
-                    <CalendarDays
-                      size={18}
-                      className="pointer-events-none absolute left-4 top-3.5 text-slate-400"
-                    />
-
-                    <input
-                      type="date"
-                      className={`${fieldStyle} pl-11`}
-                      min={indianNow().date}
-                      value={form.visitDate}
-                      onChange={(event) =>
-                        setForm((old) => ({
-                          ...old,
-
-                          visitDate: event.target.value,
-
-                          slots: [],
-                        }))
-                      }
-                    />
+                      <p className="text-xs text-slate-500">
+                        Working hours: 10:00 AM – 5:00 PM (IST)
+                      </p>
+                    </div>
                   </div>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="preferredStartTime"
+                        className={labelStyle}
+                      >
+                        Start Time *
+                      </label>
+
+                      <select
+                        id="preferredStartTime"
+                        className={fieldStyle}
+                        value={form.preferredStartTime}
+                        onChange={(event) =>
+                          changeStartTime(event.target.value)
+                        }
+                      >
+                        {START_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="preferredEndTime" className={labelStyle}>
+                        End Time *
+                      </label>
+
+                      <select
+                        id="preferredEndTime"
+                        className={fieldStyle}
+                        value={form.preferredEndTime}
+                        onChange={(event) =>
+                          change("preferredEndTime", event.target.value)
+                        }
+                      >
+                        {endOptions.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <p className="mt-4 text-xs leading-5 text-slate-600">
+                    The end time must be at least 2 hours after your start time.
+                    You may choose a longer window if convenient.
+                  </p>
                 </div>
 
-                {/* TIME WINDOWS */}
-
-                <div>
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <p className="text-sm font-bold">Available Windows *</p>
-
-                    <span className="rounded-full bg-[#102746] px-3 py-1 text-xs font-bold text-white">
-                      {form.slots.length}/3 selected
-                    </span>
+                {/* SELECTED TIME SUMMARY */}
+                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+                  <div className="flex items-center gap-2 text-sm font-bold text-emerald-800">
+                    <CheckCircle2 size={19} />
+                    Your Selected Availability
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    {VISIT_WINDOWS.map((slot, index) => {
-                      const chosen = form.slots.includes(index);
+                  <p className="mt-3 text-xl font-black text-[#102746] sm:text-2xl">
+                    {formatTime(form.preferredStartTime)}
+                    {" – "}
+                    {formatTime(form.preferredEndTime)}
+                  </p>
 
-                      return (
-                        <button
-                          key={slot.from}
-                          type="button"
-                          disabled={unavailable(slot)}
-                          aria-pressed={chosen}
-                          onClick={() => toggleSlot(index)}
-                          className={`flex items-center justify-between rounded-2xl border-2 p-4 text-left transition ${
-                            chosen
-                              ? "border-amber-500 bg-amber-50"
-                              : "border-slate-200 hover:border-amber-400"
-                          } disabled:cursor-not-allowed disabled:opacity-40`}
-                        >
-                          <span className="flex items-center gap-3">
-                            <Clock3 size={20} className="text-amber-700" />
-
-                            <span>
-                              <strong className="block text-sm">
-                                {slot.from}
-                                {" – "}
-                                {slot.to}
-                              </strong>
-
-                              <span className="mt-1 block text-xs text-slate-500">
-                                2-hour window · IST
-                              </span>
-                            </span>
-                          </span>
-
-                          {chosen && (
-                            <CheckCircle2
-                              size={20}
-                              className="text-emerald-600"
-                            />
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <p className="mt-3 text-xs text-slate-500">
-                    These are preferences, not confirmed appointments. Past
-                    slots cannot be selected.
+                  <p className="mt-2 text-sm font-semibold text-emerald-800">
+                    Duration: {duration} hours
                   </p>
                 </div>
 
                 {/* WHAT HAPPENS NEXT */}
-
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                   <strong>What happens next?</strong>
 
-                  <p className="mt-2">
-                    Your complaint goes to the Maintenance Manager as PENDING.
-                    The Manager assigns a Technician and chooses a preferred
-                    visit time. Email confirmation needs the Manager scheduling
-                    API.
+                  <p className="mt-2 leading-6">
+                    Your complaint will be submitted to the Maintenance Manager.
+                    The Manager can assign a Technician and coordinate a visit
+                    based on your preferred availability. This is a preferred
+                    visit window, not a guaranteed appointment or resolution
+                    deadline.
                   </p>
                 </div>
 
                 {/* COMPLAINT SUMMARY */}
-
                 <div className="rounded-2xl border bg-slate-50 p-4 text-sm">
-                  <p className="mb-2 font-bold">Complaint Summary</p>
+                  <p className="mb-3 font-bold">Complaint Summary</p>
 
-                  <p>
-                    <span className="text-slate-500">Location:</span>{" "}
-                    {selected?.name}
-                  </p>
+                  <div className="space-y-2">
+                    <p>
+                      <span className="text-slate-500">Location:</span>{" "}
+                      {selected?.name}
+                    </p>
 
-                  <p>
-                    <span className="text-slate-500">Category:</span>{" "}
-                    {category?.name}
-                  </p>
+                    <p>
+                      <span className="text-slate-500">Category:</span>{" "}
+                      {category?.name}
+                    </p>
 
-                  <p>
-                    <span className="text-slate-500">Issue:</span> {title}
-                  </p>
+                    <p>
+                      <span className="text-slate-500">Issue:</span> {title}
+                    </p>
 
-                  <p>
-                    <span className="text-slate-500">Priority:</span>{" "}
-                    {category?.priority}
-                  </p>
+                    <p>
+                      <span className="text-slate-500">Priority:</span>{" "}
+                      {category?.priority}
+                    </p>
+
+                    <p>
+                      <span className="text-slate-500">Preferred Time:</span>{" "}
+                      {formatTime(form.preferredStartTime)}
+                      {" – "}
+                      {formatTime(form.preferredEndTime)}
+                    </p>
+                  </div>
                 </div>
               </div>
             </Section>
           )}
 
-          {/* ========================================
-              NAVIGATION BUTTONS
-          ======================================== */}
-
+          {/* NAVIGATION */}
           <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-            {/* BACK */}
-
             <button
               type="button"
               onClick={() => navigateStep(-1)}
@@ -1436,8 +1181,6 @@ export default function CreateComplaint() {
               <ArrowLeft size={17} />
               Back
             </button>
-
-            {/* CONTINUE */}
 
             {step < 3 ? (
               <button
@@ -1449,8 +1192,6 @@ export default function CreateComplaint() {
                 <ArrowRight size={17} />
               </button>
             ) : (
-              /* SUBMIT */
-
               <button
                 type="submit"
                 disabled={submitting}
@@ -1473,10 +1214,7 @@ export default function CreateComplaint() {
         </form>
       )}
 
-      {/* ============================================
-          SUCCESS CONFIRMATION MODAL
-      ============================================ */}
-
+      {/* SUCCESS MODAL */}
       {submitted && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-[#06192F]/75 p-4"
@@ -1509,11 +1247,16 @@ export default function CreateComplaint() {
               </p>
 
               <p>
+                <strong>Preferred Time:</strong>{" "}
+                {formatTime(submitted.startTime)}
+                {" – "}
+                {formatTime(submitted.endTime)}
+              </p>
+
+              <p>
                 <strong>Status:</strong> PENDING
               </p>
             </div>
-
-            {/* VIEW COMPLAINTS */}
 
             <button
               type="button"
@@ -1522,8 +1265,6 @@ export default function CreateComplaint() {
             >
               View My Complaints
             </button>
-
-            {/* CREATE ANOTHER */}
 
             <button
               type="button"
