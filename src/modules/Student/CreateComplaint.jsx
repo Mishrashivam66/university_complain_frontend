@@ -20,8 +20,7 @@ import api from "../../services/api";
 import { createComplaint } from "../../services/studentService";
 
 // ==========================================
-// AMI MAINTENANCE
-// STUDENT CREATE COMPLAINT
+// AMI MAINTENANCE - CREATE COMPLAINT
 // ==========================================
 
 const WORK_START = 10 * 60;
@@ -59,6 +58,7 @@ const toClock = (minutes) => {
 
 const formatTime = (clock) => {
   const minutes = toMinutes(clock);
+
   if (minutes === null) return "Not selected";
 
   const hour24 = Math.floor(minutes / 60);
@@ -87,12 +87,20 @@ const makeOptions = (start, end) => {
 
 const START_OPTIONS = makeOptions(WORK_START, WORK_END - MIN_DURATION);
 
+// ==========================================
+// VISIT TIME VALIDATION
+// ==========================================
+
 function validateVisitTime(startTime, endTime) {
+  if (!startTime || !endTime) {
+    return "Please select both Start Time and End Time";
+  }
+
   const start = toMinutes(startTime);
   const end = toMinutes(endTime);
 
   if (start === null || end === null) {
-    return "Select both start time and end time";
+    return "Invalid maintenance visit time";
   }
 
   if (start < WORK_START || start > WORK_END - MIN_DURATION) {
@@ -100,14 +108,14 @@ function validateVisitTime(startTime, endTime) {
   }
 
   if (end > WORK_END || end - start < MIN_DURATION) {
-    return "Select at least 2 hours, ending no later than 5 PM";
+    return "Minimum 2 hours required, ending no later than 5 PM";
   }
 
   if (
     (start - WORK_START) % TIME_STEP !== 0 ||
     (end - WORK_START) % TIME_STEP !== 0
   ) {
-    return "Select a time in 30-minute intervals";
+    return "Please select time in 30-minute intervals";
   }
 
   return "";
@@ -148,6 +156,7 @@ function studentHostel(user) {
 
 function matchedHostel(hostel, user) {
   const own = hostelCode(studentHostel(user));
+
   if (!own) return false;
 
   return [hostel.code, hostel.name].some(
@@ -175,6 +184,11 @@ function detectFloor(roomNumber) {
   return "";
 }
 
+// ==========================================
+// INITIAL FORM
+// NO DEFAULT TIME
+// ==========================================
+
 const initialForm = () => ({
   locationKey: "",
   complaintArea: "",
@@ -189,8 +203,10 @@ const initialForm = () => ({
   issueLocation: "",
   extraLocation: "",
   description: "",
-  preferredStartTime: "11:00",
-  preferredEndTime: "13:00",
+
+  // Student must select both manually.
+  preferredStartTime: "",
+  preferredEndTime: "",
 });
 
 const emptyMaster = () => ({
@@ -216,6 +232,7 @@ function Section({ number, title, help, children }) {
           <h2 className="text-xl font-black text-[#102746] sm:text-2xl">
             {title}
           </h2>
+
           <p className="mt-1 text-sm leading-relaxed text-slate-500">{help}</p>
         </div>
       </div>
@@ -259,6 +276,7 @@ export default function CreateComplaint() {
 
     if (config.status === "fulfilled" && config.value.data?.success !== false) {
       const data = config.value.data || {};
+
       const arr = (value) => (Array.isArray(value) ? [...value] : []);
 
       const byName = (a, b) =>
@@ -271,7 +289,10 @@ export default function CreateComplaint() {
         text(a.code || a.name).localeCompare(
           text(b.code || b.name),
           undefined,
-          { numeric: true, sensitivity: "base" },
+          {
+            numeric: true,
+            sensitivity: "base",
+          },
         );
 
       setMaster({
@@ -341,6 +362,10 @@ export default function CreateComplaint() {
         : selected.name
       : text(form.issueLocation);
 
+  // ======================================
+  // DYNAMIC END TIME OPTIONS
+  // ======================================
+
   const endOptions = useMemo(() => {
     const start = toMinutes(form.preferredStartTime);
 
@@ -368,29 +393,16 @@ export default function CreateComplaint() {
   };
 
   // ======================================
-  // TIME SELECTION
+  // START TIME CHANGE
+  // END TIME ALWAYS RESET
   // ======================================
 
   const changeStartTime = (value) => {
-    setForm((old) => {
-      const start = toMinutes(value);
-      const currentEnd = toMinutes(old.preferredEndTime);
-
-      if (start === null) return old;
-
-      const minimumEnd = start + MIN_DURATION;
-
-      const nextEnd =
-        currentEnd === null || currentEnd < minimumEnd
-          ? toClock(minimumEnd)
-          : old.preferredEndTime;
-
-      return {
-        ...old,
-        preferredStartTime: value,
-        preferredEndTime: nextEnd,
-      };
-    });
+    setForm((old) => ({
+      ...old,
+      preferredStartTime: value,
+      preferredEndTime: "",
+    }));
   };
 
   // ======================================
@@ -534,6 +546,17 @@ export default function CreateComplaint() {
 
     if (step !== 3 || inFlight.current) return;
 
+    // Explicit time check before API request.
+    const timeError = validateVisitTime(
+      form.preferredStartTime,
+      form.preferredEndTime,
+    );
+
+    if (timeError) {
+      toast.error(timeError);
+      return;
+    }
+
     for (const number of [1, 2, 3]) {
       const problem = validate(number);
 
@@ -601,6 +624,13 @@ export default function CreateComplaint() {
       setSubmitting(false);
     }
   };
+
+  const timeSelected =
+    form.preferredStartTime !== "" && form.preferredEndTime !== "";
+
+  const timeValid =
+    timeSelected &&
+    !validateVisitTime(form.preferredStartTime, form.preferredEndTime);
 
   // ======================================
   // MAIN UI
@@ -675,6 +705,7 @@ export default function CreateComplaint() {
 
               <div className="min-w-0">
                 <p className="text-[10px] text-slate-500">Step {number}</p>
+
                 <p className="truncate text-xs font-bold sm:text-sm">
                   {stepLabel}
                 </p>
@@ -697,7 +728,9 @@ export default function CreateComplaint() {
           <p className="font-bold text-red-700">
             Unable to load complaint form
           </p>
+
           <p className="mt-2 text-sm text-slate-500">{error}</p>
+
           <button
             type="button"
             onClick={load}
@@ -807,6 +840,7 @@ export default function CreateComplaint() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <label className={labelStyle}>Registered Room</label>
+
                         <input
                           readOnly
                           className={`${fieldStyle} bg-slate-50`}
@@ -818,6 +852,7 @@ export default function CreateComplaint() {
                         <label className={labelStyle}>
                           Floor (auto-detected)
                         </label>
+
                         <input
                           readOnly
                           className={`${fieldStyle} bg-slate-50`}
@@ -829,6 +864,7 @@ export default function CreateComplaint() {
                     <div className="grid gap-4 sm:grid-cols-2">
                       <div>
                         <label className={labelStyle}>Academic Block</label>
+
                         <input
                           readOnly
                           className={`${fieldStyle} bg-slate-50`}
@@ -838,6 +874,7 @@ export default function CreateComplaint() {
 
                       <div>
                         <label className={labelStyle}>Department</label>
+
                         <input
                           readOnly
                           className={`${fieldStyle} bg-slate-50`}
@@ -1025,12 +1062,12 @@ export default function CreateComplaint() {
             </Section>
           )}
 
-          {/* STEP 3 - FLEXIBLE VISIT TIME */}
+          {/* STEP 3 - MANDATORY VISIT TIME */}
           {step === 3 && (
             <Section
               number="03"
               title="When are you available?"
-              help="Select one convenient time window between 10 AM and 5 PM. Minimum availability is 2 hours."
+              help="Manually select Start Time and End Time between 10 AM and 5 PM. Minimum availability is 2 hours."
             >
               <div className="space-y-6">
                 <div className="rounded-2xl border border-amber-200 bg-[#FFFAEF] p-5">
@@ -1051,6 +1088,7 @@ export default function CreateComplaint() {
                   </div>
 
                   <div className="grid gap-4 sm:grid-cols-2">
+                    {/* START TIME */}
                     <div>
                       <label
                         htmlFor="preferredStartTime"
@@ -1066,7 +1104,12 @@ export default function CreateComplaint() {
                         onChange={(event) =>
                           changeStartTime(event.target.value)
                         }
+                        required
                       >
+                        <option value="" disabled>
+                          Select Start Time
+                        </option>
+
                         {START_OPTIONS.map((option) => (
                           <option key={option.value} value={option.value}>
                             {option.label}
@@ -1075,6 +1118,7 @@ export default function CreateComplaint() {
                       </select>
                     </div>
 
+                    {/* END TIME */}
                     <div>
                       <label htmlFor="preferredEndTime" className={labelStyle}>
                         End Time *
@@ -1082,12 +1126,18 @@ export default function CreateComplaint() {
 
                       <select
                         id="preferredEndTime"
-                        className={fieldStyle}
+                        className={`${fieldStyle} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
                         value={form.preferredEndTime}
                         onChange={(event) =>
                           change("preferredEndTime", event.target.value)
                         }
+                        disabled={!form.preferredStartTime}
+                        required
                       >
+                        <option value="" disabled>
+                          Select End Time
+                        </option>
+
                         {endOptions.map((option) => (
                           <option key={option.value} value={option.value}>
                             {option.label}
@@ -1097,16 +1147,43 @@ export default function CreateComplaint() {
                     </div>
                   </div>
 
+                  {!form.preferredStartTime && (
+                    <p className="mt-4 text-xs font-semibold text-amber-800">
+                      Please select Start Time first.
+                    </p>
+                  )}
+
+                  {form.preferredStartTime && !form.preferredEndTime && (
+                    <p className="mt-4 text-xs font-semibold text-amber-800">
+                      Now select End Time. Minimum duration is 2 hours.
+                    </p>
+                  )}
+
                   <p className="mt-4 text-xs leading-5 text-slate-600">
-                    The end time must be at least 2 hours after your start time.
-                    You may choose a longer window if convenient.
+                    Both fields are mandatory. The end time must be at least 2
+                    hours after the start time. You may select a longer window
+                    if convenient.
                   </p>
                 </div>
 
                 {/* SELECTED TIME SUMMARY */}
-                <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
-                  <div className="flex items-center gap-2 text-sm font-bold text-emerald-800">
-                    <CheckCircle2 size={19} />
+                <div
+                  className={`rounded-2xl border p-5 ${
+                    timeValid
+                      ? "border-emerald-200 bg-emerald-50"
+                      : "border-slate-200 bg-slate-50"
+                  }`}
+                >
+                  <div
+                    className={`flex items-center gap-2 text-sm font-bold ${
+                      timeValid ? "text-emerald-800" : "text-slate-600"
+                    }`}
+                  >
+                    {timeValid ? (
+                      <CheckCircle2 size={19} />
+                    ) : (
+                      <Clock3 size={19} />
+                    )}
                     Your Selected Availability
                   </div>
 
@@ -1116,9 +1193,15 @@ export default function CreateComplaint() {
                     {formatTime(form.preferredEndTime)}
                   </p>
 
-                  <p className="mt-2 text-sm font-semibold text-emerald-800">
-                    Duration: {duration} hours
-                  </p>
+                  {timeValid ? (
+                    <p className="mt-2 text-sm font-semibold text-emerald-800">
+                      Duration: {duration} hours
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-sm text-slate-500">
+                      Select both times to complete your availability.
+                    </p>
+                  )}
                 </div>
 
                 {/* WHAT HAPPENS NEXT */}
@@ -1194,8 +1277,8 @@ export default function CreateComplaint() {
             ) : (
               <button
                 type="submit"
-                disabled={submitting}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#E7B953] px-7 py-3.5 text-sm font-extrabold text-[#102746] disabled:opacity-50"
+                disabled={submitting || !timeValid}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#E7B953] px-7 py-3.5 text-sm font-extrabold text-[#102746] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {submitting ? (
                   <>
