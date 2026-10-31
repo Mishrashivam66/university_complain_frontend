@@ -1,6 +1,10 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRealtime } from "../../context/RealtimeProvider";
+
 import { Link } from "react-router-dom";
+
 import axios from "axios";
+
 import toast from "react-hot-toast";
 
 import {
@@ -26,7 +30,9 @@ import {
 } from "lucide-react";
 
 // ==========================================
+
 // API CONFIGURATION
+
 // ==========================================
 
 const API_URL =
@@ -34,22 +40,33 @@ const API_URL =
 
 const DEFAULT_DASHBOARD = {
   totalComplaints: 0,
+
   pendingComplaints: 0,
+
   inProgressComplaints: 0,
+
   resolvedComplaints: 0,
+
   overdueComplaints: 0,
+
   activeWorkers: 0,
+
   busyWorkers: 0,
+
   offlineWorkers: 0,
+
   resolutionRate: 0,
 };
 
 // ==========================================
+
 // HELPERS
+
 // ==========================================
 
 const numberValue = (value) => {
   const number = Number(value);
+
   return Number.isFinite(number) ? number : 0;
 };
 
@@ -58,16 +75,24 @@ const formatNumber = (value) => numberValue(value).toLocaleString("en-IN");
 const clampPercent = (value) => Math.max(0, Math.min(100, numberValue(value)));
 
 // ==========================================
+
 // STAT CARD
+
 // ==========================================
 
 function StatCard({
   label,
+
   value,
+
   icon: Icon,
+
   iconBackground,
+
   iconColor,
+
   description,
+
   to,
 }) {
   return (
@@ -108,7 +133,9 @@ function StatCard({
 }
 
 // ==========================================
+
 // SECTION HEADING
+
 // ==========================================
 
 function SectionHeading({ icon: Icon, title, subtitle, action }) {
@@ -136,15 +163,22 @@ function SectionHeading({ icon: Icon, title, subtitle, action }) {
 }
 
 // ==========================================
+
 // TECHNICIAN WORKFORCE
+
 // ==========================================
 
 function WorkforceItem({
   label,
+
   value,
+
   icon: Icon,
+
   color,
+
   background,
+
   percentage,
 }) {
   const barColor =
@@ -179,6 +213,7 @@ function WorkforceItem({
           className="h-full rounded-full transition-all duration-500"
           style={{
             width: `${percentage}%`,
+
             backgroundColor: barColor,
           }}
         />
@@ -188,7 +223,9 @@ function WorkforceItem({
 }
 
 // ==========================================
+
 // LOADING SKELETON
+
 // ==========================================
 
 function DashboardSkeleton() {
@@ -204,6 +241,7 @@ function DashboardSkeleton() {
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <div className="h-80 rounded-3xl bg-slate-200" />
+
         <div className="h-80 rounded-3xl bg-slate-200" />
       </div>
     </div>
@@ -211,68 +249,71 @@ function DashboardSkeleton() {
 }
 
 // ==========================================
+
 // MAIN MAINTENANCE DASHBOARD
+
 // ==========================================
 
 export default function MaintenanceDashboard() {
   const [dashboardData, setDashboardData] = useState(DEFAULT_DASHBOARD);
 
   const [loading, setLoading] = useState(true);
+
   const [refreshing, setRefreshing] = useState(false);
+
   const [error, setError] = useState("");
 
-  // ========================================
-  // FETCH DASHBOARD
-  // ========================================
+  const { refreshKey } = useRealtime();
+  const previousRefreshKeyRef = useRef(refreshKey);
+  const activeRequestRef = useRef(null);
+  const requestIdRef = useRef(0);
 
+  // Fetch silently on background ticks, without clearing current data.
   const fetchDashboard = useCallback(
-    async ({ signal, showToast = false } = {}) => {
+    async ({ showToast = false, silent = false } = {}) => {
+      activeRequestRef.current?.abort();
+      const controller = new AbortController();
+      activeRequestRef.current = controller;
+      const requestId = ++requestIdRef.current;
+
+      if (showToast) setRefreshing(true);
+      else if (!silent) setLoading(true);
+      if (!silent) setError("");
+
       try {
-        setError("");
-
-        if (showToast) {
-          setRefreshing(true);
-        } else {
-          setLoading(true);
-        }
-
         const token =
           localStorage.getItem("token") || localStorage.getItem("accessToken");
-
         const response = await axios.get(API_URL, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-          signal,
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
         });
-
-        const data = response?.data?.dashboard || DEFAULT_DASHBOARD;
+        if (controller.signal.aborted || requestId !== requestIdRef.current)
+          return;
 
         setDashboardData({
           ...DEFAULT_DASHBOARD,
-          ...data,
+          ...(response?.data?.dashboard || {}),
         });
-
-        if (showToast) {
+        setError("");
+        if (showToast)
           toast.success("Dashboard updated successfully", { duration: 1200 });
-        }
       } catch (err) {
-        if (err?.code === "ERR_CANCELED" || err?.name === "CanceledError") {
+        if (
+          controller.signal.aborted ||
+          requestId !== requestIdRef.current ||
+          err?.code === "ERR_CANCELED" ||
+          err?.name === "CanceledError"
+        )
           return;
-        }
-
         console.error("Maintenance dashboard error:", err);
-
-        const message =
-          err?.response?.data?.message || "Failed to load dashboard data";
-
-        setError(message);
-
-        toast.error(message, {
-          duration: 2000,
-        });
+        if (!silent) {
+          const message =
+            err?.response?.data?.message || "Failed to load dashboard data";
+          setError(message);
+          toast.error(message, { duration: 2000 });
+        }
       } finally {
-        if (!signal?.aborted) {
+        if (!controller.signal.aborted && requestId === requestIdRef.current) {
           setLoading(false);
           setRefreshing(false);
         }
@@ -282,25 +323,36 @@ export default function MaintenanceDashboard() {
   );
 
   useEffect(() => {
-    const controller = new AbortController();
-
-    fetchDashboard({
-      signal: controller.signal,
-    });
-
-    return () => controller.abort();
+    void fetchDashboard();
+    return () => {
+      activeRequestRef.current?.abort();
+      requestIdRef.current += 1;
+    };
   }, [fetchDashboard]);
 
+  useEffect(() => {
+    if (previousRefreshKeyRef.current === refreshKey) return;
+    previousRefreshKeyRef.current = refreshKey;
+    if (document.visibilityState !== "visible") return;
+    void fetchDashboard({ silent: true });
+  }, [refreshKey, fetchDashboard]);
+
   // ========================================
+
   // DASHBOARD STATISTICS
+
   // ========================================
 
   const data = dashboardData;
 
   const total = numberValue(data.totalComplaints);
+
   const pending = numberValue(data.pendingComplaints);
+
   const inProgress = numberValue(data.inProgressComplaints);
+
   const resolved = numberValue(data.resolvedComplaints);
+
   const overdue = numberValue(data.overdueComplaints);
 
   const resolutionRate = clampPercent(data.resolutionRate);
@@ -314,29 +366,40 @@ export default function MaintenanceDashboard() {
     reportedWorkforce > 0 ? (numberValue(value) / reportedWorkforce) * 100 : 0;
 
   // ========================================
+
   // COMPLAINT RESOLUTION CHART
+
   // ========================================
 
   const complaintSegments = [
     {
       label: "Resolved",
+
       value: resolved,
+
       color: "#10B981",
     },
+
     {
       label: "In Progress",
+
       value: inProgress,
+
       color: "#3B82F6",
     },
+
     {
       label: "Pending",
+
       value: pending,
+
       color: "#D6AD59",
     },
   ];
 
   const segmentTotal = complaintSegments.reduce(
     (sum, item) => sum + item.value,
+
     0,
   );
 
@@ -367,9 +430,11 @@ export default function MaintenanceDashboard() {
 
   return (
     <div className="w-full space-y-6 pb-6">
-      {/* =====================================
-          PREMIUM HEADER
-      ===================================== */}
+      {/* =====================================*
+
+*&#xA0;         PREMIUM HEADER*
+
+*&#xA0;     ===================================== */}
 
       <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-[#081B35] via-[#102E55] to-[#173F6A] px-5 py-7 text-white shadow-[0_12px_35px_rgba(8,27,53,0.13)] sm:px-8 sm:py-9">
         <div className="pointer-events-none absolute -right-16 -top-28 h-72 w-72 rounded-full border-[45px] border-white/[0.035]" />
@@ -440,15 +505,17 @@ export default function MaintenanceDashboard() {
                 Maintenance Manager
               </p>
 
-              <p className="mt-1 text-[11px] text-slate-300">AMI MAINTENANCE</p>
+              <p className="mt-1 text-[11px] text-slate-300">AMI MAINT.</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* =====================================
-          API ERROR
-      ===================================== */}
+      {/* =====================================*
+
+*&#xA0;         API ERROR*
+
+*&#xA0;     ===================================== */}
 
       {error && (
         <div
@@ -457,6 +524,7 @@ export default function MaintenanceDashboard() {
         >
           <div className="flex items-center gap-2 text-sm text-rose-700">
             <AlertTriangle size={17} />
+
             <span>{error}</span>
           </div>
 
@@ -475,9 +543,11 @@ export default function MaintenanceDashboard() {
         </div>
       )}
 
-      {/* =====================================
-          OPERATIONS SNAPSHOT
-      ===================================== */}
+      {/* =====================================*
+
+*&#xA0;         OPERATIONS SNAPSHOT*
+
+*&#xA0;     ===================================== */}
 
       <SectionHeading
         icon={LayoutDashboard}
@@ -527,9 +597,11 @@ export default function MaintenanceDashboard() {
         />
       </div>
 
-      {/* =====================================
-          ANALYTICS
-      ===================================== */}
+      {/* =====================================*
+
+*&#xA0;         ANALYTICS*
+
+*&#xA0;     ===================================== */}
 
       <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
         {/* COMPLAINT RESOLUTION */}
@@ -655,14 +727,17 @@ export default function MaintenanceDashboard() {
             className="mt-5 flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3 text-xs font-bold text-[#102B52] transition hover:border-[#D6AD59]/50 hover:bg-amber-50/40"
           >
             <span>View Technician Performance</span>
+
             <ArrowRight size={16} />
           </Link>
         </div>
       </div>
 
-      {/* =====================================
-          QUICK ACCESS
-      ===================================== */}
+      {/* =====================================*
+
+*&#xA0;         QUICK ACCESS*
+
+*&#xA0;     ===================================== */}
 
       <section className="space-y-4">
         <SectionHeading
@@ -675,26 +750,41 @@ export default function MaintenanceDashboard() {
           {[
             {
               title: "Complaint Management",
+
               desc: "Review and process requests",
+
               icon: ClipboardList,
+
               path: "/maintenance/complaints",
             },
+
             {
               title: "Technician Management",
+
               desc: "Manage assigned technicians",
+
               icon: Users,
+
               path: "/maintenance/workers",
             },
+
             {
               title: "Emergency Job Cards",
+
               desc: "View and print job cards",
+
               icon: Printer,
+
               path: "/maintenance/job-cards",
             },
+
             {
               title: "Reports & Analytics",
+
               desc: "Review maintenance reports",
+
               icon: FileText,
+
               path: "/maintenance/reports",
             },
           ].map((item) => {
@@ -730,13 +820,15 @@ export default function MaintenanceDashboard() {
         </div>
       </section>
 
-      {/* =====================================
-          FOOTER
-      ===================================== */}
+      {/* =====================================*
+
+*&#xA0;         FOOTER*
+
+*&#xA0;     ===================================== */}
 
       <footer className="flex flex-col justify-between gap-2 border-t border-slate-200 pt-4 text-[11px] text-slate-400 sm:flex-row sm:items-center">
         <p className="font-medium">
-          AMI MAINTENANCE · University Maintenance Operations
+          AMI MAINT. · University Maintenance Operations
         </p>
 
         <p className="flex items-center gap-1.5">

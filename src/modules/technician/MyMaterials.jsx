@@ -78,7 +78,7 @@ function ConfirmModal({ item, onClose, onComplete }) {
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-[#A3833A]">
-              AMI MAINTENANCE
+              AMI MAINT.
             </p>
             <h2 className="mt-1 text-xl font-extrabold text-[#001B54]">
               Confirm Material Receiving
@@ -224,7 +224,7 @@ export default function MyMaterials() {
     <div className="space-y-6 pb-10">
       <header className="rounded-3xl bg-gradient-to-br from-[#001A49] via-[#002A68] to-[#06214D] p-6 text-white shadow-xl md:p-8">
         <p className="text-xs font-bold uppercase tracking-widest text-[#E6C777]">
-          AMI MAINTENANCE · TECHNICIAN
+          AMI MAINT. · TECHNICIAN
         </p>
         <h1 className="mt-3 text-3xl font-extrabold">My Materials</h1>
         <p className="mt-2 text-sm text-blue-100">

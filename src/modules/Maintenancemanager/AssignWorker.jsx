@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
+import { useRealtime } from "../../context/RealtimeProvider";
 
 // ==========================================
 // CONFIGURATION
@@ -347,6 +348,9 @@ const INITIAL_MATERIAL = () => ({
 
 export default function Complaints() {
   const navigate = useNavigate();
+  const { refreshKey } = useRealtime();
+  const lastRefreshKeyRef = useRef(refreshKey);
+  const requestVersionRef = useRef(0);
 
   // DATABASE DATA
   const [complaints, setComplaints] = useState([]);
@@ -404,11 +408,11 @@ export default function Complaints() {
   // FETCH ALL CONNECTED DATA
   // ========================================
 
-  const fetchAll = useCallback(async (silent = false) => {
-    if (silent) {
-      setRefreshing(true);
-    } else {
-      setInitialLoading(true);
+  const fetchAll = useCallback(async (silent = false, automatic = false) => {
+    const version = ++requestVersionRef.current;
+    if (!automatic) {
+      if (silent) setRefreshing(true);
+      else setInitialLoading(true);
     }
 
     try {
@@ -420,6 +424,8 @@ export default function Complaints() {
 
           api.get("/maintenance/material-requests"),
         ]);
+
+      if (version !== requestVersionRef.current) return;
 
       // COMPLAINTS
 
@@ -476,28 +482,45 @@ export default function Complaints() {
 
       setLastUpdated(new Date().toISOString());
     } finally {
-      setInitialLoading(false);
-      setRefreshing(false);
+      if (version === requestVersionRef.current) {
+        setInitialLoading(false);
+        if (!automatic) setRefreshing(false);
+      }
     }
   }, []);
 
   // ========================================
-  // INITIAL LOAD + AUTO REFRESH
+  // INITIAL LOAD + SHARED 20-SECOND SILENT AUTO-REFRESH
   // ========================================
 
   useEffect(() => {
     void fetchAll();
-
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") {
-        void fetchAll(true);
-      }
-    }, 30000);
-
-    return () => {
-      window.clearInterval(interval);
-    };
   }, [fetchAll]);
+
+  useEffect(() => {
+    if (lastRefreshKeyRef.current === refreshKey) return;
+    lastRefreshKeyRef.current = refreshKey;
+
+    // Do not disturb assignment/material forms or an active mutation.
+    if (
+      document.visibilityState !== "visible" ||
+      selectedId ||
+      assigning ||
+      assigningBatch ||
+      sendingRequest
+    ) {
+      return;
+    }
+
+    void fetchAll(true, true);
+  }, [
+    refreshKey,
+    fetchAll,
+    selectedId,
+    assigning,
+    assigningBatch,
+    sendingRequest,
+  ]);
 
   // ========================================
   // DRAWER ESCAPE HANDLER
@@ -1015,7 +1038,7 @@ export default function Complaints() {
         </div>
 
         <p className="mt-4 text-xs text-slate-300">
-          Updated {formatIST(lastUpdated)} IST · Auto-refresh every 30 seconds
+          Updated {formatIST(lastUpdated)} IST · Auto-refresh every 20 seconds
         </p>
       </header>
 

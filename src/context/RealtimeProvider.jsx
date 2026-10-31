@@ -1,27 +1,61 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext } from "react";
 
-// ==========================================
-// CONTEXT
-// ==========================================
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+} from "react";
 
-const RealtimeContext = createContext();
+const RealtimeContext = createContext(null);
 
-// ==========================================
-// PROVIDER
-// ==========================================
+const REFRESH_INTERVAL = 20000;
 
 export const RealtimeProvider = ({ children }) => {
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const refreshNow = useCallback(() => {
+    setRefreshKey((previous) => previous + 1);
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        refreshNow();
+      }
+    }, REFRESH_INTERVAL);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshNow();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [refreshNow]);
+
+  const value = useMemo(
+    () => ({
+      refreshKey,
+      refreshNow,
+      refreshInterval: REFRESH_INTERVAL,
+    }),
+    [refreshKey, refreshNow],
+  );
+
   return (
-    <RealtimeContext.Provider value={{ refreshKey: 0 }}>
+    <RealtimeContext.Provider value={value}>
       {children}
     </RealtimeContext.Provider>
   );
 };
-
-// ==========================================
-// CUSTOM HOOK
-// ==========================================
 
 export const useRealtime = () => {
   return useContext(RealtimeContext);

@@ -447,7 +447,7 @@ const HostelComplaints = () => {
         <div>
           <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#E8C877]">
             <Wrench size={15} />
-            AMI MAINTENANCE
+            AMI MAINT.
           </p>
 
           <h1 className="text-2xl font-extrabold sm:text-3xl">

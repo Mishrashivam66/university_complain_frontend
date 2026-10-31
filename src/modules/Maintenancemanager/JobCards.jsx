@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 
 // ======================================================
-// AMI MAINTENANCE — PREMIUM JOB CARD MANAGEMENT
+// AMI MAINT. — PREMIUM JOB CARD MANAGEMENT
 // ======================================================
 
 const API_URL = "/maintenance/job-cards";
@@ -976,7 +976,7 @@ export default function JobCards() {
                 <Sparkles size={13} className="text-[#E8C477]" />
 
                 <span className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#F0D494]">
-                  AMI MAINTENANCE · OPERATIONS
+                  AMI MAINT. · OPERATIONS
                 </span>
               </div>
 
@@ -1442,7 +1442,7 @@ export default function JobCards() {
 
         <footer className="flex items-center gap-2 border-t border-slate-200 pt-4 text-[11px] text-slate-400">
           <ShieldCheck size={14} />
-          AMI MAINTENANCE · Job Card Operations
+          AMI MAINT. · Job Card Operations
         </footer>
       </div>
 
@@ -1464,7 +1464,7 @@ export default function JobCards() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[#E8C477]">
-                    AMI MAINTENANCE · JOB CARD
+                    AMI MAINT. · JOB CARD
                   </p>
 
                   <h2 className="mt-2 break-all text-xl font-black">

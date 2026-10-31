@@ -1,5 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
-
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -13,11 +12,10 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-
 import { useSearchParams } from "react-router-dom";
 
 import api from "../../services/api";
-
+import { useRealtime } from "../../context/RealtimeProvider";
 import StockInward from "./StockInward";
 import StoreReports from "./StoreReports";
 
@@ -104,6 +102,8 @@ function StatCard({ title, value, Icon, color }) {
 
 export default function StoreDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const realtime = useRealtime();
+  const refreshKey = realtime?.refreshKey ?? 0;
 
   const view = searchParams.get("view");
 
@@ -133,18 +133,33 @@ export default function StoreDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
 
+  const fetchingRef = useRef(false);
+  const mountedRef = useRef(false);
+  const latestRequestRef = useRef(0);
+  const previousRefreshKeyRef = useRef(refreshKey);
+
   const fetchDashboard = useCallback(async (showLoader = false) => {
-    if (showLoader) setRefreshing(true);
+    if (fetchingRef.current) return;
+
+    fetchingRef.current = true;
+
+    const requestId = ++latestRequestRef.current;
+
+    if (showLoader) {
+      setRefreshing(true);
+    }
 
     try {
-      setError("");
-
       const [dashboardResult, requestResult, issuedResult] =
         await Promise.allSettled([
           api.get("/store/dashboard"),
           api.get("/store/requests/all"),
           api.get("/store/issued-items/all"),
         ]);
+
+      if (!mountedRef.current) return;
+
+      if (requestId !== latestRequestRef.current) return;
 
       const dashboard =
         dashboardResult.status === "fulfilled"
@@ -161,10 +176,10 @@ export default function StoreDashboard() {
           ? issuedResult.value.data?.issuedItems || []
           : null;
 
-      setStats({
-        totalInventory: dashboard?.totalInventory ?? 0,
+      setStats((previous) => ({
+        totalInventory: dashboard?.totalInventory ?? previous.totalInventory,
 
-        lowStock: dashboard?.lowStock ?? 0,
+        lowStock: dashboard?.lowStock ?? previous.lowStock,
 
         pendingRequests:
           materialRequests !== null
@@ -176,19 +191,19 @@ export default function StoreDashboard() {
                   "PARTIALLY_ISSUED",
                 ].includes(request.status),
               ).length
-            : (dashboard?.pendingRequests ?? 0),
+            : (dashboard?.pendingRequests ?? previous.pendingRequests),
 
         issuedItems:
           issuedItems !== null
             ? issuedItems.length
-            : (dashboard?.issuedItems ?? 0),
-      });
+            : (dashboard?.issuedItems ?? previous.issuedItems),
+      }));
 
-      setRequests(
-        materialRequests !== null
-          ? materialRequests.slice(0, 5)
-          : dashboard?.recentRequests || [],
-      );
+      if (materialRequests !== null) {
+        setRequests(materialRequests.slice(0, 5));
+      } else if (Array.isArray(dashboard?.recentRequests)) {
+        setRequests(dashboard.recentRequests);
+      }
 
       if (
         dashboardResult.status === "rejected" ||
@@ -196,33 +211,62 @@ export default function StoreDashboard() {
         issuedResult.status === "rejected"
       ) {
         setError("Some dashboard data could not be loaded. Please refresh.");
+      } else {
+        setError("");
       }
     } catch (err) {
-      setError(err.response?.data?.message || "Unable to load dashboard.");
+      if (mountedRef.current) {
+        setError(err.response?.data?.message || "Unable to load dashboard.");
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      fetchingRef.current = false;
+
+      if (mountedRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
+  // Initial fetch and cleanup
   useEffect(() => {
+    mountedRef.current = true;
+
     if (activePage === "dashboard") {
-      fetchDashboard();
+      void fetchDashboard();
     }
+
+    return () => {
+      mountedRef.current = false;
+      latestRequestRef.current += 1;
+    };
   }, [activePage, fetchDashboard]);
 
-  // ==========================================
-  // STOCK INWARD
-  // ==========================================
+  // Global silent refresh every 20 seconds
+  useEffect(() => {
+    if (previousRefreshKeyRef.current === refreshKey) {
+      return;
+    }
 
+    previousRefreshKeyRef.current = refreshKey;
+
+    if (activePage !== "dashboard") {
+      return;
+    }
+
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+
+    void fetchDashboard(false);
+  }, [refreshKey, activePage, fetchDashboard]);
+
+  // Stock inward
   if (activePage === "stock-inward") {
     return <StockInward onBack={() => openPage("dashboard")} />;
   }
 
-  // ==========================================
-  // REPORTS & RECEIPTS
-  // ==========================================
-
+  // Reports and receipts
   if (activePage === "reports") {
     return <StoreReports onBack={() => openPage("dashboard")} />;
   }
@@ -243,7 +287,7 @@ export default function StoreDashboard() {
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div className="max-w-xl">
             <p className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-[#E6C777]">
-              AMI MAINTENANCE · STORE OPERATIONS
+              AMI MAINT. · STORE OPERATIONS
             </p>
 
             <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
@@ -339,7 +383,7 @@ export default function StoreDashboard() {
               type="button"
               onClick={() => fetchDashboard(true)}
               disabled={refreshing}
-              className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-50"
+              className="rounded-xl border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
               aria-label="Refresh dashboard"
               title="Refresh dashboard"
             >

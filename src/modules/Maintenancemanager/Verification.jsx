@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 
 // ======================================================
-// AMI MAINTENANCE — PREMIUM VERIFICATION CENTER
+// AMI MAINT. — PREMIUM VERIFICATION CENTER
 // Existing backend verification endpoint preserved.
 // ======================================================
 
@@ -488,7 +488,7 @@ export default function Verification() {
             <div className="inline-flex items-center gap-2 rounded-full border border-[#D6AD59]/30 bg-[#D6AD59]/10 px-3 py-1.5">
               <Sparkles size={13} className="text-[#E8C477]" />
               <span className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#F0D494]">
-                AMI MAINTENANCE · QUALITY CONTROL
+                AMI MAINT. · QUALITY CONTROL
               </span>
             </div>
 
@@ -536,7 +536,7 @@ export default function Verification() {
                 Operations Portal
               </p>
               <p className="mt-1 text-sm font-extrabold">Maintenance Manager</p>
-              <p className="mt-1 text-[11px] text-slate-300">AMI MAINTENANCE</p>
+              <p className="mt-1 text-[11px] text-slate-300">AMI MAINT.</p>
             </div>
           </div>
         </div>
@@ -1063,7 +1063,7 @@ export default function Verification() {
 
       <footer className="flex items-center gap-2 border-t border-slate-200 pt-4 text-[11px] text-slate-400">
         <ShieldCheck size={14} />
-        AMI MAINTENANCE · Job Card Verification
+        AMI MAINT. · Job Card Verification
       </footer>
     </main>
   );

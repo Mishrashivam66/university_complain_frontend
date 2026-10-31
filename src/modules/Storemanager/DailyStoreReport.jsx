@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   CalendarDays,
@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
+import { useRealtime } from "../../context/RealtimeProvider";
 
 // ==========================================
 // IST DATE
@@ -37,24 +38,33 @@ const formatQty = (value) =>
 // ==========================================
 
 export default function DailyStoreReport() {
+  const realtime = useRealtime();
+  const refreshKey = realtime?.refreshKey ?? 0;
+
   const [date, setDate] = useState(getTodayIST);
 
   const [report, setReport] = useState(null);
-
   const [loading, setLoading] = useState(false);
-
   const [downloading, setDownloading] = useState("");
-
   const [error, setError] = useState("");
 
+  const requestIdRef = useRef(0);
+  const previousRefreshKeyRef = useRef(refreshKey);
+  const downloadingRef = useRef(false);
+
   // ==========================================
-  // GENERATE REPORT
+  // FETCH DAILY REPORT
   // ==========================================
 
-  const load = async (selectedDate = date) => {
-    setLoading(true);
-    setError("");
-    setReport(null);
+  const load = useCallback(async (selectedDate, silent = false) => {
+    if (!selectedDate) return;
+
+    const requestId = ++requestIdRef.current;
+
+    if (!silent) {
+      setLoading(true);
+      setError("");
+    }
 
     try {
       const { data } = await api.get("/store/reports/daily", {
@@ -63,25 +73,78 @@ export default function DailyStoreReport() {
         },
       });
 
-      setReport(data.report);
+      // Ignore old responses after date changes.
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      setReport(data.report || null);
+      setError("");
     } catch (err) {
-      setError(err.response?.data?.message || "Unable to load daily report.");
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      if (silent) {
+        // Keep the last successfully loaded report.
+        console.error("Daily store report auto-refresh failed:", err);
+      } else {
+        setError(err.response?.data?.message || "Unable to load daily report.");
+        setReport(null);
+      }
     } finally {
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
+
+  // ==========================================
+  // INITIAL LOAD AND DATE CHANGE
+  // ==========================================
 
   useEffect(() => {
-    load(getTodayIST());
-  }, []);
+    void load(date);
+
+    return () => {
+      requestIdRef.current += 1;
+    };
+  }, [date, load]);
+
+  // ==========================================
+  // SILENT AUTO-REFRESH EVERY 20 SECONDS
+  // ==========================================
+
+  useEffect(() => {
+    if (previousRefreshKeyRef.current === refreshKey) {
+      return;
+    }
+
+    previousRefreshKeyRef.current = refreshKey;
+
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+
+    // Do not interfere with active downloads.
+    if (downloadingRef.current) {
+      return;
+    }
+
+    // No spinner, no report reset, no page reload.
+    void load(date, true);
+  }, [refreshKey, date, load]);
 
   // ==========================================
   // DOWNLOAD PDF OR EXCEL
   // ==========================================
 
   const download = async (format) => {
-    if (!report || downloading) return;
+    if (!report || downloadingRef.current) {
+      return;
+    }
 
+    downloadingRef.current = true;
     setDownloading(format);
     setError("");
 
@@ -104,19 +167,18 @@ export default function DailyStoreReport() {
       });
 
       const url = URL.createObjectURL(blob);
-
       const anchor = document.createElement("a");
 
       anchor.href = url;
-
       anchor.download = `AMI_Daily_Store_${report.date}.${format}`;
 
       document.body.appendChild(anchor);
-
       anchor.click();
       anchor.remove();
 
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      window.setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 2000);
     } catch (err) {
       if (err.response?.data instanceof Blob) {
         try {
@@ -130,6 +192,7 @@ export default function DailyStoreReport() {
         setError(err.response?.data?.message || "Export failed.");
       }
     } finally {
+      downloadingRef.current = false;
       setDownloading("");
     }
   };
@@ -156,7 +219,7 @@ export default function DailyStoreReport() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-[#B3914D]">
-            AMI MAINTENANCE · UNIVERSITY STORE
+            AMI MAINT. · UNIVERSITY STORE
           </p>
 
           <h2 className="mt-2 text-xl font-extrabold text-[#001B54]">
@@ -189,7 +252,7 @@ export default function DailyStoreReport() {
           <button
             type="button"
             disabled={loading || !date}
-            onClick={() => load()}
+            onClick={() => load(date)}
             className="inline-flex items-center gap-2 rounded-xl bg-[#001B54] px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
           >
             {loading ? (

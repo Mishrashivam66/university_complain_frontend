@@ -300,7 +300,7 @@ const WardenLayout = () => {
                     text-white
                   "
                 >
-                  AMI MAINTENANCE
+                  AMI MAINT.
                 </h1>
 
                 <p

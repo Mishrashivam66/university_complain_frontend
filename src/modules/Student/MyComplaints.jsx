@@ -32,7 +32,7 @@ import api from "../../services/api";
 import useRealtimeRefresh from "../notifications/hooks/useRealtimeRefresh";
 
 // =====================================================
-// AMI MAINTENANCE - STUDENT MY COMPLAINTS
+// AMI MAINT. - STUDENT MY COMPLAINTS
 //
 // View Full Details opens a SEPARATE PAGE.
 // URL: /complaints/:id
@@ -568,7 +568,7 @@ export default function MyComplaints() {
           <div>
             <p className="inline-flex items-center gap-2 rounded-full border border-amber-300/40 bg-amber-300/10 px-3 py-1.5 text-xs font-bold text-amber-200">
               <ShieldCheck size={15} />
-              AMI MAINTENANCE
+              AMI MAINT.
             </p>
 
             <h1 className="mt-4 text-3xl font-black">My Complaints</h1>

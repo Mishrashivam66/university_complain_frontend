@@ -272,7 +272,7 @@ const StoreManagerLayout = () => {
 
               <div className="min-w-0">
                 <p className="text-[17px] font-extrabold tracking-tight text-white">
-                  AMI MAINTENANCE
+                  AMI MAINT.
                 </p>
 
                 <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.17em] text-[#E6C777]">
@@ -397,7 +397,7 @@ const StoreManagerLayout = () => {
 
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#A18342]">
-                  AMI MAINTENANCE
+                  AMI MAINT.
                 </p>
 
                 <h1 className="truncate text-lg font-extrabold text-[#001B54] sm:text-xl">

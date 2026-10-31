@@ -35,7 +35,7 @@ import {
 
 // ======================================================
 
-// AMI MAINTENANCE — TECHNICIAN DASHBOARD
+// AMI MAINT. — TECHNICIAN DASHBOARD
 
 // Full Workflow + Material Request Integration
 
@@ -665,7 +665,7 @@ export default function TechnicianDashboard() {
           </div>
 
           <div className="min-w-0">
-            <h1 className="text-sm font-black text-white">AMI MAINTENANCE</h1>
+            <h1 className="text-sm font-black text-white">AMI MAINT.</h1>
 
             <p className="mt-1 text-[11px] text-slate-300">Technician Portal</p>
           </div>
@@ -806,7 +806,7 @@ export default function TechnicianDashboard() {
                         : "My Complaints"}
                 </h2>
 
-                <p className="text-[10px] text-slate-500">AMI MAINTENANCE</p>
+                <p className="text-[10px] text-slate-500">AMI MAINT.</p>
               </div>
             </div>
 

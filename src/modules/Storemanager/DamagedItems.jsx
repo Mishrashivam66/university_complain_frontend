@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AlertTriangle,
@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
+import { useRealtime } from "../../context/RealtimeProvider";
 
 const API = "/store/retrieved-items";
 
@@ -29,6 +30,7 @@ const dateText = (value) =>
   value
     ? new Date(value).toLocaleString("en-IN", {
         dateStyle: "medium",
+
         timeStyle: "short",
       })
     : "—";
@@ -36,15 +38,21 @@ const dateText = (value) =>
 function ReceiveModal({ item, onClose, onSaved }) {
   const pending = Math.max(
     0,
+
     Number(item.expectedRetrievalQty || 0) -
       Number(item.retrievedQuantity || 0),
   );
 
   const [quantity, setQuantity] = useState(String(pending));
+
   const [condition, setCondition] = useState("DAMAGED");
+
   const [receivedFrom, setReceivedFrom] = useState(item.issuedTo || "");
+
   const [remarks, setRemarks] = useState("");
+
   const [saving, setSaving] = useState(false);
+
   const [error, setError] = useState("");
 
   const submit = async (event) => {
@@ -54,23 +62,30 @@ function ReceiveModal({ item, onClose, onSaved }) {
 
     if (!Number.isFinite(amount) || amount <= 0 || amount > pending) {
       setError("Enter a valid retrieval quantity.");
+
       return;
     }
 
     if (!receivedFrom.trim()) {
       setError("Received from is required.");
+
       return;
     }
 
     setSaving(true);
+
     setError("");
 
     try {
       const { data } = await api.post(`${API}/receive`, {
         issuedItemId: item._id,
+
         quantity: amount,
+
         condition,
+
         receivedFrom: receivedFrom.trim(),
+
         remarks: remarks.trim(),
       });
 
@@ -101,10 +116,12 @@ function ReceiveModal({ item, onClose, onSaved }) {
             <p className="text-xs font-bold uppercase text-[#A3833A]">
               MATERIAL RETRIEVAL
             </p>
+
             <h2 className="mt-1 text-xl font-extrabold text-[#001B54]">
               Receive Old Material
             </h2>
           </div>
+
           <button
             type="button"
             onClick={onClose}
@@ -118,12 +135,15 @@ function ReceiveModal({ item, onClose, onSaved }) {
 
         <div className="rounded-xl bg-[#F5F7FC] p-4">
           <p className="font-bold text-[#001B54]">{item.item}</p>
+
           <p className="mt-1 text-xs text-slate-600">
             Voucher: {item.voucherNo || "—"}
           </p>
+
           <p className="mt-1 text-xs text-slate-600">
             Technician: {item.issuedTo || "—"}
           </p>
+
           <p className="mt-2 font-bold text-amber-800">
             Pending Retrieval: {formatQty(pending)} {item.unit || "Piece"}
           </p>
@@ -133,6 +153,7 @@ function ReceiveModal({ item, onClose, onSaved }) {
           <span className="text-xs font-bold text-slate-600">
             Quantity Received *
           </span>
+
           <input
             className={inputClass}
             type="number"
@@ -148,16 +169,22 @@ function ReceiveModal({ item, onClose, onSaved }) {
           <span className="text-xs font-bold text-slate-600">
             Material Condition *
           </span>
+
           <select
             className={inputClass}
             value={condition}
             onChange={(e) => setCondition(e.target.value)}
           >
             <option value="DAMAGED">Damaged</option>
+
             <option value="BROKEN">Broken</option>
+
             <option value="FAULTY">Faulty</option>
+
             <option value="USED">Used</option>
+
             <option value="REPAIRABLE">Repairable</option>
+
             <option value="SCRAP">Scrap</option>
           </select>
         </label>
@@ -166,6 +193,7 @@ function ReceiveModal({ item, onClose, onSaved }) {
           <span className="text-xs font-bold text-slate-600">
             Received From *
           </span>
+
           <input
             className={inputClass}
             value={receivedFrom}
@@ -176,6 +204,7 @@ function ReceiveModal({ item, onClose, onSaved }) {
 
         <label className="block space-y-1">
           <span className="text-xs font-bold text-slate-600">Remarks</span>
+
           <textarea
             className={inputClass}
             rows={3}
@@ -206,6 +235,7 @@ function ReceiveModal({ item, onClose, onSaved }) {
           ) : (
             <RotateCcw size={18} />
           )}
+
           {saving ? "Saving..." : "Confirm Material Retrieval"}
         </button>
       </form>
@@ -214,51 +244,86 @@ function ReceiveModal({ item, onClose, onSaved }) {
 }
 
 export default function DamagedItems() {
+  const { refreshKey } = useRealtime();
+  const lastRefreshKeyRef = useRef(refreshKey);
+  const requestVersionRef = useRef(0);
+  const modalOpenRef = useRef(false);
+
   const [issuedItems, setIssuedItems] = useState([]);
+
   const [retrievedItems, setRetrievedItems] = useState([]);
 
   const [loading, setLoading] = useState(true);
+
   const [refreshing, setRefreshing] = useState(false);
+
   const [error, setError] = useState("");
+
   const [message, setMessage] = useState(null);
 
   const [search, setSearch] = useState("");
+
   const [filter, setFilter] = useState("ALL");
+
   const [tab, setTab] = useState("pending");
 
   const [selected, setSelected] = useState(null);
 
-  const load = useCallback(async (refresh = false) => {
-    if (refresh) setRefreshing(true);
-    else setLoading(true);
+  // Keep background polling away from an active retrieval form.
+
+  const load = useCallback(async (mode = "initial") => {
+    const version = ++requestVersionRef.current;
+    const manual = mode === "manual";
+    const silent = mode === "silent";
+
+    if (manual) setRefreshing(true);
+    else if (!silent) setLoading(true);
 
     try {
-      setError("");
-
+      if (!silent) setError("");
       const { data } = await api.get(`${API}/all`);
-
+      if (version !== requestVersionRef.current) return;
       setIssuedItems(Array.isArray(data.issuedItems) ? data.issuedItems : []);
-
       setRetrievedItems(
         Array.isArray(data.retrievedItems) ? data.retrievedItems : [],
       );
+      setError("");
     } catch (err) {
-      setError(
-        err.response?.data?.message || "Unable to load retrieved items.",
-      );
+      if (version !== requestVersionRef.current) return;
+      if (!silent) {
+        setError(
+          err.response?.data?.message || "Unable to load retrieved items.",
+        );
+      } else {
+        console.error("Retrieved Items silent refresh failed:", err);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (version === requestVersionRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    load();
+    void load("initial");
+    return () => {
+      requestVersionRef.current += 1;
+    };
   }, [load]);
 
   useEffect(() => {
+    if (lastRefreshKeyRef.current === refreshKey) return;
+    lastRefreshKeyRef.current = refreshKey;
+    if (document.visibilityState !== "visible" || modalOpenRef.current) return;
+    void load("silent");
+  }, [refreshKey, load]);
+
+  useEffect(() => {
     if (!message) return;
+
     const timer = setTimeout(() => setMessage(null), 3000);
+
     return () => clearTimeout(timer);
   }, [message]);
 
@@ -271,10 +336,13 @@ export default function DamagedItems() {
 
     return {
       total: issuedItems.length,
+
       pending: pending.length,
+
       completed: issuedItems.filter(
         (item) => item.retrievalStatus === "RETRIEVED",
       ).length,
+
       received: retrievedItems.length,
     };
   }, [issuedItems, retrievedItems]);
@@ -286,14 +354,22 @@ export default function DamagedItems() {
 
     const text = [
       item.item,
+
       item.itemCode,
+
       item.voucherNo,
+
       item.issuedTo,
+
       item.technicianId,
+
       item.materialRequest?.requestId,
+
       item.complaint?.complaintId,
     ]
+
       .join(" ")
+
       .toLowerCase();
 
     return (
@@ -307,13 +383,20 @@ export default function DamagedItems() {
   const historyItems = retrievedItems.filter((item) =>
     [
       item.itemName,
+
       item.itemCode,
+
       item.receivedFrom,
+
       item.technicianId,
+
       item.condition,
     ]
+
       .join(" ")
+
       .toLowerCase()
+
       .includes(search.toLowerCase()),
   );
 
@@ -323,7 +406,7 @@ export default function DamagedItems() {
 
       <section className="rounded-3xl bg-gradient-to-br from-[#001A49] via-[#002A68] to-[#06214D] p-6 text-white shadow-xl md:p-8">
         <p className="text-xs font-bold uppercase tracking-widest text-[#E6C777]">
-          AMI MAINTENANCE · STORE MANAGER
+          AMI MAINT. · STORE MANAGER
         </p>
 
         <h1 className="mt-3 text-3xl font-extrabold">Retrieved Items</h1>
@@ -339,8 +422,11 @@ export default function DamagedItems() {
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           ["Retrieval Cases", stats.total, ClipboardList],
+
           ["Pending Returns", stats.pending, AlertTriangle],
+
           ["Completed", stats.completed, ShieldCheck],
+
           ["Receipt Records", stats.received, Package],
         ].map(([title, value, Icon]) => (
           <div
@@ -348,7 +434,9 @@ export default function DamagedItems() {
             className="rounded-2xl border bg-white p-5 shadow-sm"
           >
             <Icon size={22} className="text-[#A3833A]" />
+
             <p className="mt-3 text-xs font-bold text-slate-500">{title}</p>
+
             <p className="mt-2 text-3xl font-extrabold text-[#001B54]">
               {value}
             </p>
@@ -407,7 +495,7 @@ export default function DamagedItems() {
 
           <button
             type="button"
-            onClick={() => load(true)}
+            onClick={() => load("manual")}
             disabled={refreshing}
             className="flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold text-[#001B54]"
           >
@@ -425,6 +513,7 @@ export default function DamagedItems() {
               size={17}
               className="absolute left-3 top-3 text-slate-400"
             />
+
             <input
               className={`${inputClass} pl-10`}
               placeholder="Search item, technician, voucher or complaint..."
@@ -440,7 +529,9 @@ export default function DamagedItems() {
               onChange={(e) => setFilter(e.target.value)}
             >
               <option value="ALL">All Retrieval Cases</option>
+
               <option value="PENDING">Pending Retrieval</option>
+
               <option value="COMPLETED">Fully Retrieved</option>
             </select>
           )}
@@ -455,6 +546,7 @@ export default function DamagedItems() {
             {pendingItems.length === 0 && (
               <div className="py-14 text-center">
                 <CheckCircle2 size={40} className="mx-auto text-emerald-500" />
+
                 <p className="mt-3 font-bold text-[#001B54]">
                   No Matching Retrieval Cases
                 </p>
@@ -463,7 +555,9 @@ export default function DamagedItems() {
 
             {pendingItems.map((item) => {
               const expected = Number(item.expectedRetrievalQty || 0);
+
               const received = Number(item.retrievedQuantity || 0);
+
               const pending = Math.max(0, expected - received);
 
               return (
@@ -510,14 +604,18 @@ export default function DamagedItems() {
                   <div className="mt-5 grid grid-cols-3 gap-2">
                     {[
                       ["Expected", expected],
+
                       ["Retrieved", received],
+
                       ["Pending", pending],
                     ].map(([title, value]) => (
                       <div key={title} className="rounded-xl bg-slate-50 p-3">
                         <p className="text-xs text-slate-500">{title}</p>
+
                         <p className="mt-1 text-lg font-extrabold text-[#001B54]">
                           {formatQty(value)}
                         </p>
+
                         <p className="text-xs text-slate-400">
                           {item.unit || "Piece"}
                         </p>
@@ -552,11 +650,17 @@ export default function DamagedItems() {
                 <tr>
                   {[
                     "Date",
+
                     "Item Code",
+
                     "Material",
+
                     "Quantity",
+
                     "Condition",
+
                     "Received From",
+
                     "Received By",
                   ].map((heading) => (
                     <th key={heading} className="px-4 py-3">
@@ -570,15 +674,21 @@ export default function DamagedItems() {
                 {historyItems.map((item) => (
                   <tr key={item._id}>
                     <td className="px-4 py-4">{dateText(item.receivedAt)}</td>
+
                     <td className="px-4 py-4 font-bold text-[#001B54]">
                       {item.itemCode || "—"}
                     </td>
+
                     <td className="px-4 py-4">{item.itemName}</td>
+
                     <td className="px-4 py-4">
                       {formatQty(item.quantity)} {item.unit}
                     </td>
+
                     <td className="px-4 py-4">{item.condition}</td>
+
                     <td className="px-4 py-4">{item.receivedFrom}</td>
+
                     <td className="px-4 py-4">
                       {item.receivedBy?.name || "—"}
                     </td>
@@ -603,6 +713,7 @@ export default function DamagedItems() {
 
       <div className="flex items-start gap-3 rounded-2xl border border-[#E8D8B5] bg-[#FFFBF1] p-4">
         <ShieldCheck size={21} className="shrink-0 text-[#9A752D]" />
+
         <p className="text-xs leading-6 text-slate-600">
           Retrieved Items track old faulty or used materials received from
           Technicians. These records are separate from usable stock. Returning
@@ -617,13 +728,16 @@ export default function DamagedItems() {
           onClose={() => setSelected(null)}
           onSaved={async (data) => {
             setSelected(null);
+
             setMessage({
               type: "success",
+
               text:
                 `Retrieved material received. ` +
                 `Pending quantity: ${formatQty(data.pendingQuantity)}.`,
             });
-            await load(true);
+
+            await load("silent");
           }}
         />
       )}

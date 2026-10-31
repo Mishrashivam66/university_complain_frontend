@@ -29,7 +29,7 @@ import MessComplaints from "../mess/MessComplaints";
 import Notifications from "../modules/common/Notifications";
 
 // =====================================================
-// AMI MAINTENANCE - STUDENT ROUTES
+// AMI MAINT. - STUDENT ROUTES
 // =====================================================
 
 const Studentroutes = (

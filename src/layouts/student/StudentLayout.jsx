@@ -17,7 +17,7 @@ import {
 import NotificationBell from "../../modules/notifications/components/NotificationBell";
 
 // =====================================================
-// AMI MAINTENANCE - STUDENT LAYOUT
+// AMI MAINT. - STUDENT LAYOUT
 // Single sidebar menu; notifications remain in navbar.
 // =====================================================
 
@@ -418,7 +418,7 @@ export default function StudentLayout() {
           </button>
 
           <p className="mt-4 text-center text-[10px] tracking-wide text-slate-500">
-            AMI MAINTENANCE · Student Portal
+            AMI MAINT. · Student Portal
           </p>
         </div>
       </aside>
@@ -449,7 +449,7 @@ export default function StudentLayout() {
 
               <div className="min-w-0">
                 <p className="hidden text-[11px] font-bold uppercase tracking-[0.16em] text-[#B18431] sm:block">
-                  AMI Maintenance / Student
+                  AMI MAINT. / Student
                 </p>
 
                 <h2 className="truncate text-lg font-extrabold tracking-tight text-[#102746] sm:text-xl">

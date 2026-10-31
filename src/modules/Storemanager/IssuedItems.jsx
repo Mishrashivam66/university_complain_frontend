@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
+import { useRealtime } from "../../context/RealtimeProvider";
 
 // ==========================================
 // CONFIGURATION
@@ -37,11 +38,13 @@ const formatQty = (value) =>
 
 const formatDate = (value) => {
   if (!value) return "—";
+
   const date = new Date(value);
 
   return Number.isNaN(date.getTime())
     ? "—"
     : date.toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
         dateStyle: "medium",
         timeStyle: "short",
       });
@@ -55,12 +58,16 @@ const userIdOf = (user) => {
 
 const nameOf = (user) => {
   if (!user) return "Not assigned";
-  if (typeof user === "string") return "Assigned Technician";
+  if (typeof user === "string") {
+    return "Assigned Technician";
+  }
   return user.name || "Unnamed Technician";
 };
 
 const staffCodeOf = (user) => {
-  if (!user || typeof user !== "object") return "";
+  if (!user || typeof user !== "object") {
+    return "";
+  }
 
   return user.technicianId || user.workerId || user.employeeId || "";
 };
@@ -72,6 +79,10 @@ const validQuantity = (quantity) =>
   Number.isFinite(quantity) &&
   quantity > 0 &&
   Math.abs(quantity * 1000 - Math.round(quantity * 1000)) < 1e-7;
+
+// ==========================================
+// RECEIVING STATUS
+// ==========================================
 
 function ReceivingBadge({ status }) {
   const normalized = status || "AWAITING_CONFIRMATION";
@@ -143,6 +154,10 @@ function IssueModal({ selected, onClose, onSaved }) {
       validQuantity(retrievalQty) &&
       retrievalQty <= issueQty);
 
+  // ==========================================
+  // SUBMIT MATERIAL ISSUE
+  // ==========================================
+
   const submit = async (event) => {
     event.preventDefault();
 
@@ -172,16 +187,13 @@ function IssueModal({ selected, onClose, onSaved }) {
       const { data } = await api.post(`${ISSUE_API}/issue`, {
         materialRequestId: request._id,
         materialItemId: material._id,
-
         quantity: issueQty,
 
-        // Actual authenticated User reference.
         receiverUserId,
         receiverName,
         technicianId,
 
         retrievalRequired,
-
         expectedRetrievalQty: retrievalRequired ? retrievalQty : 0,
 
         remarks: remarks.trim(),
@@ -191,7 +203,7 @@ function IssueModal({ selected, onClose, onSaved }) {
         throw new Error(data?.message || "Material issue failed.");
       }
 
-      onSaved(data);
+      await onSaved(data);
     } catch (err) {
       setError(
         err.response?.data?.message || err.message || "Material issue failed.",
@@ -207,10 +219,12 @@ function IssueModal({ selected, onClose, onSaved }) {
         onSubmit={submit}
         className="max-h-[92vh] w-full max-w-xl space-y-4 overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"
       >
+        {/* HEADER */}
+
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-[#A3833A]">
-              AMI MAINTENANCE
+              AMI MAINT.
             </p>
 
             <h2 className="mt-1 text-xl font-extrabold text-[#001B54]">
@@ -222,12 +236,14 @@ function IssueModal({ selected, onClose, onSaved }) {
             type="button"
             disabled={saving}
             onClick={onClose}
-            className="rounded-lg bg-slate-100 p-2"
+            className="rounded-lg bg-slate-100 p-2 disabled:opacity-50"
             aria-label="Close issue form"
           >
             <X size={18} />
           </button>
         </div>
+
+        {/* MATERIAL DETAILS */}
 
         <div className="space-y-2 rounded-xl bg-blue-50 p-4">
           <p className="font-bold text-[#001B54]">{material.itemName}</p>
@@ -244,9 +260,12 @@ function IssueModal({ selected, onClose, onSaved }) {
           </p>
         </div>
 
+        {/* RECEIVING TECHNICIAN */}
+
         <div className="rounded-xl border border-[#E7D4AC] bg-[#FFFBF1] p-4">
           <div className="flex items-center gap-2">
             <UserRound size={17} className="text-[#9B792E]" />
+
             <p className="text-xs font-bold uppercase text-[#001B54]">
               Verified Receiving Technician
             </p>
@@ -276,6 +295,8 @@ function IssueModal({ selected, onClose, onSaved }) {
           </p>
         </div>
 
+        {/* ISSUE QUANTITY */}
+
         <label className="block space-y-1">
           <span className="text-xs font-bold text-slate-600">
             Quantity to Issue *
@@ -294,6 +315,8 @@ function IssueModal({ selected, onClose, onSaved }) {
             }}
           />
         </label>
+
+        {/* OLD MATERIAL RETURN */}
 
         <label className="flex gap-3 rounded-xl border border-[#E8D8B5] bg-[#FFFBF1] p-4">
           <input
@@ -332,6 +355,8 @@ function IssueModal({ selected, onClose, onSaved }) {
             />
           </label>
         )}
+
+        {/* REMARKS */}
 
         <label className="block space-y-1">
           <span className="text-xs font-bold text-slate-600">
@@ -384,7 +409,18 @@ function IssueModal({ selected, onClose, onSaved }) {
 
 export default function IssuedItems() {
   const location = useLocation();
+
+  const realtime = useRealtime();
+  const refreshKey = realtime?.refreshKey ?? 0;
+
   const handledNavigation = useRef("");
+
+  // Prevent older API responses overwriting newer data.
+  const requestVersionRef = useRef(0);
+  const previousRefreshKeyRef = useRef(refreshKey);
+
+  // Prevent background refresh during mutations.
+  const mutationRef = useRef(false);
 
   const [requests, setRequests] = useState([]);
   const [issuedItems, setIssuedItems] = useState([]);
@@ -392,6 +428,7 @@ export default function IssuedItems() {
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
   const [error, setError] = useState("");
   const [receivingError, setReceivingError] = useState("");
 
@@ -403,15 +440,25 @@ export default function IssuedItems() {
   const [busyId, setBusyId] = useState("");
 
   // ==========================================
-  // LOAD DATA
+  // FETCH DATA
   // ==========================================
 
-  const fetchData = useCallback(async (refresh = false) => {
-    if (refresh) setRefreshing(true);
-    else setLoading(true);
+  const fetchData = useCallback(async (mode = "initial") => {
+    const manual = mode === "manual";
+    const silent = mode === "silent";
 
-    setError("");
-    setReceivingError("");
+    const version = ++requestVersionRef.current;
+
+    if (manual) {
+      setRefreshing(true);
+    } else if (!silent) {
+      setLoading(true);
+    }
+
+    if (!silent) {
+      setError("");
+      setReceivingError("");
+    }
 
     try {
       const [requestsResult, issuesResult, receivingResult] =
@@ -420,6 +467,11 @@ export default function IssuedItems() {
           api.get(`${ISSUE_API}/all`),
           api.get(RECEIVING_API),
         ]);
+
+      // Ignore stale responses.
+      if (version !== requestVersionRef.current) {
+        return;
+      }
 
       const coreFailed =
         requestsResult.status === "rejected" ||
@@ -447,10 +499,16 @@ export default function IssuedItems() {
             ? requestsResult.reason
             : issuesResult.reason;
 
-        setError(
-          failure?.response?.data?.message ||
-            "Unable to load material issue records.",
-        );
+        if (!silent) {
+          setError(
+            failure?.response?.data?.message ||
+              "Unable to load material issue records.",
+          );
+        } else {
+          console.error("Issued Items auto-refresh failed:", failure);
+        }
+      } else {
+        setError("");
       }
 
       if (receivingResult.status === "fulfilled") {
@@ -459,67 +517,121 @@ export default function IssuedItems() {
             ? receivingResult.value.data.records
             : [],
         );
-      } else {
+
+        setReceivingError("");
+      } else if (!silent) {
         setReceivingError(
           receivingResult.reason?.response?.data?.message ||
             "Technician receiving records could not be loaded.",
         );
       }
     } catch (err) {
-      setError(
-        err.response?.data?.message || "Unable to refresh Store records.",
-      );
+      if (version !== requestVersionRef.current) {
+        return;
+      }
+
+      if (!silent) {
+        setError(
+          err.response?.data?.message || "Unable to refresh Store records.",
+        );
+      } else {
+        console.error("Silent Store refresh failed:", err);
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (version === requestVersionRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
+  // ==========================================
+  // INITIAL LOAD
+  // ==========================================
+
   useEffect(() => {
-    fetchData();
+    void fetchData("initial");
+
+    return () => {
+      requestVersionRef.current += 1;
+    };
   }, [fetchData]);
 
-  useEffect(() => {
-    if (!notice) return;
+  // ==========================================
+  // GLOBAL 20-SECOND SILENT REFRESH
+  // ==========================================
 
-    const timer = setTimeout(
+  useEffect(() => {
+    if (previousRefreshKeyRef.current === refreshKey) {
+      return;
+    }
+
+    previousRefreshKeyRef.current = refreshKey;
+
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+
+    // Never interrupt material issue modal.
+    if (selected || mutationRef.current || busyId) {
+      return;
+    }
+
+    // Refresh data without page reload or spinner.
+    void fetchData("silent");
+  }, [refreshKey, selected, busyId, fetchData]);
+
+  // ==========================================
+  // NOTICE TIMEOUT
+  // ==========================================
+
+  useEffect(() => {
+    if (!notice) return undefined;
+
+    const timer = window.setTimeout(
       () => setNotice(null),
       notice.type === "error" ? 4000 : 2000,
     );
 
-    return () => clearTimeout(timer);
+    return () => window.clearTimeout(timer);
   }, [notice]);
 
   // ==========================================
   // APPROVED MATERIALS
   // ==========================================
 
-  const approvedMaterials = useMemo(() => {
-    return requests.flatMap((request) =>
-      (request.materials || [])
-        .filter((material) => {
-          const remaining =
-            Number(material.approvedQuantity || 0) -
-            Number(material.issuedQuantity || 0);
+  const approvedMaterials = useMemo(
+    () =>
+      requests.flatMap((request) =>
+        (request.materials || [])
+          .filter((material) => {
+            const remaining =
+              Number(material.approvedQuantity || 0) -
+              Number(material.issuedQuantity || 0);
 
-          return (
-            remaining > 0 &&
-            ["APPROVED", "PARTIALLY_ISSUED"].includes(material.status)
-          );
-        })
-        .map((material) => ({
-          request,
-          material,
-        })),
-    );
-  }, [requests]);
+            return (
+              remaining > 0 &&
+              ["APPROVED", "PARTIALLY_ISSUED"].includes(material.status)
+            );
+          })
+          .map((material) => ({
+            request,
+            material,
+          })),
+      ),
+    [requests],
+  );
 
-  // Open material when navigated from Request Management.
-  // Prevent the modal reopening after every refresh.
+  // ==========================================
+  // OPEN FROM MATERIAL REQUESTS
+  // ==========================================
+
   useEffect(() => {
     const incoming = location.state;
 
-    if (!incoming?.materialRequestId || loading) return;
+    if (!incoming?.materialRequestId || loading) {
+      return;
+    }
 
     const key = [
       location.key,
@@ -527,7 +639,9 @@ export default function IssuedItems() {
       incoming.materialItemId || "",
     ].join(":");
 
-    if (handledNavigation.current === key) return;
+    if (handledNavigation.current === key) {
+      return;
+    }
 
     handledNavigation.current = key;
 
@@ -545,7 +659,7 @@ export default function IssuedItems() {
   }, [location.key, location.state, loading, approvedMaterials]);
 
   // ==========================================
-  // RECORD SEARCH
+  // SEARCH
   // ==========================================
 
   const query = search.trim().toLowerCase();
@@ -588,6 +702,10 @@ export default function IssuedItems() {
     ),
   );
 
+  // ==========================================
+  // RECEIVING DATA MAP
+  // ==========================================
+
   const receivingMap = useMemo(
     () =>
       new Map(
@@ -623,28 +741,49 @@ export default function IssuedItems() {
   // STATS
   // ==========================================
 
-  const stats = useMemo(
-    () => ({
+  const stats = useMemo(() => {
+    const receivingByIssue = new Map(
+      receivingRecords.map((record) => [
+        String(
+          typeof record.issuedItem === "object"
+            ? record.issuedItem?._id
+            : record.issuedItem,
+        ),
+        record.status,
+      ]),
+    );
+
+    const statusOf = (item) =>
+      receivingByIssue.get(String(item._id)) ||
+      item.receivingStatus ||
+      "AWAITING_CONFIRMATION";
+
+    return {
       pending: approvedMaterials.length,
       issued: issuedItems.length,
+
       awaiting: issuedItems.filter(
-        (item) =>
-          (item.receivingStatus || "AWAITING_CONFIRMATION") ===
-          "AWAITING_CONFIRMATION",
+        (item) => statusOf(item) === "AWAITING_CONFIRMATION",
       ).length,
-      disputed: issuedItems.filter(
-        (item) => item.receivingStatus === "DISPUTED",
-      ).length,
-    }),
-    [approvedMaterials, issuedItems],
-  );
+
+      disputed: issuedItems.filter((item) => statusOf(item) === "DISPUTED")
+        .length,
+    };
+  }, [approvedMaterials, issuedItems, receivingRecords]);
 
   // ==========================================
-  // DELIVERY CONFIRMATION
+  // MARK DELIVERED
   // ==========================================
 
   const markDelivered = async (item) => {
-    if (busyId) return;
+    if (mutationRef.current || busyId) {
+      return;
+    }
+
+    mutationRef.current = true;
+
+    // Invalidate in-flight background refresh.
+    requestVersionRef.current += 1;
 
     setBusyId(String(item._id));
 
@@ -656,7 +795,7 @@ export default function IssuedItems() {
         text: data.message || "Material delivery marked successfully.",
       });
 
-      await fetchData(true);
+      await fetchData("silent");
     } catch (err) {
       setNotice({
         type: "error",
@@ -664,7 +803,34 @@ export default function IssuedItems() {
           err.response?.data?.message || "Unable to update delivery status.",
       });
     } finally {
+      mutationRef.current = false;
       setBusyId("");
+    }
+  };
+
+  // ==========================================
+  // MATERIAL ISSUE SUCCESS
+  // ==========================================
+
+  const handleIssueSaved = async (data) => {
+    mutationRef.current = true;
+    requestVersionRef.current += 1;
+
+    setSelected(null);
+    setTab("history");
+
+    setNotice({
+      type: "success",
+      text:
+        "Material issued successfully. " +
+        `Voucher: ${data.voucherNo || "Generated"}. ` +
+        `Inventory Balance: ${formatQty(data.stockAfter)}.`,
+    });
+
+    try {
+      await fetchData("silent");
+    } finally {
+      mutationRef.current = false;
     }
   };
 
@@ -678,7 +844,7 @@ export default function IssuedItems() {
 
       <section className="rounded-3xl bg-gradient-to-br from-[#001A49] via-[#002A68] to-[#06214D] p-6 text-white shadow-xl md:p-8">
         <p className="text-xs font-bold uppercase tracking-widest text-[#E6C777]">
-          AMI MAINTENANCE · STORE MANAGER
+          AMI MAINT. · STORE MANAGER
         </p>
 
         <h1 className="mt-3 text-2xl font-extrabold md:text-4xl">
@@ -768,6 +934,8 @@ export default function IssuedItems() {
       {/* MAIN PANEL */}
 
       <section className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm sm:p-6">
+        {/* TABS AND REFRESH */}
+
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             {[
@@ -795,14 +963,16 @@ export default function IssuedItems() {
 
           <button
             type="button"
-            disabled={refreshing || loading}
-            onClick={() => fetchData(true)}
+            disabled={refreshing || loading || Boolean(busyId)}
+            onClick={() => fetchData("manual")}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-xs font-bold text-[#001B54] disabled:opacity-50"
           >
             <RefreshCw size={17} className={refreshing ? "animate-spin" : ""} />
             Refresh
           </button>
         </div>
+
+        {/* SEARCH */}
 
         <div className="relative mt-5">
           <Search
@@ -819,16 +989,16 @@ export default function IssuedItems() {
           />
         </div>
 
-        {/* LOADING */}
+        {/* LOADING / CONTENT */}
 
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 size={32} className="animate-spin text-[#001B54]" />
           </div>
         ) : tab === "pending" ? (
-          /* ===================================
-             PENDING ISSUES
-          =================================== */
+          // ===================================
+          // PENDING ISSUES
+          // ===================================
 
           <div className="mt-5 space-y-3">
             {filteredApproved.length === 0 && (
@@ -891,9 +1061,9 @@ export default function IssuedItems() {
             })}
           </div>
         ) : tab === "history" ? (
-          /* ===================================
-             ISSUE HISTORY
-          =================================== */
+          // ===================================
+          // ISSUE HISTORY
+          // ===================================
 
           <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full min-w-[1050px] text-left text-sm">
@@ -929,6 +1099,7 @@ export default function IssuedItems() {
 
                       <td className="px-4 py-4">
                         <p className="font-semibold">{item.item || "—"}</p>
+
                         <p className="text-xs text-slate-400">
                           {item.itemCode || "—"}
                         </p>
@@ -966,7 +1137,11 @@ export default function IssuedItems() {
                             onClick={() => markDelivered(item)}
                             className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
                           >
-                            <Truck size={15} />
+                            {busyId === String(item._id) ? (
+                              <Loader2 size={15} className="animate-spin" />
+                            ) : (
+                              <Truck size={15} />
+                            )}
                             Mark Delivered
                           </button>
                         ) : (
@@ -994,9 +1169,9 @@ export default function IssuedItems() {
             </table>
           </div>
         ) : (
-          /* ===================================
-             TECHNICIAN RECEIVING & DISPUTES
-          =================================== */
+          // ===================================
+          // TECHNICIAN RECEIVING & DISPUTES
+          // ===================================
 
           <div className="mt-5 space-y-4">
             <div className="rounded-xl border border-[#E6D7B5] bg-[#FFFAED] p-4">
@@ -1059,6 +1234,8 @@ export default function IssuedItems() {
                       <ReceivingBadge status={receiving.status} />
                     </div>
 
+                    {/* RECEIVING QUANTITIES */}
+
                     <div className="mt-5 grid grid-cols-3 gap-2">
                       {[
                         ["Store Issued", item.quantity],
@@ -1081,6 +1258,8 @@ export default function IssuedItems() {
                         </div>
                       ))}
                     </div>
+
+                    {/* DISPUTE DETAILS */}
 
                     {receiving.status === "DISPUTED" && (
                       <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
@@ -1121,20 +1300,7 @@ export default function IssuedItems() {
           key={`${selected.request._id}-${selected.material._id}`}
           selected={selected}
           onClose={() => setSelected(null)}
-          onSaved={async (data) => {
-            setSelected(null);
-            setTab("history");
-
-            setNotice({
-              type: "success",
-              text:
-                `Material issued successfully. ` +
-                `Voucher: ${data.voucherNo}. ` +
-                `Inventory Balance: ${formatQty(data.stockAfter)}.`,
-            });
-
-            await fetchData(true);
-          }}
+          onSaved={handleIssueSaved}
         />
       )}
     </div>

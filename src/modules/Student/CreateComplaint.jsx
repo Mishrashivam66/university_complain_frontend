@@ -20,7 +20,7 @@ import api from "../../services/api";
 import { createComplaint } from "../../services/studentService";
 
 // ==========================================
-// AMI MAINTENANCE - CREATE COMPLAINT
+// AMI MAINT. - CREATE COMPLAINT
 // ==========================================
 
 const WORK_START = 10 * 60;
@@ -644,7 +644,7 @@ export default function CreateComplaint() {
           <div>
             <p className="mb-3 inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1.5 text-xs font-bold tracking-wider text-amber-200">
               <ShieldCheck size={15} />
-              AMI MAINTENANCE
+              AMI MAINT.
             </p>
 
             <h1 className="text-2xl font-black sm:text-3xl">

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import DailyStoreReport from "./DailyStoreReport";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   CalendarDays,
   CheckCircle2,
@@ -14,10 +14,11 @@ import {
   Search,
   ShieldCheck,
   X,
-  AlertTriangle,
 } from "lucide-react";
 
 import api from "../../services/api";
+import { useRealtime } from "../../context/RealtimeProvider";
+import DailyStoreReport from "./DailyStoreReport";
 
 const API = "/store/reports";
 
@@ -88,10 +89,18 @@ const person = (value) => {
 };
 
 const errorText = (error) =>
-  error.response?.data?.message || error.message || "Request failed";
+  error?.response?.data?.message || error?.message || "Request failed";
 
 const valueOrDash = (value) =>
-  value === null || value === undefined || value === "" ? "—" : String(value);
+  value === null || value === undefined || value === ""
+    ? "—"
+    : typeof value === "object"
+      ? value.name || value.complaintId || value.itemName || value._id || "—"
+      : String(value);
+
+// =====================================================
+// NOTIFICATION
+// =====================================================
 
 function Notification({ value, onClose }) {
   if (!value) return null;
@@ -120,6 +129,10 @@ function Notification({ value, onClose }) {
   );
 }
 
+// =====================================================
+// SUMMARY CARD
+// =====================================================
+
 function SummaryCard({ title, value, subtitle, Icon }) {
   return (
     <div className="rounded-2xl border border-slate-100 bg-white p-4 shadow-sm">
@@ -127,6 +140,7 @@ function SummaryCard({ title, value, subtitle, Icon }) {
         <span className="text-xs font-bold uppercase tracking-wide text-slate-500">
           {title}
         </span>
+
         <Icon size={20} className="text-[#A7853E]" />
       </div>
 
@@ -161,6 +175,10 @@ function UnitTotals({ title, items }) {
     </div>
   );
 }
+
+// =====================================================
+// REGISTER COLUMNS
+// =====================================================
 
 function getColumns(tab) {
   switch (tab) {
@@ -269,7 +287,6 @@ function displayValue(row, key) {
     ].includes(key)
   ) {
     const unit = row.unit || row.issuedItem?.unit || "";
-
     return `${quantity(value)} ${unit}`.trim();
   }
 
@@ -283,9 +300,9 @@ function escapeCSV(value) {
   return `"${safe.replace(/"/g, '""')}"`;
 }
 
-// ==========================================
-// RECEIPT PREVIEW
-// ==========================================
+// =====================================================
+// RECEIPT PREVIEW COMPONENTS
+// =====================================================
 
 function ReceiptField({ label, value }) {
   return (
@@ -293,6 +310,7 @@ function ReceiptField({ label, value }) {
       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </p>
+
       <p className="mt-1 text-sm font-semibold text-slate-900">
         {valueOrDash(value)}
       </p>
@@ -302,11 +320,7 @@ function ReceiptField({ label, value }) {
 
 function ReceiptDocument({ type, data }) {
   const issued =
-    type === "receiving"
-      ? data.issuedItem || {}
-      : type === "retrieved"
-        ? data.issuedItem || {}
-        : data;
+    type === "receiving" || type === "retrieved" ? data.issuedItem || {} : data;
 
   const titles = {
     grn: "Goods Receipt Note",
@@ -320,9 +334,7 @@ function ReceiptDocument({ type, data }) {
       ? data.inwardNo
       : type === "issue"
         ? data.voucherNo || data.storeSlipNo || data._id
-        : type === "receiving"
-          ? data._id
-          : data._id;
+        : data._id;
 
   return (
     <div id="ami-print-receipt" className="bg-white p-5 text-slate-900 sm:p-8">
@@ -332,7 +344,7 @@ function ReceiptDocument({ type, data }) {
         </p>
 
         <h1 className="mt-2 text-2xl font-black tracking-wide text-[#001B54]">
-          AMI MAINTENANCE
+          AMI MAINT.
         </h1>
 
         <h2 className="mt-2 text-lg font-bold">
@@ -343,6 +355,8 @@ function ReceiptDocument({ type, data }) {
           System Record Reference: {valueOrDash(reference)}
         </p>
       </div>
+
+      {/* GOODS RECEIPT NOTE */}
 
       {type === "grn" && (
         <>
@@ -413,6 +427,8 @@ function ReceiptDocument({ type, data }) {
         </>
       )}
 
+      {/* ISSUE VOUCHER */}
+
       {type === "issue" && (
         <>
           <div className="mt-6 grid grid-cols-2 gap-5">
@@ -451,6 +467,7 @@ function ReceiptDocument({ type, data }) {
                   )}
                 </tr>
               </thead>
+
               <tbody>
                 <tr>
                   <td className="border border-slate-300 p-2">
@@ -467,6 +484,8 @@ function ReceiptDocument({ type, data }) {
           </div>
         </>
       )}
+
+      {/* TECHNICIAN RECEIVING */}
 
       {type === "receiving" && (
         <>
@@ -502,6 +521,8 @@ function ReceiptDocument({ type, data }) {
         </>
       )}
 
+      {/* RETRIEVED MATERIAL */}
+
       {type === "retrieved" && (
         <>
           <div className="mt-6 grid grid-cols-2 gap-5">
@@ -532,6 +553,8 @@ function ReceiptDocument({ type, data }) {
         </>
       )}
 
+      {/* SIGNATURE SECTION */}
+
       <div className="mt-12 grid grid-cols-2 gap-8 pt-10 text-center text-xs">
         <div className="border-t border-slate-400 pt-2">
           {type === "retrieved"
@@ -547,22 +570,23 @@ function ReceiptDocument({ type, data }) {
       </div>
 
       <p className="mt-10 border-t pt-3 text-center text-[10px] text-slate-500">
-        Generated from AMI MAINTENANCE database records. Signature spaces are
-        for physical authorization.
+        Generated from AMI MAINT. database records. Signature spaces are for
+        physical authorization.
       </p>
     </div>
   );
 }
 
-// ==========================================
-// MAIN REPORTS PAGE
-// ==========================================
+// =====================================================
+// MAIN STORE REPORTS
+// =====================================================
 
 export default function StoreReports({ onBack }) {
-  const initial = getISTDate();
+  const realtime = useRealtime();
+  const refreshKey = realtime?.refreshKey ?? 0;
 
-  const [from, setFrom] = useState(initial);
-  const [to, setTo] = useState(initial);
+  const [from, setFrom] = useState(getISTDate);
+  const [to, setTo] = useState(getISTDate);
 
   const [tab, setTab] = useState("transactions");
   const [search, setSearch] = useState("");
@@ -581,35 +605,54 @@ export default function StoreReports({ onBack }) {
 
   const [toast, setToast] = useState(null);
 
-  const notify = (message, type = "success") => setToast({ message, type });
+  // Prevent older responses from replacing newer data.
+  const requestVersionRef = useRef(0);
+
+  // Prevent duplicate requests for the same filter state.
+  const lastAutoRefreshRef = useRef(refreshKey);
+
+  const notify = useCallback((message, type = "success") => {
+    setToast({ message, type });
+  }, []);
 
   useEffect(() => {
-    if (!toast) return;
+    if (!toast) return undefined;
 
-    const timeout = setTimeout(
+    const timeout = window.setTimeout(
       () => setToast(null),
       toast.type === "error" ? 3500 : 1400,
     );
 
-    return () => clearTimeout(timeout);
+    return () => window.clearTimeout(timeout);
   }, [toast]);
 
-  // ==========================================
-  // FETCH REPORT DATA
-  // ==========================================
+  // =====================================================
+  // FETCH REPORTS
+  // =====================================================
 
   const loadReports = useCallback(
-    async (showRefresh = false) => {
+    async (mode = "initial") => {
+      const manual = mode === "manual";
+      const silent = mode === "silent";
+
+      const requestVersion = ++requestVersionRef.current;
+
       if (!from || !to || from > to) {
         setError("Please select a valid date range.");
         setLoading(false);
+        setRefreshing(false);
         return;
       }
 
-      if (showRefresh) setRefreshing(true);
-      else setLoading(true);
+      if (manual) {
+        setRefreshing(true);
+      } else if (!silent) {
+        setLoading(true);
+      }
 
-      setError("");
+      if (!silent) {
+        setError("");
+      }
 
       try {
         const params = {
@@ -623,6 +666,10 @@ export default function StoreReports({ onBack }) {
           api.get(`${API}/${tab}`, { params }),
         ]);
 
+        if (requestVersion !== requestVersionRef.current) {
+          return;
+        }
+
         const key = FIELD_MAP[tab];
         const list = dataResponse.data?.[key] || [];
 
@@ -631,30 +678,74 @@ export default function StoreReports({ onBack }) {
         }
 
         setSummary(summaryResponse.data?.summary || null);
+
         setRecords(list);
+
         setTotal(Number(dataResponse.data?.total ?? list.length));
+
         setLimited(Boolean(dataResponse.data?.limited));
 
-        if (showRefresh) {
+        setError("");
+
+        if (manual) {
           notify("Store reports refreshed.");
         }
       } catch (err) {
-        setError(errorText(err));
-        setSummary(null);
-        setRecords([]);
-        setTotal(0);
-        setLimited(false);
+        if (requestVersion !== requestVersionRef.current) {
+          return;
+        }
+
+        if (silent) {
+          // Keep existing records visible if polling fails.
+          console.error("AMI MAINT. reports auto-refresh error:", err);
+        } else {
+          setError(errorText(err));
+          setSummary(null);
+          setRecords([]);
+          setTotal(0);
+          setLimited(false);
+        }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (requestVersion === requestVersionRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
       }
     },
-    [from, to, tab],
+    [from, to, tab, notify],
   );
 
+  // Initial loading and filter changes.
   useEffect(() => {
-    loadReports();
+    void loadReports("initial");
+
+    return () => {
+      requestVersionRef.current += 1;
+    };
   }, [loadReports]);
+
+  // =====================================================
+  // SILENT 20-SECOND AUTO-REFRESH
+  // =====================================================
+
+  useEffect(() => {
+    if (lastAutoRefreshRef.current === refreshKey) {
+      return;
+    }
+
+    lastAutoRefreshRef.current = refreshKey;
+
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+
+    // Do not interrupt printing or receipt preview.
+    if (receipt || receiptLoading) {
+      return;
+    }
+
+    void loadReports("silent");
+  }, [refreshKey, loadReports, receipt, receiptLoading]);
 
   const columns = useMemo(() => getColumns(tab), [tab]);
 
@@ -670,9 +761,9 @@ export default function StoreReports({ onBack }) {
     );
   }, [records, columns, search]);
 
-  // ==========================================
+  // =====================================================
   // CSV EXPORT
-  // ==========================================
+  // =====================================================
 
   const exportCSV = () => {
     if (!filtered.length) {
@@ -713,9 +804,9 @@ export default function StoreReports({ onBack }) {
     );
   };
 
-  // ==========================================
+  // =====================================================
   // RECEIPT PREVIEW
-  // ==========================================
+  // =====================================================
 
   const openReceipt = async (item) => {
     const type = TYPE_MAP[tab];
@@ -727,9 +818,13 @@ export default function StoreReports({ onBack }) {
     try {
       const response = await api.get(`${API}/receipt/${type}/${item._id}`);
 
+      if (!response.data?.receipt) {
+        throw new Error("Receipt data unavailable.");
+      }
+
       setReceipt({
         type,
-        data: response.data?.receipt,
+        data: response.data.receipt,
       });
     } catch (err) {
       notify(errorText(err), "error");
@@ -770,11 +865,16 @@ export default function StoreReports({ onBack }) {
     },
   ];
 
+  // =====================================================
+  // MAIN UI
+  // =====================================================
+
   return (
     <div className="space-y-6 pb-10">
       <Notification value={toast} onClose={() => setToast(null)} />
 
-      {/* Print stylesheet */}
+      {/* PRINT STYLESHEET */}
+
       <style>
         {`
           @media print {
@@ -827,7 +927,7 @@ export default function StoreReports({ onBack }) {
         </button>
 
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#E6C777]">
-          AMI MAINTENANCE · STORE MANAGER
+          AMI MAINT. · STORE MANAGER
         </p>
 
         <div className="mt-3 flex flex-wrap items-end justify-between gap-4">
@@ -845,18 +945,16 @@ export default function StoreReports({ onBack }) {
           <button
             type="button"
             disabled={refreshing}
-            onClick={() => loadReports(true)}
+            onClick={() => loadReports("manual")}
             className="inline-flex items-center gap-2 rounded-xl bg-[#E6C777] px-4 py-3 text-sm font-bold text-[#001B54] disabled:opacity-50"
           >
             <RefreshCw size={17} className={refreshing ? "animate-spin" : ""} />
-            Refresh
+            {refreshing ? "Refreshing..." : "Refresh"}
           </button>
         </div>
       </section>
 
-      {/* ==========================================
-    CONSOLIDATED DAILY STORE REPORT
-========================================== */}
+      {/* CONSOLIDATED DAILY STORE REPORT */}
 
       <DailyStoreReport />
 
@@ -865,6 +963,7 @@ export default function StoreReports({ onBack }) {
       <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center gap-2">
           <CalendarDays size={20} className="text-[#A7853E]" />
+
           <h2 className="font-extrabold text-[#001B54]">Report Date Range</h2>
         </div>
 
@@ -873,6 +972,7 @@ export default function StoreReports({ onBack }) {
             <span className="mb-1 block text-xs font-semibold text-slate-500">
               From Date
             </span>
+
             <input
               type="date"
               value={from}
@@ -886,6 +986,7 @@ export default function StoreReports({ onBack }) {
             <span className="mb-1 block text-xs font-semibold text-slate-500">
               To Date
             </span>
+
             <input
               type="date"
               value={to}
@@ -909,6 +1010,8 @@ export default function StoreReports({ onBack }) {
         </div>
       </section>
 
+      {/* ERROR */}
+
       {error && (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
@@ -923,7 +1026,7 @@ export default function StoreReports({ onBack }) {
         ))}
       </div>
 
-      {/* UOM SUMMARY */}
+      {/* MATERIAL MOVEMENT SUMMARY */}
 
       <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
         <h2 className="font-extrabold text-[#001B54]">
@@ -951,7 +1054,7 @@ export default function StoreReports({ onBack }) {
         </div>
       </section>
 
-      {/* REGISTER */}
+      {/* STORE REGISTERS */}
 
       <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
         <h2 className="text-lg font-extrabold text-[#001B54]">
@@ -978,12 +1081,15 @@ export default function StoreReports({ onBack }) {
           ))}
         </div>
 
+        {/* SEARCH AND EXPORT */}
+
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <div className="relative w-full max-w-sm">
             <Search
               size={17}
               className="absolute left-3 top-3 text-slate-400"
             />
+
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -1002,12 +1108,16 @@ export default function StoreReports({ onBack }) {
           </button>
         </div>
 
+        {/* RECORD LIMIT WARNING */}
+
         {limited && (
           <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
             Showing {records.length} of {total} records. CSV exports only the
             loaded rows. Narrow the date range for a complete report.
           </div>
         )}
+
+        {/* TABLE */}
 
         <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
           <table className="w-full min-w-[1050px] text-left text-sm">
@@ -1032,7 +1142,7 @@ export default function StoreReports({ onBack }) {
               {loading ? (
                 <tr>
                   <td
-                    colSpan={columns.length + 1}
+                    colSpan={columns.length + (tab === "transactions" ? 0 : 1)}
                     className="py-12 text-center"
                   >
                     <Loader2
@@ -1042,8 +1152,8 @@ export default function StoreReports({ onBack }) {
                   </td>
                 </tr>
               ) : filtered.length ? (
-                filtered.map((row) => (
-                  <tr key={row._id} className="hover:bg-slate-50">
+                filtered.map((row, index) => (
+                  <tr key={row._id || index} className="hover:bg-slate-50">
                     {columns.map(([field]) => (
                       <td
                         key={field}
@@ -1071,7 +1181,7 @@ export default function StoreReports({ onBack }) {
               ) : (
                 <tr>
                   <td
-                    colSpan={columns.length + 1}
+                    colSpan={columns.length + (tab === "transactions" ? 0 : 1)}
                     className="py-12 text-center text-sm text-slate-500"
                   >
                     No records found for this selection.

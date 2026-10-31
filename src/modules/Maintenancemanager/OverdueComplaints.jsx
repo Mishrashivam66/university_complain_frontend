@@ -1,9 +1,6 @@
-import { useEffect, useState } from "react";
-
+import { useCallback, useEffect, useRef, useState } from "react";
 import axios from "axios";
-
 import toast from "react-hot-toast";
-
 import {
   AlertTriangle,
   Search,
@@ -18,985 +15,377 @@ import {
   Eye,
   PhoneCall,
   Wrench,
+  RefreshCw,
 } from "lucide-react";
+import { useRealtime } from "../../context/RealtimeProvider";
+
+const API =
+  "https://complaine-backend.vercel.app/api/maintenance/overdue-complaints";
+const auth = () => ({
+  Authorization: `Bearer ${localStorage.getItem("token")}`,
+});
+const priorityClass = (value) =>
+  ({
+    CRITICAL: "bg-red-100 text-red-700 border-red-300",
+    HIGH: "bg-orange-100 text-orange-700 border-orange-300",
+    MEDIUM: "bg-yellow-100 text-yellow-700 border-yellow-300",
+  })[value] || "bg-gray-100 text-gray-700 border-gray-300";
 
 const OverdueComplaints = () => {
-  // ======================================
-  // STATES
-  // ======================================
-
+  const { refreshKey } = useRealtime() || {};
   const [complaints, setComplaints] = useState([]);
-
   const [loading, setLoading] = useState(true);
-
   const [selectedComplaint, setSelectedComplaint] = useState(null);
-
-  const [showModal, setShowModal] = useState(false);
-
   const [search, setSearch] = useState("");
+  const [escalatingId, setEscalatingId] = useState(null);
+  const requestId = useRef(0);
+  const mutationInProgress = useRef(false);
+  const mounted = useRef(false);
 
-  // ======================================
-  // FETCH COMPLAINTS
-  // ======================================
-
-  useEffect(() => {
-    fetchComplaints();
+  const fetchComplaints = useCallback(async ({ silent = false } = {}) => {
+    if (mutationInProgress.current && silent) return;
+    const current = ++requestId.current;
+    if (!silent) setLoading(true);
+    try {
+      const response = await axios.get(API, { headers: auth() });
+      if (
+        !mounted.current ||
+        current !== requestId.current ||
+        mutationInProgress.current
+      )
+        return;
+      const latest = response?.data?.complaints || [];
+      setComplaints(latest);
+      setSelectedComplaint((previous) =>
+        previous
+          ? latest.find((item) => item._id === previous._id) || previous
+          : null,
+      );
+    } catch (error) {
+      if (!mounted.current || current !== requestId.current) return;
+      console.error("OVERDUE COMPLAINTS:", error);
+      if (!silent)
+        toast.error(
+          error?.response?.data?.message ||
+            "Failed to fetch overdue complaints",
+        );
+    } finally {
+      if (mounted.current && current === requestId.current && !silent)
+        setLoading(false);
+    }
   }, []);
 
-  const fetchComplaints = async () => {
-    try {
-      setLoading(true);
+  useEffect(() => {
+    mounted.current = true;
+    fetchComplaints();
+    return () => {
+      mounted.current = false;
+      requestId.current += 1;
+    };
+  }, [fetchComplaints]);
 
-      const token = localStorage.getItem("token");
-
-      const response = await axios.get(
-        "https://complaine-backend.vercel.app/api/maintenance/overdue-complaints",
-
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      );
-
-      setComplaints(response?.data?.complaints || []);
-    } catch (error) {
-      console.log(error);
-
-      toast.error(
-        error?.response?.data?.message || "Failed to fetch overdue complaints",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ======================================
-  // VIEW
-  // ======================================
-
-  const handleView = (complaint) => {
-    setSelectedComplaint(complaint);
-
-    setShowModal(true);
-  };
-
-  // ======================================
-  // ESCALATE
-  // ======================================
+  useEffect(() => {
+    if (refreshKey === undefined || refreshKey === 0) return;
+    fetchComplaints({ silent: true });
+  }, [refreshKey, fetchComplaints]);
 
   const handleEscalate = async (complaint) => {
+    if (mutationInProgress.current) return;
+    mutationInProgress.current = true;
+    requestId.current += 1;
+    setEscalatingId(complaint._id);
     try {
-      const token = localStorage.getItem("token");
-
       await axios.put(
-        `https://complaine-backend.vercel.app/api/maintenance/overdue-complaints/escalate/${complaint._id}`,
-
+        `${API}/escalate/${complaint._id}`,
         {},
-
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
+        { headers: auth() },
       );
-
       toast.success(`${complaint.complaintId} escalated successfully`);
-
-      fetchComplaints();
     } catch (error) {
-      console.log(error);
-
+      console.error("ESCALATION:", error);
       toast.error(error?.response?.data?.message || "Escalation failed");
+    } finally {
+      mutationInProgress.current = false;
+      setEscalatingId(null);
+      await fetchComplaints({ silent: true });
     }
   };
 
-  // ======================================
-  // ASSIGN
-  // ======================================
-
-  const handleAssign = (complaint) => {
-    toast(`Assign worker for ${complaint.complaintId}`);
-  };
-
-  // ======================================
-  // FILTER
-  // ======================================
-
-  const filteredComplaints = complaints.filter(
-    (item) =>
-      item?.complaintId?.toLowerCase()?.includes(search.toLowerCase()) ||
-      item?.worker?.toLowerCase()?.includes(search.toLowerCase()) ||
-      item?.building?.toLowerCase()?.includes(search.toLowerCase()),
+  const filtered = complaints.filter((item) =>
+    [item?.complaintId, item?.worker, item?.building].some((value) =>
+      String(value || "")
+        .toLowerCase()
+        .includes(search.toLowerCase()),
+    ),
   );
+  const count = (field, value) =>
+    complaints.filter((item) => item[field] === value).length;
 
-  // ======================================
-  // PRIORITY COLOR
-  // ======================================
-
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case "CRITICAL":
-        return `
-          bg-red-100
-          text-red-700
-          border
-          border-red-300
-        `;
-
-      case "HIGH":
-        return `
-          bg-orange-100
-          text-orange-700
-          border
-          border-orange-300
-        `;
-
-      case "MEDIUM":
-        return `
-          bg-yellow-100
-          text-yellow-700
-          border
-          border-yellow-300
-        `;
-
-      default:
-        return `
-          bg-gray-100
-          text-gray-700
-          border
-          border-gray-300
-        `;
-    }
-  };
-
-  // ======================================
-  // LOADING
-  // ======================================
-
-  if (loading) {
+  if (loading)
     return (
-      <div
-        className="
-          flex
-          items-center
-          justify-center
-
-          min-h-screen
-        "
-      >
-        <Loader2
-          size={60}
-          className="
-            animate-spin
-            text-red-700
-          "
-        />
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 size={60} className="animate-spin text-red-700" />
       </div>
     );
-  }
 
   return (
-    <>
-      <div className="space-y-8">
-        {/* HEADER */}
-
-        <div
-          className="
-            bg-gradient-to-r
-            from-[#7A0019]
-            via-red-700
-            to-[#001B54]
-
-            text-white
-
-            rounded-[35px]
-
-            shadow-[0_15px_50px_rgba(0,0,0,0.25)]
-
-            p-6
-            md:p-10
-
-            relative
-            overflow-hidden
-          "
-        >
-          {/* BACKGROUND GLOW */}
-
-          <div
-            className="
-              absolute
-              inset-0
-
-              bg-white/5
-              backdrop-blur-sm
-            "
-          ></div>
-
-          {/* ICON */}
-
-          <div className="absolute right-5 top-5 opacity-10">
-            <Siren size={180} />
+    <div className="space-y-8 pb-8">
+      <header className="relative overflow-hidden rounded-[35px] bg-gradient-to-r from-[#7A0019] via-red-700 to-[#001B54] p-6 text-white shadow-2xl md:p-10">
+        <Siren size={160} className="absolute right-5 top-3 opacity-10" />
+        <div className="relative flex flex-wrap items-center justify-between gap-5">
+          <div className="flex items-center gap-5">
+            <div className="rounded-3xl border border-white/20 bg-white/10 p-4">
+              <AlertTriangle size={42} />
+            </div>
+            <div>
+              <h1 className="text-3xl font-extrabold md:text-5xl">
+                Overdue Complaints
+              </h1>
+              <p className="mt-3 text-red-100">
+                Smart escalation tracking and overdue monitoring system.
+              </p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => fetchComplaints({ silent: true })}
+            className="flex items-center gap-2 rounded-xl bg-white/15 px-4 py-3 font-semibold hover:bg-white/25"
+          >
+            <RefreshCw size={18} /> Refresh
+          </button>
+        </div>
+      </header>
 
-          <div className="relative z-10">
-            <div className="flex items-center gap-5">
-              <div
-                className="
-                  bg-white/10
+      <div className="rounded-3xl border border-gray-100 bg-white p-5 shadow-lg">
+        <div className="relative">
+          <Search size={20} className="absolute left-4 top-4 text-gray-400" />
+          <input
+            type="search"
+            placeholder="Search overdue complaints..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            className="w-full rounded-2xl border border-gray-200 bg-gray-50 py-4 pl-12 pr-4 outline-none focus:ring-2 focus:ring-red-500"
+          />
+        </div>
+      </div>
 
-                  backdrop-blur-xl
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          {
+            title: "Total Overdue",
+            number: complaints.length,
+            Icon: AlertTriangle,
+            color: "from-red-500 to-red-700",
+          },
+          {
+            title: "Level 1 Cases",
+            number: count("escalationLevel", "LEVEL 1"),
+            Icon: Clock3,
+            color: "from-yellow-400 to-orange-500",
+          },
+          {
+            title: "Level 2 Cases",
+            number: count("escalationLevel", "LEVEL 2"),
+            Icon: TimerReset,
+            color: "from-orange-500 to-red-500",
+          },
+          {
+            title: "Critical Cases",
+            number: count("overdueStatus", "CRITICAL_OVERDUE"),
+            Icon: ShieldAlert,
+            color: "from-[#7A0019] to-black",
+          },
+        ].map(({ title, number, Icon, bg, fg }) => (
+          <div
+            key={title}
+            className={`rounded-3xl bg-gradient-to-br ${bg} p-6 text-white shadow-xl`}
+          >
+            <Icon size={35} className={fg} />
 
-                  p-4
+            <h2 className="mt-5 text-4xl font-extrabold">{number}</h2>
 
-                  rounded-3xl
+            <p className="mt-2 font-medium text-white/85">{title}</p>
+          </div>
+        ))}
+      </div>
 
-                  border
-                  border-white/20
-                "
-              >
-                <AlertTriangle size={45} />
-              </div>
+      {filtered.length === 0 && (
+        <div className="rounded-3xl bg-white p-12 text-center shadow-lg">
+          <AlertTriangle size={65} className="mx-auto text-red-400" />
+          <h2 className="mt-6 text-2xl font-bold text-gray-700">
+            No Overdue Complaints
+          </h2>
+          <p className="mt-3 text-gray-500">
+            {search
+              ? "No complaints match your search."
+              : "Everything looks good right now."}
+          </p>
+        </div>
+      )}
 
+      <div className="grid grid-cols-1 gap-7 xl:grid-cols-2">
+        {filtered.map((item) => (
+          <article
+            key={item._id}
+            className="relative overflow-hidden rounded-[32px] border border-red-100 bg-white p-6 shadow-xl transition-shadow hover:shadow-2xl md:p-7"
+          >
+            <div className="absolute left-0 top-0 h-2 w-full bg-gradient-to-r from-red-500 via-orange-400 to-red-700" />
+            <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h1
-                  className="
-                    text-3xl
-                    md:text-5xl
-
-                    font-extrabold
-
-                    tracking-wide
-                  "
+                <h2 className="text-3xl font-extrabold text-[#001B54]">
+                  {item.complaintId}
+                </h2>
+                <p className="mt-2 text-gray-500">{item.title}</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="relative flex h-5 w-5 items-center justify-center">
+                  <span className="absolute h-7 w-7 animate-ping rounded-full bg-red-300 opacity-40" />
+                  <span className="relative h-4 w-4 rounded-full bg-red-600" />
+                </span>
+                <span
+                  className={`rounded-2xl border px-4 py-2 text-xs font-bold ${priorityClass(item.priority)}`}
                 >
-                  Overdue Complaints
-                </h1>
-
-                <p
-                  className="
-                    mt-3
-
-                    text-red-100
-
-                    text-sm
-                    md:text-base
-                  "
-                >
-                  Smart escalation tracking and overdue monitoring system.
+                  {item.priority || "--"}
+                </span>
+              </div>
+            </div>
+            <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {[
+                {
+                  title: "Assigned Worker",
+                  value: item.worker,
+                  sub: item.department,
+                  Icon: User,
+                  bg: "bg-blue-50",
+                  fg: "text-blue-700",
+                },
+                {
+                  title: "Location",
+                  value: item.building,
+                  sub: `Room: ${item.room || "--"}`,
+                  Icon: Building2,
+                  bg: "bg-green-50",
+                  fg: "text-green-700",
+                },
+                {
+                  title: "Pending Since",
+                  value: item.pendingSince,
+                  Icon: Clock3,
+                  bg: "bg-yellow-50",
+                  fg: "text-yellow-700",
+                },
+                {
+                  title: "Overdue Duration",
+                  value: item.overdueDuration,
+                  Icon: TimerReset,
+                  bg: "bg-red-50",
+                  fg: "text-red-700",
+                },
+              ].map(({ title, value, sub, Icon, bg, fg }) => (
+                <div key={title} className={`rounded-3xl p-5 ${bg}`}>
+                  <Icon size={24} className={fg} />
+                  <p className="mt-4 text-sm text-gray-500">{title}</p>
+                  <h3 className={`mt-2 break-words text-lg font-bold ${fg}`}>
+                    {value || "--"}
+                  </h3>
+                  {sub && <p className="mt-1 text-sm text-gray-500">{sub}</p>}
+                </div>
+              ))}
+            </div>
+            <div className="mt-8 flex items-center gap-4 rounded-3xl bg-gradient-to-r from-red-100 to-orange-100 p-6">
+              <ShieldAlert size={35} className="shrink-0 text-red-700" />
+              <div>
+                <h3 className="text-xl font-bold text-red-700">
+                  {item.escalationLevel || "--"}
+                </h3>
+                <p className="mt-2 text-sm text-red-600">
+                  Complaint exceeded expected completion time.
                 </p>
               </div>
             </div>
-          </div>
-        </div>
-
-        {/* SEARCH */}
-
-        <div
-          className="
-            bg-white/90
-            backdrop-blur-xl
-
-            rounded-[30px]
-
-            shadow-[0_10px_40px_rgba(0,0,0,0.08)]
-
-            border
-            border-gray-100
-
-            p-5
-          "
-        >
-          <div className="relative">
-            <Search
-              size={20}
-              className="
-                absolute
-                left-4
-                top-4
-                text-gray-400
-              "
-            />
-
-            <input
-              type="text"
-              placeholder="Search overdue complaints..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="
-                w-full
-
-                bg-gray-50
-
-                border
-                border-gray-200
-
-                rounded-2xl
-
-                pl-12
-                pr-4
-                py-4
-
-                focus:outline-none
-                focus:ring-2
-                focus:ring-red-500
-
-                transition-all
-              "
-            />
-          </div>
-        </div>
-
-        {/* STATS */}
-
-        <div
-          className="
-            grid
-            grid-cols-1
-            md:grid-cols-2
-            xl:grid-cols-4
-
-            gap-5
-          "
-        >
-          {/* TOTAL */}
-
-          <div
-            className="
-              bg-gradient-to-br
-              from-red-500
-              to-red-700
-
-              text-white
-
-              rounded-3xl
-
-              shadow-2xl
-
-              p-6
-            "
-          >
-            <AlertTriangle size={35} />
-
-            <h2 className="text-4xl font-extrabold mt-5">
-              {complaints.length}
-            </h2>
-
-            <p className="mt-2 text-red-100 font-medium">Total Overdue</p>
-          </div>
-
-          {/* LEVEL 1 */}
-
-          <div
-            className="
-              bg-gradient-to-br
-              from-yellow-400
-              to-orange-500
-
-              text-white
-
-              rounded-3xl
-
-              shadow-2xl
-
-              p-6
-            "
-          >
-            <Clock3 size={35} />
-
-            <h2 className="text-4xl font-extrabold mt-5">
-              {
-                complaints.filter((item) => item.escalationLevel === "LEVEL 1")
-                  .length
-              }
-            </h2>
-
-            <p className="mt-2 text-yellow-100 font-medium">Level 1 Cases</p>
-          </div>
-
-          {/* LEVEL 2 */}
-
-          <div
-            className="
-              bg-gradient-to-br
-              from-orange-500
-              to-red-500
-
-              text-white
-
-              rounded-3xl
-
-              shadow-2xl
-
-              p-6
-            "
-          >
-            <TimerReset size={35} />
-
-            <h2 className="text-4xl font-extrabold mt-5">
-              {
-                complaints.filter((item) => item.escalationLevel === "LEVEL 2")
-                  .length
-              }
-            </h2>
-
-            <p className="mt-2 text-orange-100 font-medium">Level 2 Cases</p>
-          </div>
-
-          {/* CRITICAL */}
-
-          <div
-            className="
-              bg-gradient-to-br
-              from-[#7A0019]
-              to-black
-
-              text-white
-
-              rounded-3xl
-
-              shadow-2xl
-
-              p-6
-            "
-          >
-            <ShieldAlert size={35} />
-
-            <h2 className="text-4xl font-extrabold mt-5">
-              {
-                complaints.filter(
-                  (item) => item.overdueStatus === "CRITICAL_OVERDUE",
-                ).length
-              }
-            </h2>
-
-            <p className="mt-2 text-red-100 font-medium">Critical Cases</p>
-          </div>
-        </div>
-
-        {/* EMPTY */}
-
-        {filteredComplaints.length === 0 && (
-          <div
-            className="
-              bg-white
-
-              rounded-[35px]
-
-              shadow-2xl
-
-              p-16
-
-              text-center
-            "
-          >
-            <AlertTriangle
-              size={70}
-              className="
-                mx-auto
-                text-red-400
-              "
-            />
-
-            <h2 className="text-4xl font-bold text-gray-700 mt-6">
-              No Overdue Complaints
-            </h2>
-
-            <p className="text-gray-500 mt-3">
-              Everything looks good right now.
-            </p>
-          </div>
-        )}
-
-        {/* CARDS */}
-
-        <div
-          className="
-            grid
-            grid-cols-1
-            xl:grid-cols-2
-
-            gap-7
-          "
-        >
-          {filteredComplaints.map((item) => (
-            <div
-              key={item._id}
-              className="
-                bg-white/95
-                backdrop-blur-xl
-
-                rounded-[32px]
-
-                shadow-[0_15px_50px_rgba(0,0,0,0.12)]
-
-                border
-                border-red-100
-
-                hover:shadow-[0_20px_60px_rgba(220,38,38,0.18)]
-
-                hover:-translate-y-2
-
-                transition-all
-                duration-300
-
-                p-7
-
-                relative
-                overflow-hidden
-              "
-            >
-              {/* TOP BAR */}
-
-              <div
-                className="
-                  absolute
-
-                  top-0
-                  left-0
-
-                  w-full
-                  h-2
-
-                  bg-gradient-to-r
-                  from-red-500
-                  via-orange-400
-                  to-red-700
-                "
-              ></div>
-
-              {/* HEADER */}
-
-              <div className="flex justify-between items-start">
-                <div>
-                  <h1
-                    className="
-                      text-3xl
-
-                      font-extrabold
-
-                      text-[#001B54]
-                    "
-                  >
-                    {item.complaintId}
-                  </h1>
-
-                  <p className="text-gray-500 mt-2">{item.title}</p>
-                </div>
-
-                {/* BLINKING ALERT */}
-
-                <div className="flex items-center gap-4">
-                  <div
-                    className="
-                      relative
-
-                      flex
-                      items-center
-                      justify-center
-                    "
-                  >
-                    <span
-                      className="
-                        absolute
-
-                        inline-flex
-
-                        h-8
-                        w-8
-
-                        rounded-full
-
-                        bg-red-300
-
-                        opacity-40
-
-                        animate-ping
-                      "
-                    ></span>
-
-                    <span
-                      className="
-                        absolute
-
-                        inline-flex
-
-                        h-5
-                        w-5
-
-                        rounded-full
-
-                        bg-red-500
-
-                        opacity-75
-
-                        animate-ping
-                      "
-                    ></span>
-
-                    <span
-                      className="
-                        relative
-
-                        inline-flex
-
-                        rounded-full
-
-                        h-5
-                        w-5
-
-                        bg-red-600
-                      "
-                    ></span>
-                  </div>
-
-                  <span
-                    className={`${getPriorityColor(item.priority)} px-4 py-2 rounded-2xl text-xs font-bold`}
-                  >
-                    {item.priority}
-                  </span>
-                </div>
-              </div>
-
-              {/* GRID */}
-
-              <div className="grid grid-cols-2 gap-5 mt-8">
-                {/* WORKER */}
-
-                <div className="bg-blue-50 rounded-3xl p-5">
-                  <User size={24} className="text-blue-700" />
-
-                  <p className="text-sm text-gray-500 mt-4">Assigned Worker</p>
-
-                  <h2 className="font-bold text-blue-700 mt-2 text-lg">
-                    {item.worker}
-                  </h2>
-
-                  <p className="text-sm text-gray-500 mt-1">
-                    {item.department}
-                  </p>
-                </div>
-
-                {/* LOCATION */}
-
-                <div className="bg-green-50 rounded-3xl p-5">
-                  <Building2 size={24} className="text-green-700" />
-
-                  <p className="text-sm text-gray-500 mt-4">Location</p>
-
-                  <h2 className="font-bold text-green-700 mt-2 text-lg">
-                    {item.building}
-                  </h2>
-
-                  <p className="text-sm text-gray-500 mt-1">
-                    Room : {item.room}
-                  </p>
-                </div>
-
-                {/* PENDING */}
-
-                <div className="bg-yellow-50 rounded-3xl p-5">
-                  <Clock3 size={24} className="text-yellow-700" />
-
-                  <p className="text-sm text-gray-500 mt-4">Pending Since</p>
-
-                  <h2 className="font-bold text-yellow-700 mt-2 text-lg">
-                    {item.pendingSince}
-                  </h2>
-                </div>
-
-                {/* DELAY */}
-
-                <div className="bg-red-50 rounded-3xl p-5">
-                  <TimerReset size={24} className="text-red-700" />
-
-                  <p className="text-sm text-gray-500 mt-4">Overdue Duration</p>
-
-                  <h2 className="font-bold text-red-700 mt-2 text-lg">
-                    {item.overdueDuration}
-                  </h2>
-                </div>
-              </div>
-
-              {/* ESCALATION */}
-
-              <div
-                className="
-                  bg-gradient-to-r
-                  from-red-100
-                  to-orange-100
-
-                  rounded-3xl
-
-                  p-6
-
-                  mt-8
-                "
+            <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => setSelectedComplaint(item)}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-blue-700 px-3 py-4 font-bold text-white"
               >
-                <div className="flex items-center gap-4">
-                  <ShieldAlert size={35} className="text-red-700" />
-
-                  <div>
-                    <h2 className="text-2xl font-bold text-red-700">
-                      {item.escalationLevel}
-                    </h2>
-
-                    <p className="text-red-600 mt-2 text-sm">
-                      Complaint exceeded expected completion time.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* BUTTONS */}
-
-              <div className="flex gap-4 mt-8">
-                {/* VIEW */}
-
-                <button
-                  onClick={() => handleView(item)}
-                  className="
-                    flex-1
-
-                    bg-gradient-to-r
-                    from-blue-500
-                    to-blue-700
-
-                    hover:scale-105
-
-                    text-white
-
-                    py-4
-
-                    rounded-2xl
-
-                    font-bold
-
-                    flex
-                    items-center
-                    justify-center
-                    gap-2
-
-                    transition-all
-                  "
-                >
-                  <Eye size={20} />
-                  View
-                </button>
-
-                {/* ASSIGN */}
-
-                <button
-                  onClick={() => handleAssign(item)}
-                  className="
-                    flex-1
-
-                    bg-gradient-to-r
-                    from-yellow-400
-                    to-orange-500
-
-                    hover:scale-105
-
-                    text-white
-
-                    py-4
-
-                    rounded-2xl
-
-                    font-bold
-
-                    flex
-                    items-center
-                    justify-center
-                    gap-2
-
-                    transition-all
-                  "
-                >
-                  <Wrench size={20} />
-                  Assign
-                </button>
-
-                {/* ESCALATE */}
-
-                <button
-                  onClick={() => handleEscalate(item)}
-                  className="
-                    flex-1
-
-                    bg-gradient-to-r
-                    from-red-500
-                    to-red-700
-
-                    hover:scale-105
-
-                    text-white
-
-                    py-4
-
-                    rounded-2xl
-
-                    font-bold
-
-                    flex
-                    items-center
-                    justify-center
-                    gap-2
-
-                    transition-all
-                  "
-                >
+                <Eye size={20} /> View
+              </button>
+              <button
+                type="button"
+                onClick={() => toast(`Assign worker for ${item.complaintId}`)}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-yellow-400 to-orange-500 px-3 py-4 font-bold text-white"
+              >
+                <Wrench size={20} /> Assign
+              </button>
+              <button
+                type="button"
+                disabled={escalatingId !== null}
+                onClick={() => handleEscalate(item)}
+                className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-500 to-red-700 px-3 py-4 font-bold text-white disabled:opacity-50"
+              >
+                {escalatingId === item._id ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : (
                   <PhoneCall size={20} />
-                  Escalate
-                </button>
-              </div>
+                )}{" "}
+                Escalate
+              </button>
             </div>
-          ))}
-        </div>
+          </article>
+        ))}
       </div>
 
-      {/* MODAL */}
-
-      {showModal && selectedComplaint && (
+      {selectedComplaint && (
         <div
-          className="
-            fixed
-            inset-0
-
-            bg-black/60
-            backdrop-blur-sm
-
-            flex
-            items-center
-            justify-center
-
-            z-50
-
-            p-4
-          "
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={() => setSelectedComplaint(null)}
         >
           <div
-            className="
-              bg-white/95
-              backdrop-blur-xl
-
-              rounded-[35px]
-
-              w-full
-              max-w-3xl
-
-              shadow-[0_20px_60px_rgba(0,0,0,0.25)]
-
-              p-8
-
-              relative
-            "
+            role="dialog"
+            aria-modal="true"
+            aria-label="Complaint Details"
+            onClick={(event) => event.stopPropagation()}
+            className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl md:p-8"
           >
-            {/* CLOSE */}
-
             <button
-              onClick={() => setShowModal(false)}
-              className="
-                absolute
-                top-5
-                right-5
-
-                text-red-600
-              "
+              type="button"
+              aria-label="Close"
+              onClick={() => setSelectedComplaint(null)}
+              className="absolute right-5 top-5 text-red-600"
             >
-              <X size={32} />
+              <X size={30} />
             </button>
-
-            {/* TITLE */}
-
-            <h1
-              className="
-                text-4xl
-
-                font-extrabold
-
-                text-[#001B54]
-
-                mb-8
-              "
-            >
+            <h2 className="mb-8 pr-10 text-3xl font-extrabold text-[#001B54]">
               Complaint Details
-            </h1>
-
-            {/* GRID */}
-
-            <div className="grid grid-cols-2 gap-7">
-              <div>
-                <p className="text-gray-400">Complaint ID</p>
-
-                <h2 className="font-bold text-2xl mt-2">
-                  {selectedComplaint.complaintId}
-                </h2>
-              </div>
-
-              <div>
-                <p className="text-gray-400">Priority</p>
-
-                <h2 className="font-bold text-2xl mt-2">
-                  {selectedComplaint.priority}
-                </h2>
-              </div>
-
-              <div>
-                <p className="text-gray-400">Worker</p>
-
-                <h2 className="font-bold text-2xl mt-2">
-                  {selectedComplaint.worker}
-                </h2>
-              </div>
-
-              <div>
-                <p className="text-gray-400">Worker Phone</p>
-
-                <h2 className="font-bold text-2xl mt-2">
-                  {selectedComplaint.workerPhone}
-                </h2>
-              </div>
-
-              <div>
-                <p className="text-gray-400">Hostel</p>
-
-                <h2 className="font-bold text-2xl mt-2">
-                  {selectedComplaint.building}
-                </h2>
-              </div>
-
-              <div>
-                <p className="text-gray-400">Room</p>
-
-                <h2 className="font-bold text-2xl mt-2">
-                  {selectedComplaint.room}
-                </h2>
-              </div>
-
-              <div className="col-span-2">
-                <p className="text-gray-400">Description</p>
-
-                <div
-                  className="
-                    bg-gray-100
-
-                    rounded-3xl
-
-                    p-6
-
-                    mt-3
-                  "
-                >
-                  <p className="text-gray-700 leading-8">
-                    {selectedComplaint.description}
+            </h2>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              {[
+                ["Complaint ID", selectedComplaint.complaintId],
+                ["Priority", selectedComplaint.priority],
+                ["Worker", selectedComplaint.worker],
+                ["Worker Phone", selectedComplaint.workerPhone],
+                ["Hostel", selectedComplaint.building],
+                ["Room", selectedComplaint.room],
+              ].map(([label, value]) => (
+                <div key={label}>
+                  <p className="text-gray-400">{label}</p>
+                  <p className="mt-2 break-words text-xl font-bold">
+                    {value || "--"}
                   </p>
+                </div>
+              ))}
+              <div className="sm:col-span-2">
+                <p className="text-gray-400">Description</p>
+                <div className="mt-3 rounded-3xl bg-gray-100 p-6 text-gray-700">
+                  {selectedComplaint.description || "--"}
                 </div>
               </div>
             </div>
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 };
 

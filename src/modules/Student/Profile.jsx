@@ -32,7 +32,7 @@ import {
 import api from "../../services/api";
 
 // =====================================================
-// AMI MAINTENANCE
+// AMI MAINT.
 // COMBINED STUDENT PROFILE + HOSTEL + WARDENS + NOTICES
 // =====================================================
 
@@ -648,7 +648,7 @@ export default function Profile() {
             <div className="min-w-0">
               <p className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-white/10 px-3 py-1 text-[11px] font-extrabold tracking-wider text-[#F2CB78]">
                 <ShieldCheck size={14} />
-                AMI MAINTENANCE
+                AMI MAINT.
               </p>
 
               <h1 className="mt-3 break-words text-2xl font-black sm:text-4xl">
@@ -1065,7 +1065,7 @@ export default function Profile() {
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-5 text-xs text-slate-400">
         <span className="flex items-center gap-2">
           <ShieldCheck size={15} />
-          AMI MAINTENANCE
+          AMI MAINT.
         </span>
 
         <button

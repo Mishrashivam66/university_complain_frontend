@@ -17,7 +17,7 @@ import {
 import api from "../../../services/api";
 
 // =====================================================
-// AMI MAINTENANCE
+// AMI MAINT.
 // TECHNICIAN ADDITIONAL MATERIAL REQUESTS
 // =====================================================
 
@@ -662,7 +662,7 @@ export default function TechnicianMaterialRequest({ complaint }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[10px] font-extrabold uppercase tracking-widest text-[#B48632]">
-              AMI MAINTENANCE · TECHNICIAN
+              AMI MAINT. · TECHNICIAN
             </p>
 
             <h3 className="mt-2 flex items-center gap-2 text-lg font-black text-[#102B52]">

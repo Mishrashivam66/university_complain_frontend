@@ -4,7 +4,7 @@ import TechnicianDashboard from "../modules/technician/pages/TechnicianDashboard
 import MyMaterials from "../modules/technician/MyMaterials";
 
 // ==========================================
-// AMI MAINTENANCE — TECHNICIAN ROUTES
+// AMI MAINT. — TECHNICIAN ROUTES
 // ==========================================
 
 const TechnicianRoutes = (

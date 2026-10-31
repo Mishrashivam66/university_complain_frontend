@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRealtime } from "../../context/RealtimeProvider";
+
 import { useNavigate } from "react-router-dom";
+
 import axios from "axios";
+
 import toast from "react-hot-toast";
 
 import {
@@ -23,19 +27,25 @@ import {
   AlertCircle,
 } from "lucide-react";
 
-// ==========================================
-// API + ROUTES
-// ==========================================
+// ==========================================*
+
+// API + ROUTES*
+
+// ==========================================*
 
 const API_BASE = "https://complaine-backend.vercel.app/api/maintenance";
+
 const JOB_CARD_API = `${API_BASE}/job-cards`;
 
 const MATERIAL_REQUEST_ROUTE = "/maintenance/material-requests";
+
 const JOB_CARD_ROUTE = "/maintenance/job-cards";
 
-// ==========================================
-// COMMON HELPERS
-// ==========================================
+// ==========================================*
+
+// COMMON HELPERS*
+
+// ==========================================*
 
 const getHeaders = () => {
   const token = localStorage.getItem("token");
@@ -52,7 +62,8 @@ const normalize = (value) => {
 const getComplaintIdsFromRequest = (request) => {
   const ids = [];
 
-  // Current / single complaint structure
+  // Current / single complaint structure*
+
   if (request?.complaint) {
     const id =
       typeof request.complaint === "object"
@@ -64,7 +75,8 @@ const getComplaintIdsFromRequest = (request) => {
     }
   }
 
-  // Batch / multiple complaint structure fallback
+  // Batch / multiple complaint structure fallback*
+
   if (Array.isArray(request?.complaints)) {
     request.complaints.forEach((item) => {
       const rawComplaint = item?.complaint ?? item;
@@ -78,7 +90,8 @@ const getComplaintIdsFromRequest = (request) => {
     });
   }
 
-  // Additional legacy/API fallback
+  // Additional legacy/API fallback*
+
   if (request?.complaintId) {
     const id =
       typeof request.complaintId === "object"
@@ -105,7 +118,9 @@ const getJobCardLocation = (complaint) => {
   if (complaint?.hostel?.trim()) {
     return {
       type: "HOSTEL",
+
       value: normalize(complaint.hostel),
+
       label: complaint.hostel.trim(),
     };
   }
@@ -113,7 +128,9 @@ const getJobCardLocation = (complaint) => {
   if (complaint?.block?.trim()) {
     return {
       type: "BLOCK",
+
       value: normalize(complaint.block),
+
       label: complaint.block.trim(),
     };
   }
@@ -121,7 +138,9 @@ const getJobCardLocation = (complaint) => {
   if (complaint?.issueLocation?.trim()) {
     return {
       type: "LOCATION",
+
       value: normalize(complaint.issueLocation),
+
       label: complaint.issueLocation.trim(),
     };
   }
@@ -137,7 +156,9 @@ const formatDate = (date) => {
 
 const getMainLocation = (item) => {
   if (item?.hostel) return `Hostel: ${item.hostel}`;
+
   if (item?.block) return `Block: ${item.block}`;
+
   if (item?.issueLocation) return item.issueLocation;
 
   return "--";
@@ -147,39 +168,51 @@ const getStatusColor = (status) => {
   switch (status) {
     case "ASSIGNED":
       return "bg-purple-100 text-purple-700";
+
     case "IN_PROGRESS":
       return "bg-blue-100 text-blue-700";
+
     case "WAITING_MATERIAL":
       return "bg-orange-100 text-orange-700";
+
     case "COMPLETED":
     case "RESOLVED":
       return "bg-green-100 text-green-700";
     case "CLOSED":
       return "bg-gray-200 text-gray-700";
+
     default:
       return "bg-gray-100 text-gray-700";
   }
 };
-
 const getPriorityColor = (priority) => {
   switch (priority) {
     case "URGENT":
+      return "bg-red-100 text-red-700";
+
     case "HIGH":
       return "bg-red-100 text-red-700";
+
     case "MEDIUM":
       return "bg-yellow-100 text-yellow-700";
+
     case "LOW":
       return "bg-green-100 text-green-700";
+
     default:
       return "bg-gray-100 text-gray-700";
   }
-};
+};  
 
-// ==========================================
-// FETCH DATA
-// IMPORTANT: THIS FUNCTION IS OUTSIDE COMPONENT
-// SO IT CANNOT CREATE A RENDER LOOP.
-// ==========================================
+// ==========================================*
+
+// FETCH DATA*
+
+// IMPORTANT: THIS FUNCTION IS OUTSIDE COMPONENT*
+
+// SO IT CANNOT CREATE A RENDER LOOP.*
+
+// ==========================================*
 
 const fetchAssignedJobsData = async () => {
   const headers = getHeaders();
@@ -195,9 +228,11 @@ const fetchAssignedJobsData = async () => {
       }),
 
       axios
+
         .get(`${API_BASE}/material-requests`, {
           headers,
         })
+
         .catch((error) => {
           console.log("MATERIAL API ERROR:", error);
 
@@ -209,9 +244,11 @@ const fetchAssignedJobsData = async () => {
         }),
 
       axios
+
         .get(JOB_CARD_API, {
           headers,
         })
+
         .catch((error) => {
           console.log("JOB CARD API ERROR:", error);
 
@@ -225,143 +262,116 @@ const fetchAssignedJobsData = async () => {
 
   return {
     complaints: complaintsRes?.data?.complaints || [],
+
     workers: workersRes?.data?.workers || [],
+
     materialRequests:
       materialRes?.data?.requests || materialRes?.data?.materialRequests || [],
+
     jobCards: jobCardRes?.data?.jobCards || [],
   };
 };
 
-// ==========================================
-// MAIN COMPONENT
-// ==========================================
+// ==========================================*
+
+// MAIN COMPONENT*
+
+// ==========================================*
 
 const AssignedJobs = () => {
   const navigate = useNavigate();
+  const { refreshKey } = useRealtime();
+  const requestVersionRef = useRef(0);
+  const initialRefreshKeyRef = useRef(refreshKey);
+  const mountedRef = useRef(false);
+  const creatingRef = useRef(false);
 
-  // ======================================
-  // STATES
-  // ======================================
+  // ======================================*
+
+  // STATES*
+
+  // ======================================*
 
   const [loading, setLoading] = useState(true);
+
   const [refreshing, setRefreshing] = useState(false);
+
   const [creatingJobCards, setCreatingJobCards] = useState(false);
 
   const [complaints, setComplaints] = useState([]);
+
   const [workers, setWorkers] = useState([]);
+
   const [materialRequests, setMaterialRequests] = useState([]);
+
   const [jobCards, setJobCards] = useState([]);
 
   const [search, setSearch] = useState("");
+
   const [statusFilter, setStatusFilter] = useState("ALL");
+
   const [selectedWorker, setSelectedWorker] = useState("ALL");
+
   const [selectedComplaint, setSelectedComplaint] = useState(null);
 
-  // ======================================
-  // APPLY FETCHED DATA
-  // ======================================
+  // Initial, manual and background refresh share the same data loader.
+  // Silent refresh never shows a loader or a success toast.
+  const load = useCallback(async (mode = "initial") => {
+    const version = ++requestVersionRef.current;
+    const manual = mode === "manual";
+    const initial = mode === "initial";
+    if (manual) setRefreshing(true);
+    if (initial) setLoading(true);
 
-  const applyData = (data) => {
-    setComplaints(data.complaints || []);
-    setWorkers(data.workers || []);
-    setMaterialRequests(data.materialRequests || []);
-    setJobCards(data.jobCards || []);
-  };
-
-  // ======================================
-  // INITIAL LOAD - ONLY ONCE
-  // ======================================
-
-  useEffect(() => {
-    let active = true;
-
-    const load = async () => {
-      try {
-        setLoading(true);
-
-        const data = await fetchAssignedJobsData();
-
-        if (!active) return;
-
-        setComplaints(data.complaints || []);
-        setWorkers(data.workers || []);
-        setMaterialRequests(data.materialRequests || []);
-        setJobCards(data.jobCards || []);
-      } catch (error) {
-        if (!active) return;
-
-        console.log("ASSIGNED JOBS LOAD ERROR:", error);
-        console.log("STATUS:", error?.response?.status);
-        console.log("DATA:", error?.response?.data);
-        console.log("URL:", error?.config?.url);
-
+    try {
+      const data = await fetchAssignedJobsData();
+      if (!mountedRef.current || version !== requestVersionRef.current) return;
+      setComplaints(data.complaints || []);
+      setWorkers(data.workers || []);
+      setMaterialRequests(data.materialRequests || []);
+      setJobCards(data.jobCards || []);
+      if (manual) toast.success("Assigned jobs refreshed");
+    } catch (error) {
+      if (!mountedRef.current || version !== requestVersionRef.current) return;
+      console.error("ASSIGNED JOBS LOAD ERROR:", error);
+      if (manual || initial) {
         toast.error(
           error?.response?.data?.message || "Failed to load assigned jobs",
         );
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
       }
-    };
-
-    load();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  // ======================================
-  // MANUAL REFRESH
-  // DOES NOT HIDE THE PAGE
-  // ======================================
-
-  const handleRefresh = async () => {
-    try {
-      setRefreshing(true);
-
-      const data = await fetchAssignedJobsData();
-
-      applyData(data);
-
-      toast.success("Assigned jobs refreshed");
-    } catch (error) {
-      console.log("REFRESH ERROR:", error);
-
-      toast.error(
-        error?.response?.data?.message || "Failed to refresh assigned jobs",
-      );
     } finally {
-      setRefreshing(false);
+      if (mountedRef.current && version === requestVersionRef.current) {
+        if (initial) setLoading(false);
+        if (manual) setRefreshing(false);
+      }
     }
-  };
-
-  // ======================================
-  // AUTO REFRESH WHEN USER RETURNS
-  // FROM MATERIAL REQUEST PAGE / TAB
-  // ======================================
+  }, []);
 
   useEffect(() => {
-    const refreshOnFocus = async () => {
-      try {
-        const data = await fetchAssignedJobsData();
-        applyData(data);
-      } catch (error) {
-        console.log("AUTO REFRESH ERROR:", error);
-      }
-    };
-
-    window.addEventListener("focus", refreshOnFocus);
-
+    mountedRef.current = true;
+    void load("initial");
     return () => {
-      window.removeEventListener("focus", refreshOnFocus);
+      mountedRef.current = false;
+      requestVersionRef.current += 1;
     };
-  }, []);
+  }, [load]);
 
-  // ======================================
-  // ONLY ASSIGNED COMPLAINTS
-  // ======================================
+  useEffect(() => {
+    if (initialRefreshKeyRef.current === refreshKey) return;
+    initialRefreshKeyRef.current = refreshKey;
+    if (creatingRef.current || document.visibilityState !== "visible") return;
+    void load("silent");
+  }, [refreshKey, load]);
+
+  const handleRefresh = () => {
+    if (!creatingRef.current) void load("manual");
+  };
+
+  // ======================================*
+
+  // ONLY ASSIGNED COMPLAINTS*
+
+  // ======================================*
 
   const assignedComplaints = useMemo(() => {
     return complaints.filter(
@@ -369,10 +379,13 @@ const AssignedJobs = () => {
     );
   }, [complaints]);
 
-  // ======================================
-  // MATERIAL REQUEST MAP
-  // FASTER THAN .find() ON EVERY RENDER
-  // ======================================
+  // ======================================*
+
+  // MATERIAL REQUEST MAP*
+
+  // FASTER THAN .find() ON EVERY RENDER*
+
+  // ======================================*
 
   const materialRequestMap = useMemo(() => {
     const map = new Map();
@@ -403,20 +416,25 @@ const AssignedJobs = () => {
   useEffect(() => {
     console.log("ASSIGNED JOBS MATERIAL DEBUG:", {
       materialRequests: materialRequests.length,
+
       mappedComplaintIds: Array.from(materialComplaintIds),
     });
   }, [materialRequests, materialComplaintIds]);
 
-  // ======================================
-  // COMPLAINTS ALREADY IN FINAL JOB CARDS
-  // SUPPORTS NEW + OLD JOB CARD STRUCTURE
-  // ======================================
+  // ======================================*
+
+  // COMPLAINTS ALREADY IN FINAL JOB CARDS*
+
+  // SUPPORTS NEW + OLD JOB CARD STRUCTURE*
+
+  // ======================================*
 
   const complaintsAlreadyInJobCard = useMemo(() => {
     const ids = new Set();
 
     jobCards.forEach((jobCard) => {
-      // New grouped structure
+      // New grouped structure*
+
       jobCard?.complaints?.forEach((item) => {
         const complaintId = getComplaintIdFromJobItem(item);
 
@@ -425,7 +443,8 @@ const AssignedJobs = () => {
         }
       });
 
-      // Old single complaint structure
+      // Old single complaint structure*
+
       const oldComplaintId =
         typeof jobCard?.complaint === "object"
           ? jobCard?.complaint?._id?.toString()
@@ -439,9 +458,11 @@ const AssignedJobs = () => {
     return ids;
   }, [jobCards]);
 
-  // ======================================
-  // COMPLAINTS NOT YET IN FINAL JOB CARD
-  // ======================================
+  // ======================================*
+
+  // COMPLAINTS NOT YET IN FINAL JOB CARD*
+
+  // ======================================*
 
   const stagingComplaints = useMemo(() => {
     return assignedComplaints.filter((complaint) => {
@@ -453,12 +474,17 @@ const AssignedJobs = () => {
     });
   }, [assignedComplaints, complaintsAlreadyInJobCard]);
 
-  // ======================================
-  // READY FOR JOB CARD BATCH
-  // NO  -> READY
-  // YES -> READY AFTER MATERIAL REQUEST EXISTS
-  // LEGACY REQUEST -> READY TOO
-  // ======================================
+  // ======================================*
+
+  // READY FOR JOB CARD BATCH*
+
+  // NO  -> READY*
+
+  // YES -> READY AFTER MATERIAL REQUEST EXISTS*
+
+  // LEGACY REQUEST -> READY TOO*
+
+  // ======================================*
 
   const jobCardEligibleComplaints = useMemo(() => {
     return stagingComplaints.filter((complaint) => {
@@ -476,8 +502,10 @@ const AssignedJobs = () => {
         return hasMaterialRequest;
       }
 
-      // Supports older complaints where request exists
-      // but materialDecision was not stored earlier.
+      // Supports older complaints where request exists*
+
+      // but materialDecision was not stored earlier.*
+
       if (hasMaterialRequest) {
         return true;
       }
@@ -486,16 +514,22 @@ const AssignedJobs = () => {
     });
   }, [stagingComplaints, materialComplaintIds]);
 
-  // ======================================
-  // ASSIGNED JOBS LIST
-  // ONLY COMPLAINTS STILL WAITING FOR
-  // MATERIAL DECISION / MATERIAL DETAILS
-  // ======================================
+  // ======================================*
+
+  // ASSIGNED JOBS LIST*
+
+  // ONLY COMPLAINTS STILL WAITING FOR*
+
+  // MATERIAL DECISION / MATERIAL DETAILS*
+
+  // ======================================*
 
   const visibleAssignedComplaints = useMemo(() => {
     const readyIds = new Set(
       jobCardEligibleComplaints
+
         .map((complaint) => complaint?._id?.toString())
+
         .filter(Boolean),
     );
 
@@ -508,18 +542,24 @@ const AssignedJobs = () => {
     });
   }, [stagingComplaints, jobCardEligibleComplaints]);
 
-  // ======================================
-  // AUTOMATIC JOB CARD GROUPING
-  // SAME LOCATION + CATEGORY + WORKER
-  // MAX 10 COMPLAINTS
-  // ======================================
+  // ======================================*
+
+  // AUTOMATIC JOB CARD GROUPING*
+
+  // SAME LOCATION + CATEGORY + WORKER*
+
+  // MAX 10 COMPLAINTS*
+
+  // ======================================*
 
   const jobCardGroups = useMemo(() => {
     const grouped = {};
 
     jobCardEligibleComplaints.forEach((complaint) => {
       const workerId = complaint?.assignedTo?._id?.toString();
+
       const category = normalize(complaint?.category);
+
       const location = getJobCardLocation(complaint);
 
       if (!workerId || !category || !location) {
@@ -533,10 +573,15 @@ const AssignedJobs = () => {
       if (!grouped[groupKey]) {
         grouped[groupKey] = {
           key: groupKey,
+
           locationType: location.type,
+
           location: location.label,
+
           category: complaint.category,
+
           worker: complaint.assignedTo,
+
           complaints: [],
         };
       }
@@ -550,7 +595,9 @@ const AssignedJobs = () => {
       for (let index = 0; index < group.complaints.length; index += 10) {
         batches.push({
           ...group,
+
           batchNumber: Math.floor(index / 10) + 1,
+
           complaints: group.complaints.slice(index, index + 10),
         });
       }
@@ -559,17 +606,22 @@ const AssignedJobs = () => {
     return batches;
   }, [jobCardEligibleComplaints]);
 
-  // ======================================
-  // STATS
-  // ======================================
+  // ======================================*
+
+  // STATS*
+
+  // ======================================*
 
   const totalAssigned = visibleAssignedComplaints.length;
 
   const activeWorkers = useMemo(() => {
     return new Set(
       stagingComplaints
+
         .map((item) => item?.assignedTo?._id)
+
         .filter(Boolean)
+
         .map((id) => id.toString()),
     ).size;
   }, [stagingComplaints]);
@@ -594,10 +646,13 @@ const AssignedJobs = () => {
     ).length;
   }, [jobCards]);
 
-  // ======================================
-  // WORKER SUMMARY
-  // COUNTS BOTH WAITING + READY BATCH JOBS
-  // ======================================
+  // ======================================*
+
+  // WORKER SUMMARY*
+
+  // COUNTS BOTH WAITING + READY BATCH JOBS*
+
+  // ======================================*
 
   const workerSummary = useMemo(() => {
     return workers.map((worker) => {
@@ -620,26 +675,35 @@ const AssignedJobs = () => {
 
       return {
         ...worker,
+
         assignedCount: workerComplaints.length,
+
         activeCount: active.length,
+
         readyCount: workerComplaints.filter((item) =>
           jobCardEligibleComplaints.some(
             (readyComplaint) => readyComplaint._id === item._id,
           ),
         ).length,
+
         materialCount,
       };
     });
   }, [
     workers,
+
     stagingComplaints,
+
     materialComplaintIds,
+
     jobCardEligibleComplaints,
   ]);
 
-  // ======================================
-  // FILTERED PENDING ASSIGNED JOBS
-  // ======================================
+  // ======================================*
+
+  // FILTERED PENDING ASSIGNED JOBS*
+
+  // ======================================*
 
   const filteredComplaints = useMemo(() => {
     const searchValue = normalize(search);
@@ -666,22 +730,28 @@ const AssignedJobs = () => {
     });
   }, [visibleAssignedComplaints, search, statusFilter, selectedWorker]);
 
-  // ======================================
-  // MATERIAL YES
-  // ======================================
+  // ======================================*
+
+  // MATERIAL YES*
+
+  // ======================================*
 
   const handleMaterialYes = async (complaint) => {
     try {
       const headers = getHeaders();
+
       const existingRequest = getMaterialRequest(complaint);
 
-      // If request already exists, just open it.
+      // If request already exists, just open it.*
+
       if (!existingRequest) {
         await axios.put(
           `${API_BASE}/assign-worker/material-decision/${complaint._id}`,
+
           {
             decision: "REQUIRED",
           },
+
           {
             headers,
           },
@@ -691,11 +761,15 @@ const AssignedJobs = () => {
       navigate(MATERIAL_REQUEST_ROUTE, {
         state: {
           complaintId: complaint._id,
+
           complaint: {
             ...complaint,
+
             materialDecision: "REQUIRED",
+
             materialRequired: true,
           },
+
           materialRequest: existingRequest || null,
         },
       });
@@ -708,11 +782,15 @@ const AssignedJobs = () => {
     }
   };
 
-  // ======================================
-  // MATERIAL NO
-  // IMPORTANT: LOCAL UPDATE ONLY
-  // NO FULL PAGE RE-FETCH / BLINK
-  // ======================================
+  // ======================================*
+
+  // MATERIAL NO*
+
+  // IMPORTANT: LOCAL UPDATE ONLY*
+
+  // NO FULL PAGE RE-FETCH / BLINK*
+
+  // ======================================*
 
   const handleMaterialNo = async (complaint) => {
     try {
@@ -728,9 +806,11 @@ const AssignedJobs = () => {
 
       await axios.put(
         `${API_BASE}/assign-worker/material-decision/${complaint._id}`,
+
         {
           decision: "NOT_REQUIRED",
         },
+
         {
           headers,
         },
@@ -741,7 +821,9 @@ const AssignedJobs = () => {
           item._id === complaint._id
             ? {
                 ...item,
+
                 materialDecision: "NOT_REQUIRED",
+
                 materialRequired: false,
               }
             : item,
@@ -752,7 +834,9 @@ const AssignedJobs = () => {
         previous?._id === complaint._id
           ? {
               ...previous,
+
               materialDecision: "NOT_REQUIRED",
+
               materialRequired: false,
             }
           : previous,
@@ -768,10 +852,13 @@ const AssignedJobs = () => {
     }
   };
 
-  // ======================================
-  // CREATE ALL READY JOB CARDS
-  // PARALLEL CREATE FOR FASTER RESPONSE
-  // ======================================
+  // ======================================*
+
+  // CREATE ALL READY JOB CARDS*
+
+  // PARALLEL CREATE FOR FASTER RESPONSE*
+
+  // ======================================*
 
   const handleCreateJobCards = async () => {
     if (jobCardGroups.length === 0) {
@@ -779,6 +866,8 @@ const AssignedJobs = () => {
     }
 
     try {
+      creatingRef.current = true;
+      requestVersionRef.current += 1;
       setCreatingJobCards(true);
 
       const headers = getHeaders();
@@ -791,9 +880,11 @@ const AssignedJobs = () => {
 
           return axios.post(
             `${JOB_CARD_API}/create`,
+
             {
               complaintIds,
             },
+
             {
               headers,
             },
@@ -802,7 +893,9 @@ const AssignedJobs = () => {
       );
 
       const successfulResponses = results
+
         .filter((result) => result.status === "fulfilled")
+
         .map((result) => result.value);
 
       const failedResults = results.filter(
@@ -810,7 +903,9 @@ const AssignedJobs = () => {
       );
 
       const createdCards = successfulResponses
+
         .map((response) => response?.data?.jobCard)
+
         .filter(Boolean);
 
       if (createdCards.length > 0) {
@@ -846,13 +941,17 @@ const AssignedJobs = () => {
         error?.response?.data?.message || "Failed to create Job Cards",
       );
     } finally {
+      creatingRef.current = false;
       setCreatingJobCards(false);
+      if (mountedRef.current) void load("silent");
     }
   };
 
-  // ======================================
-  // INITIAL LOADING
-  // ======================================
+  // ======================================*
+
+  // INITIAL LOADING*
+
+  // ======================================*
 
   if (loading) {
     return (
@@ -868,16 +967,16 @@ const AssignedJobs = () => {
     );
   }
 
-  // ======================================
-  // UI
-  // ======================================
+  // ======================================*
+
+  // UI*
+
+  // ======================================*
 
   return (
     <>
       <div className="mx-auto w-full max-w-[1700px] space-y-6 px-3 pb-10 sm:px-4 lg:px-6">
-        {/* ======================================
-            HEADER
-        ====================================== */}
+        {/* ======================================  HEADER  ====================================== */}
 
         <section className="rounded-2xl bg-gradient-to-r from-[#001B54] via-[#002B7F] to-[#7A0019] p-5 text-white shadow-xl sm:rounded-3xl sm:p-7">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
@@ -908,6 +1007,7 @@ const AssignedJobs = () => {
                   size={18}
                   className={refreshing ? "animate-spin" : ""}
                 />
+
                 {refreshing ? "Refreshing..." : "Refresh"}
               </button>
 
@@ -922,9 +1022,7 @@ const AssignedJobs = () => {
           </div>
         </section>
 
-        {/* ======================================
-            STATS
-        ====================================== */}
+        {/* ======================================  STATS  ====================================== */}
 
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
           <StatCard
@@ -960,9 +1058,7 @@ const AssignedJobs = () => {
           />
         </section>
 
-        {/* ======================================
-            JOB CARD BATCHES
-        ====================================== */}
+        {/* ======================================  JOB CARD BATCHES  ====================================== */}
 
         <section className="overflow-hidden rounded-2xl bg-white shadow-xl sm:rounded-3xl">
           <div className="bg-gradient-to-r from-[#001B54] to-[#7A0019] p-5 text-white sm:p-6">
@@ -1039,9 +1135,7 @@ const AssignedJobs = () => {
           </div>
         </section>
 
-        {/* ======================================
-            SEARCH + FILTER
-        ====================================== */}
+        {/* ======================================  SEARCH + FILTER  ====================================== */}
 
         <section className="rounded-2xl bg-white p-4 shadow-lg sm:rounded-3xl sm:p-5">
           <div className="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_220px_240px]">
@@ -1066,8 +1160,11 @@ const AssignedJobs = () => {
               className="rounded-xl border border-gray-200 px-4 py-3 outline-none"
             >
               <option value="ALL">All Status</option>
+
               <option value="ASSIGNED">Assigned</option>
+
               <option value="IN_PROGRESS">In Progress</option>
+
               <option value="WAITING_MATERIAL">Waiting Material</option>
             </select>
 
@@ -1079,7 +1176,9 @@ const AssignedJobs = () => {
               <option value="ALL">All Workers</option>
 
               {workerSummary
+
                 .filter((worker) => worker.assignedCount > 0)
+
                 .map((worker) => (
                   <option key={worker._id} value={worker._id}>
                     {worker.name} ({worker.assignedCount})
@@ -1115,14 +1214,14 @@ const AssignedJobs = () => {
           </div>
         </section>
 
-        {/* ======================================
-            WORKER SUMMARY
-        ====================================== */}
+        {/* ======================================  WORKER SUMMARY  ====================================== */}
 
         {workerSummary.some((worker) => worker.assignedCount > 0) && (
           <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {workerSummary
+
               .filter((worker) => worker.assignedCount > 0)
+
               .map((worker) => (
                 <div
                   key={worker._id}
@@ -1135,6 +1234,7 @@ const AssignedJobs = () => {
 
                     <div className="min-w-0">
                       <h3 className="truncate font-bold">{worker.name}</h3>
+
                       <p className="truncate text-sm text-gray-500">
                         {worker.department}
                       </p>
@@ -1143,7 +1243,9 @@ const AssignedJobs = () => {
 
                   <div className="mt-4 grid grid-cols-3 gap-2 text-center">
                     <MiniMetric label="Jobs" value={worker.assignedCount} />
+
                     <MiniMetric label="Ready" value={worker.readyCount} />
+
                     <MiniMetric label="Material" value={worker.materialCount} />
                   </div>
                 </div>
@@ -1151,9 +1253,7 @@ const AssignedJobs = () => {
           </section>
         )}
 
-        {/* ======================================
-            ASSIGNED JOBS - WAITING STAGE
-        ====================================== */}
+        {/* ======================================  ASSIGNED JOBS - WAITING STAGE  ====================================== */}
 
         <section className="overflow-hidden rounded-2xl bg-white shadow-xl sm:rounded-3xl">
           <div className="border-b border-gray-100 p-5 sm:p-6">
@@ -1176,6 +1276,7 @@ const AssignedJobs = () => {
           </div>
 
           {/* MOBILE / TABLET CARDS */}
+
           <div className="space-y-4 p-4 lg:hidden">
             {filteredComplaints.length === 0 ? (
               <EmptyAssignedJobs />
@@ -1194,19 +1295,29 @@ const AssignedJobs = () => {
           </div>
 
           {/* DESKTOP TABLE */}
+
           <div className="hidden overflow-x-auto lg:block">
             <table className="w-full min-w-[1350px]">
               <thead className="bg-[#001B54] text-white">
                 <tr>
                   <th className="p-4 text-left">Complaint</th>
+
                   <th className="p-4 text-left">Student</th>
+
                   <th className="p-4 text-left">Worker</th>
+
                   <th className="p-4 text-left">Category</th>
+
                   <th className="p-4 text-left">Location</th>
+
                   <th className="p-4 text-left">Priority</th>
+
                   <th className="p-4 text-left">Status</th>
+
                   <th className="p-4 text-left">Material Decision</th>
+
                   <th className="p-4 text-left">Assigned Date</th>
+
                   <th className="p-4 text-center">Action</th>
                 </tr>
               </thead>
@@ -1231,6 +1342,7 @@ const AssignedJobs = () => {
                           <p className="font-bold text-[#001B54]">
                             {item.complaintId}
                           </p>
+
                           <p className="mt-1 max-w-[200px] text-sm text-gray-500">
                             {item.title || "No Title"}
                           </p>
@@ -1240,6 +1352,7 @@ const AssignedJobs = () => {
                           <p className="font-semibold">
                             {item?.createdBy?.name || "--"}
                           </p>
+
                           <p className="text-xs text-gray-500">
                             {item?.createdBy?.phone || ""}
                           </p>
@@ -1249,6 +1362,7 @@ const AssignedJobs = () => {
                           <p className="font-bold text-green-700">
                             {item?.assignedTo?.name || "--"}
                           </p>
+
                           <p className="text-xs text-gray-500">
                             {item?.assignedTo?.department || ""}
                           </p>
@@ -1257,6 +1371,7 @@ const AssignedJobs = () => {
                         <td className="p-4">
                           <div className="flex items-center gap-2 font-semibold text-purple-700">
                             <Wrench size={16} />
+
                             {item.category || "--"}
                           </div>
                         </td>
@@ -1267,10 +1382,12 @@ const AssignedJobs = () => {
                               size={16}
                               className="mt-0.5 shrink-0 text-blue-700"
                             />
+
                             <div>
                               <p className="font-semibold">
                                 {getMainLocation(item)}
                               </p>
+
                               <p className="text-xs text-gray-500">
                                 Floor: {item.floor || "-"} • Room:{" "}
                                 {item.roomNumber || "-"}
@@ -1323,9 +1440,7 @@ const AssignedJobs = () => {
         </section>
       </div>
 
-      {/* ======================================
-          DETAIL DRAWER
-      ====================================== */}
+      {/* ======================================  DETAIL DRAWER  ====================================== */}
 
       {selectedComplaint && (
         <ComplaintDrawer
@@ -1343,9 +1458,11 @@ const AssignedJobs = () => {
   );
 };
 
-// ==========================================
-// BATCH CARD
-// ==========================================
+// ==========================================*
+
+// BATCH CARD*
+
+// ==========================================*
 
 const BatchCard = ({ group, index, getMaterialRequest, onView }) => {
   return (
@@ -1399,7 +1516,9 @@ const BatchCard = ({ group, index, getMaterialRequest, onView }) => {
 
                   <p className="mt-1 text-xs text-gray-500">
                     {complaint.floor ? `Floor ${complaint.floor}` : "Floor -"}
+
                     {" • "}
+
                     {complaint.roomNumber
                       ? `Room ${complaint.roomNumber}`
                       : "Room -"}
@@ -1440,6 +1559,7 @@ const BatchCard = ({ group, index, getMaterialRequest, onView }) => {
                             <span className="font-semibold">
                               {item.itemName || "Material"}
                             </span>
+
                             <span className="text-gray-500">
                               {" — "}
                               {item.quantity || 0} {item.unit || ""}
@@ -1467,15 +1587,21 @@ const BatchCard = ({ group, index, getMaterialRequest, onView }) => {
   );
 };
 
-// ==========================================
-// MOBILE COMPLAINT CARD
-// ==========================================
+// ==========================================*
+
+// MOBILE COMPLAINT CARD*
+
+// ==========================================*
 
 const MobileComplaintCard = ({
   item,
+
   material,
+
   onMaterialYes,
+
   onMaterialNo,
+
   onView,
 }) => {
   return (
@@ -1483,6 +1609,7 @@ const MobileComplaintCard = ({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="font-extrabold text-[#001B54]">{item.complaintId}</p>
+
           <p className="mt-1 font-semibold text-gray-800">
             {item.title || "No Title"}
           </p>
@@ -1495,13 +1622,17 @@ const MobileComplaintCard = ({
 
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
         <InfoItem label="Student" value={item?.createdBy?.name || "--"} />
+
         <InfoItem label="Worker" value={item?.assignedTo?.name || "--"} />
+
         <InfoItem label="Category" value={item.category || "--"} />
+
         <InfoItem label="Location" value={getMainLocation(item)} />
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
         <Badge className={getStatusColor(item.status)}>{item.status}</Badge>
+
         <span className="text-xs text-gray-500">
           Room: {item.roomNumber || "-"}
         </span>
@@ -1527,9 +1658,11 @@ const MobileComplaintCard = ({
   );
 };
 
-// ==========================================
-// MATERIAL DECISION CONTROL
-// ==========================================
+// ==========================================*
+
+// MATERIAL DECISION CONTROL*
+
+// ==========================================*
 
 const MaterialDecisionControl = ({ complaint, material, onYes, onNo }) => {
   if (material) {
@@ -1603,16 +1736,23 @@ const MaterialDecisionControl = ({ complaint, material, onYes, onNo }) => {
   );
 };
 
-// ==========================================
-// COMPLAINT DRAWER
-// ==========================================
+// ==========================================*
+
+// COMPLAINT DRAWER*
+
+// ==========================================*
 
 const ComplaintDrawer = ({
   complaint,
+
   material,
+
   onClose,
+
   onMaterialYes,
+
   onMaterialNo,
+
   inBatch,
 }) => {
   return (
@@ -1630,6 +1770,7 @@ const ComplaintDrawer = ({
               <p className="text-sm text-blue-100">
                 {inBatch ? "Job Card Batch" : "Assigned Job"}
               </p>
+
               <h2 className="mt-1 text-2xl font-extrabold">
                 {complaint.complaintId}
               </h2>
@@ -1651,6 +1792,7 @@ const ComplaintDrawer = ({
             className="bg-gray-50"
           >
             <h3 className="font-bold">{complaint.title || "No Title"}</h3>
+
             <p className="mt-2 text-sm text-gray-600">
               {complaint.description || "No description"}
             </p>
@@ -1658,6 +1800,7 @@ const ComplaintDrawer = ({
             {complaint.titleHindi && (
               <div className="mt-3 border-t pt-3">
                 <p className="font-semibold">{complaint.titleHindi}</p>
+
                 <p className="mt-1 text-sm text-gray-600">
                   {complaint.descriptionHindi}
                 </p>
@@ -1672,8 +1815,11 @@ const ComplaintDrawer = ({
           >
             <div className="grid grid-cols-2 gap-3 text-sm">
               <InfoItem label="Hostel" value={complaint.hostel || "-"} />
+
               <InfoItem label="Block" value={complaint.block || "-"} />
+
               <InfoItem label="Floor" value={complaint.floor || "-"} />
+
               <InfoItem label="Room" value={complaint.roomNumber || "-"} />
             </div>
           </DrawerBox>
@@ -1687,6 +1833,7 @@ const ComplaintDrawer = ({
               <p className="font-bold">
                 {complaint?.createdBy?.name || "Unknown"}
               </p>
+
               <p className="mt-1 break-all text-xs text-gray-600">
                 {complaint?.createdBy?.email || ""}
               </p>
@@ -1700,6 +1847,7 @@ const ComplaintDrawer = ({
               <p className="font-bold">
                 {complaint?.assignedTo?.name || "Not Assigned"}
               </p>
+
               <p className="mt-1 text-xs text-gray-600">
                 {complaint?.assignedTo?.department || ""}
               </p>
@@ -1707,6 +1855,7 @@ const ComplaintDrawer = ({
               {complaint?.assignedTo?.phone && (
                 <p className="mt-2 flex items-center gap-1.5 text-xs">
                   <Phone size={13} />
+
                   {complaint.assignedTo.phone}
                 </p>
               )}
@@ -1716,6 +1865,7 @@ const ComplaintDrawer = ({
           <div className="grid grid-cols-2 gap-3">
             <div className="rounded-xl border p-4">
               <p className="text-xs text-gray-500">Priority</p>
+
               <div className="mt-2">
                 <Badge className={getPriorityColor(complaint.priority)}>
                   {complaint.priority}
@@ -1725,6 +1875,7 @@ const ComplaintDrawer = ({
 
             <div className="rounded-xl border p-4">
               <p className="text-xs text-gray-500">Status</p>
+
               <div className="mt-2">
                 <Badge className={getStatusColor(complaint.status)}>
                   {complaint.status}
@@ -1768,6 +1919,7 @@ const ComplaintDrawer = ({
             className="bg-white border"
           >
             <p className="text-xs text-gray-500">Assigned / Started Date</p>
+
             <p className="mt-1 font-semibold">
               {formatDate(complaint.startedAt)}
             </p>
@@ -1785,17 +1937,21 @@ const ComplaintDrawer = ({
   );
 };
 
-// ==========================================
-// SMALL UI COMPONENTS
-// ==========================================
+// ==========================================*
+
+// SMALL UI COMPONENTS*
+
+// ==========================================*
 
 const StatCard = ({ icon, value, label, boxClass, textClass }) => {
   return (
     <div className={`${boxClass} rounded-2xl p-4 shadow-md sm:p-5 lg:p-6`}>
       <div className={textClass}>{icon}</div>
+
       <p className={`mt-3 text-3xl font-extrabold sm:text-4xl ${textClass}`}>
         {value}
       </p>
+
       <p className={`mt-1 text-xs font-semibold sm:text-sm ${textClass}`}>
         {label}
       </p>
@@ -1807,6 +1963,7 @@ const MiniMetric = ({ label, value }) => {
   return (
     <div className="rounded-xl bg-gray-50 px-2 py-3">
       <p className="text-lg font-extrabold text-[#001B54]">{value}</p>
+
       <p className="mt-0.5 text-[11px] text-gray-500">{label}</p>
     </div>
   );
@@ -1826,6 +1983,7 @@ const InfoItem = ({ label, value }) => {
   return (
     <div className="min-w-0">
       <p className="text-xs text-gray-500">{label}</p>
+
       <p className="mt-0.5 break-words font-semibold text-gray-800">
         {value || "--"}
       </p>
@@ -1838,8 +1996,10 @@ const DrawerBox = ({ icon, title, className = "", children }) => {
     <div className={`rounded-2xl p-5 ${className}`}>
       <div className="mb-3 flex items-center gap-2 font-bold text-[#001B54]">
         {icon}
+
         <h3>{title}</h3>
       </div>
+
       {children}
     </div>
   );
@@ -1849,9 +2009,11 @@ const EmptyAssignedJobs = () => {
   return (
     <div className="py-8 text-center">
       <AlertCircle size={42} className="mx-auto text-gray-300" />
+
       <p className="mt-3 font-semibold text-gray-500">
         No complaints are waiting for a material decision.
       </p>
+
       <p className="mt-1 text-sm text-gray-400">
         Ready complaints are visible in Job Card Batches above.
       </p>

@@ -505,7 +505,7 @@ const EmergencyAlerts = () => {
           <div>
             <p className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#E8C877]">
               <Wrench size={15} />
-              AMI MAINTENANCE
+              AMI MAINT.
             </p>
 
             <h1 className="flex items-center gap-3 text-2xl font-extrabold sm:text-3xl">
@@ -910,7 +910,7 @@ const EmergencyAlerts = () => {
             <div className="flex shrink-0 items-start justify-between gap-4 bg-gradient-to-r from-[#071C39] to-[#104477] p-5 text-white">
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-[#E8C877]">
-                  AMI MAINTENANCE
+                  AMI MAINT.
                 </p>
 
                 <h2 className="mt-2 flex items-center gap-2 text-xl font-extrabold">

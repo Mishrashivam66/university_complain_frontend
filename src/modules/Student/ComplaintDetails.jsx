@@ -38,7 +38,7 @@ import { getComplaintById } from "../../services/studentService";
 import useRealtimeRefresh from "../notifications/hooks/useRealtimeRefresh";
 
 // ============================================================
-// AMI MAINTENANCE
+// AMI MAINT.
 // PREMIUM STUDENT COMPLAINT DETAILS
 //
 // Separate page: /complaints/:id
@@ -661,7 +661,7 @@ export default function ComplaintDetails() {
           <div className="min-w-0 flex-1">
             <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-white/5 px-3 py-1.5 text-[11px] font-black tracking-[0.16em] text-amber-200">
               <ShieldCheck size={15} />
-              AMI MAINTENANCE
+              AMI MAINT.
             </span>
 
             <p className="mt-6 flex items-center gap-2 text-xs font-bold tracking-[0.17em] text-[#EEC46A]">

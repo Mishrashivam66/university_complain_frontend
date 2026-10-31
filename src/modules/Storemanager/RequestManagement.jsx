@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -17,6 +18,11 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
+import { useRealtime } from "../../context/RealtimeProvider";
+
+// ==========================================
+// HELPERS
+// ==========================================
 
 const input =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-[#C8A85E] focus:ring-2 focus:ring-[#C8A85E]/20";
@@ -29,10 +35,15 @@ const label = (value) => String(value || "PENDING").replaceAll("_", " ");
 const dateText = (value) =>
   value
     ? new Date(value).toLocaleString("en-IN", {
+        timeZone: "Asia/Kolkata",
         dateStyle: "medium",
         timeStyle: "short",
       })
     : "—";
+
+// ==========================================
+// STATUS BADGE
+// ==========================================
 
 function Status({ value }) {
   const colors = {
@@ -57,15 +68,22 @@ function Status({ value }) {
   );
 }
 
+// ==========================================
+// APPROVE / REJECT MODAL
+// ==========================================
+
 function ActionModal({ action, onClose, onSave, busy }) {
   const [quantity, setQuantity] = useState(String(action.material.quantity));
+
   const [remarks, setRemarks] = useState("");
 
   const approve = action.status === "APPROVED";
   const qty = Number(quantity);
+
   const valid =
     !approve ||
-    (Number.isFinite(qty) &&
+    (quantity.trim() !== "" &&
+      Number.isFinite(qty) &&
       qty > 0 &&
       qty <= Number(action.material.quantity));
 
@@ -74,7 +92,9 @@ function ActionModal({ action, onClose, onSave, busy }) {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (!valid) return;
+
+          if (!valid || busy) return;
+
           onSave({
             status: action.status,
             ...(approve ? { approvedQuantity: qty } : {}),
@@ -86,6 +106,7 @@ function ActionModal({ action, onClose, onSave, busy }) {
         <div className="flex items-start justify-between">
           <div>
             <p className="text-xs font-bold text-[#A3833A]">STORE DECISION</p>
+
             <h2 className="mt-1 text-xl font-extrabold text-[#001B54]">
               {approve
                 ? "Approve Material"
@@ -94,11 +115,13 @@ function ActionModal({ action, onClose, onSave, busy }) {
                   : "Mark Out of Stock"}
             </h2>
           </div>
+
           <button
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="rounded-lg bg-slate-100 p-2"
+            className="rounded-lg bg-slate-100 p-2 disabled:opacity-50"
+            aria-label="Close decision modal"
           >
             <X size={18} />
           </button>
@@ -106,6 +129,7 @@ function ActionModal({ action, onClose, onSave, busy }) {
 
         <div className="rounded-xl bg-blue-50 p-4">
           <p className="font-bold text-[#001B54]">{action.material.itemName}</p>
+
           <p className="mt-1 text-xs text-slate-600">
             Requested: {action.material.quantity} {action.material.unit}
           </p>
@@ -114,6 +138,7 @@ function ActionModal({ action, onClose, onSave, busy }) {
         {approve && (
           <label className="block space-y-1">
             <span className="text-xs font-bold">Approved Quantity *</span>
+
             <input
               className={input}
               type="number"
@@ -121,18 +146,19 @@ function ActionModal({ action, onClose, onSave, busy }) {
               step="0.001"
               max={action.material.quantity}
               value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
+              onChange={(event) => setQuantity(event.target.value)}
             />
           </label>
         )}
 
         <label className="block space-y-1">
           <span className="text-xs font-bold">Store Remarks</span>
+
           <textarea
             className={input}
             rows={3}
             value={remarks}
-            onChange={(e) => setRemarks(e.target.value)}
+            onChange={(event) => setRemarks(event.target.value)}
             placeholder="Enter remarks"
           />
         </label>
@@ -155,80 +181,191 @@ function ActionModal({ action, onClose, onSave, busy }) {
   );
 }
 
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
+
 export default function RequestManagement() {
   const navigate = useNavigate();
 
+  const realtime = useRealtime();
+  const refreshKey = realtime?.refreshKey ?? 0;
+
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
+
   const [error, setError] = useState("");
   const [message, setMessage] = useState(null);
+
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("ALL");
   const [action, setAction] = useState(null);
 
-  const load = useCallback(async (refresh = false) => {
-    if (!refresh) setLoading(true);
+  const requestVersionRef = useRef(0);
+  const previousRefreshKeyRef = useRef(refreshKey);
+
+  // Prevent silent refresh while saving a decision.
+  const savingRef = useRef(false);
+
+  // ==========================================
+  // FETCH MATERIAL REQUESTS
+  // ==========================================
+
+  const load = useCallback(async (mode = "initial") => {
+    const manual = mode === "manual";
+    const silent = mode === "silent";
+
+    const requestVersion = ++requestVersionRef.current;
+
+    if (manual) {
+      setRefreshing(true);
+    } else if (!silent) {
+      setLoading(true);
+    }
+
+    if (!silent) {
+      setError("");
+    }
 
     try {
-      setError("");
       const { data } = await api.get("/store/requests/all");
+
+      if (requestVersion !== requestVersionRef.current) {
+        return;
+      }
+
       setRequests(Array.isArray(data.requests) ? data.requests : []);
+
+      setError("");
     } catch (err) {
-      setError(
-        err.response?.data?.message || "Failed to load material requests.",
-      );
+      if (requestVersion !== requestVersionRef.current) {
+        return;
+      }
+
+      if (silent) {
+        console.error("Material requests silent refresh failed:", err);
+      } else {
+        setError(
+          err.response?.data?.message || "Failed to load material requests.",
+        );
+      }
     } finally {
-      setLoading(false);
+      if (requestVersion === requestVersionRef.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // ==========================================
+  // INITIAL LOAD
+  // ==========================================
 
   useEffect(() => {
-    if (!message) return;
-    const timer = setTimeout(() => setMessage(null), 3000);
-    return () => clearTimeout(timer);
+    void load("initial");
+
+    return () => {
+      requestVersionRef.current += 1;
+    };
+  }, [load]);
+
+  // ==========================================
+  // 20-SECOND SILENT AUTO-REFRESH
+  // ==========================================
+
+  useEffect(() => {
+    if (previousRefreshKeyRef.current === refreshKey) {
+      return;
+    }
+
+    previousRefreshKeyRef.current = refreshKey;
+
+    if (document.visibilityState !== "visible") {
+      return;
+    }
+
+    // Do not interrupt approval/rejection workflow.
+    if (action || savingRef.current) {
+      return;
+    }
+
+    void load("silent");
+  }, [refreshKey, action, load]);
+
+  // ==========================================
+  // NOTIFICATION TIMEOUT
+  // ==========================================
+
+  useEffect(() => {
+    if (!message) return undefined;
+
+    const timer = window.setTimeout(() => setMessage(null), 3000);
+
+    return () => window.clearTimeout(timer);
   }, [message]);
+
+  // ==========================================
+  // STATS
+  // ==========================================
 
   const stats = useMemo(
     () => ({
       total: requests.length,
-      pending: requests.filter((r) => r.status === "PENDING").length,
-      approved: requests.filter((r) =>
-        ["APPROVED_BY_STORE", "PARTIALLY_APPROVED"].includes(r.status),
+
+      pending: requests.filter((request) => request.status === "PENDING")
+        .length,
+
+      approved: requests.filter((request) =>
+        ["APPROVED_BY_STORE", "PARTIALLY_APPROVED"].includes(request.status),
       ).length,
-      issued: requests.filter((r) => r.status === "ISSUED").length,
+
+      issued: requests.filter((request) => request.status === "ISSUED").length,
     }),
     [requests],
   );
 
-  const filtered = requests.filter((request) => {
-    const text = [
-      request.requestId,
-      request.complaint?.complaintId,
-      request.complaint?.title,
-      request.complaint?.hostel,
-      request.complaint?.block,
-      nameOf(request.requestedBy),
-      nameOf(request.assignedWorker),
-      ...(request.materials || []).map((m) => m.itemName),
-    ]
-      .join(" ")
-      .toLowerCase();
+  // ==========================================
+  // SEARCH AND STATUS FILTER
+  // ==========================================
 
-    return (
-      text.includes(search.toLowerCase()) &&
-      (filter === "ALL" || request.status === filter)
-    );
-  });
+  const filtered = useMemo(
+    () =>
+      requests.filter((request) => {
+        const text = [
+          request.requestId,
+          request.complaint?.complaintId,
+          request.complaint?.title,
+          request.complaint?.hostel,
+          request.complaint?.block,
+          nameOf(request.requestedBy),
+          nameOf(request.assignedWorker),
+          ...(request.materials || []).map((material) => material.itemName),
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        return (
+          text.includes(search.toLowerCase().trim()) &&
+          (filter === "ALL" || request.status === filter)
+        );
+      }),
+    [requests, search, filter],
+  );
+
+  // ==========================================
+  // APPROVE / REJECT / OUT OF STOCK
+  // ==========================================
 
   const decide = async (payload) => {
-    if (!action || busy) return;
+    if (!action || savingRef.current) return;
 
+    savingRef.current = true;
     setBusy(true);
+
+    // Invalidate any in-flight background fetch.
+    requestVersionRef.current += 1;
 
     try {
       const { data } = await api.put(
@@ -241,11 +378,13 @@ export default function RequestManagement() {
       }
 
       setAction(null);
+
       setMessage({
         type: "success",
         text: data.message || "Request updated successfully.",
       });
-      await load(true);
+
+      await load("silent");
     } catch (err) {
       setMessage({
         type: "error",
@@ -255,9 +394,14 @@ export default function RequestManagement() {
           "Request update failed.",
       });
     } finally {
+      savingRef.current = false;
       setBusy(false);
     }
   };
+
+  // ==========================================
+  // ISSUE MATERIAL NAVIGATION
+  // ==========================================
 
   const goToIssue = (request, material) => {
     navigate("/store/issued-items", {
@@ -268,18 +412,28 @@ export default function RequestManagement() {
     });
   };
 
+  // ==========================================
+  // UI
+  // ==========================================
+
   return (
     <div className="space-y-6 pb-10">
+      {/* HEADER */}
+
       <section className="rounded-3xl bg-gradient-to-br from-[#001A49] via-[#002A68] to-[#06214D] p-6 text-white shadow-xl md:p-8">
         <p className="text-xs font-bold uppercase tracking-widest text-[#E6C777]">
-          AMI MAINTENANCE · STORE MANAGER
+          AMI MAINT. · STORE MANAGER
         </p>
+
         <h1 className="mt-3 text-3xl font-extrabold">Material Requests</h1>
+
         <p className="mt-2 text-sm text-blue-100">
           Approve requests, view issue quantities and issue materials through
           the connected Store workflow.
         </p>
       </section>
+
+      {/* STATISTICS */}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
@@ -293,13 +447,17 @@ export default function RequestManagement() {
             className="rounded-2xl border bg-white p-5 shadow-sm"
           >
             <Icon size={21} className="text-[#A3833A]" />
+
             <p className="mt-3 text-xs font-bold text-slate-500">{title}</p>
+
             <p className="mt-1 text-3xl font-extrabold text-[#001B54]">
               {value}
             </p>
           </div>
         ))}
       </div>
+
+      {/* NOTIFICATION */}
 
       {message && (
         <div
@@ -314,33 +472,41 @@ export default function RequestManagement() {
         </div>
       )}
 
+      {/* ERROR */}
+
       {error && (
         <div className="rounded-xl bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
 
+      {/* REQUEST LIST */}
+
       <section className="rounded-3xl border bg-white p-5 shadow-sm">
+        {/* FILTERS */}
+
         <div className="flex flex-wrap gap-3">
           <div className="relative min-w-[220px] flex-1">
             <Search
               size={17}
               className="absolute left-3 top-3 text-slate-400"
             />
+
             <input
               className={`${input} pl-10`}
               placeholder="Search complaint, material, technician..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
             />
           </div>
 
           <select
             className={`${input} sm:w-52`}
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(event) => setFilter(event.target.value)}
           >
             <option value="ALL">All Statuses</option>
+
             {[
               "PENDING",
               "APPROVED_BY_STORE",
@@ -349,22 +515,25 @@ export default function RequestManagement() {
               "ISSUED",
               "REJECTED",
               "OUT_OF_STOCK",
-            ].map((s) => (
-              <option key={s} value={s}>
-                {label(s)}
+            ].map((status) => (
+              <option key={status} value={status}>
+                {label(status)}
               </option>
             ))}
           </select>
 
           <button
             type="button"
-            onClick={() => load(true)}
-            className="flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold"
+            onClick={() => load("manual")}
+            disabled={refreshing || busy}
+            className="flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-bold disabled:opacity-50"
           >
-            <RefreshCw size={17} />
+            <RefreshCw size={17} className={refreshing ? "animate-spin" : ""} />
             Refresh
           </button>
         </div>
+
+        {/* REQUEST CARDS */}
 
         <div className="mt-5 space-y-4">
           {loading ? (
@@ -381,28 +550,36 @@ export default function RequestManagement() {
                 key={request._id}
                 className="overflow-hidden rounded-2xl border border-slate-200"
               >
+                {/* REQUEST HEADER */}
+
                 <div className="flex flex-wrap items-start justify-between gap-3 bg-slate-50 p-4">
                   <div>
                     <p className="text-xs font-bold text-[#A3833A]">
                       {request.requestId || "Material Request"}
                     </p>
+
                     <h3 className="mt-1 font-extrabold text-[#001B54]">
                       {request.complaint?.title || "Complaint Material Request"}
                     </h3>
+
                     <p className="mt-1 text-xs text-slate-500">
                       Complaint: {request.complaint?.complaintId || "—"}
                       {" · "}
                       {dateText(request.createdAt)}
                     </p>
                   </div>
+
                   <Status value={request.status} />
                 </div>
+
+                {/* REQUEST DETAILS */}
 
                 <div className="grid gap-3 border-b p-4 sm:grid-cols-2">
                   <p className="flex items-center gap-2 text-sm text-slate-600">
                     <UserRound size={16} />
                     Requested by: <strong>{nameOf(request.requestedBy)}</strong>
                   </p>
+
                   <p className="text-sm text-slate-600">
                     Assigned Technician:{" "}
                     <strong>{nameOf(request.assignedWorker)}</strong>
@@ -415,10 +592,14 @@ export default function RequestManagement() {
                   </p>
                 )}
 
+                {/* MATERIALS */}
+
                 <div className="space-y-3 p-4">
                   {(request.materials || []).map((material) => {
                     const issued = Number(material.issuedQuantity || 0);
+
                     const approved = Number(material.approvedQuantity || 0);
+
                     const remaining = Math.max(0, approved - issued);
 
                     const canIssue =
@@ -439,12 +620,16 @@ export default function RequestManagement() {
                             <p className="font-bold text-[#001B54]">
                               {material.itemName}
                             </p>
+
                             <p className="mt-1 text-xs text-slate-500">
                               {material.unit || "Piece"}
                             </p>
                           </div>
+
                           <Status value={material.status} />
                         </div>
+
+                        {/* QUANTITY DETAILS */}
 
                         <div className="mt-4 grid grid-cols-4 gap-2">
                           {[
@@ -460,6 +645,7 @@ export default function RequestManagement() {
                               <p className="text-[10px] text-slate-500">
                                 {title}
                               </p>
+
                               <p className="mt-1 text-sm font-extrabold text-[#001B54]">
                                 {value}
                               </p>
@@ -472,6 +658,8 @@ export default function RequestManagement() {
                             Store Remarks: {material.storeRemarks}
                           </p>
                         )}
+
+                        {/* ACTION BUTTONS */}
 
                         <div className="mt-4 flex flex-wrap gap-2">
                           {canDecide && (
@@ -490,6 +678,7 @@ export default function RequestManagement() {
                                 <Check size={15} />
                                 Approve
                               </button>
+
                               <button
                                 type="button"
                                 onClick={() =>
@@ -504,6 +693,7 @@ export default function RequestManagement() {
                                 <X size={15} />
                                 Reject
                               </button>
+
                               <button
                                 type="button"
                                 onClick={() =>
@@ -549,12 +739,18 @@ export default function RequestManagement() {
         </div>
       </section>
 
+      {/* APPROVAL MODAL */}
+
       {action && (
         <ActionModal
           key={`${action.request._id}-${action.material._id}`}
           action={action}
           busy={busy}
-          onClose={() => !busy && setAction(null)}
+          onClose={() => {
+            if (!busy) {
+              setAction(null);
+            }
+          }}
           onSave={decide}
         />
       )}

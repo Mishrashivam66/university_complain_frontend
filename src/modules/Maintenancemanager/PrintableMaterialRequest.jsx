@@ -1,13 +1,20 @@
-import React from "react";
-
 const PrintableMaterialRequest = ({ request }) => {
   const getStatusColor = (status) => {
-    switch (status) {
+    switch (String(status || "").toUpperCase()) {
       case "PENDING":
         return "bg-yellow-100 text-yellow-700";
 
       case "APPROVED_BY_STORE":
         return "bg-green-100 text-green-700";
+
+      case "APPROVED":
+        return "bg-green-100 text-green-700";
+
+      case "PARTIALLY_APPROVED":
+        return "bg-purple-100 text-purple-700";
+
+      case "PARTIALLY_ISSUED":
+        return "bg-orange-100 text-orange-700";
 
       case "ISSUED":
         return "bg-blue-100 text-blue-700";
@@ -23,662 +30,255 @@ const PrintableMaterialRequest = ({ request }) => {
     }
   };
 
+  const display = (value, fallback = "N/A") => {
+    if (value === null || value === undefined || value === "") {
+      return fallback;
+    }
+
+    return String(value);
+  };
+
+  const formatDate = (value) => {
+    if (!value) return "Pending";
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) return "N/A";
+
+    return date.toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const status = display(request?.status, "PENDING");
+  const complaint = request?.jobCard?.complaint;
+  const jobCard = request?.jobCard;
+
+  const tableLabel =
+    "w-[40%] border border-gray-200 bg-gray-50 p-1.5 text-[9px] font-semibold text-gray-700";
+
+  const tableValue =
+    "border border-gray-200 p-1.5 text-[9px] text-gray-800 break-words";
+
+  const sectionHeader =
+    "bg-[#001B54] px-2 py-1.5 text-[10px] font-bold text-white";
+
   return (
     <div
-      className="
-    w-[560px]
-
-    min-h-[330px]
-
-    bg-white
-
-    border
-    border-gray-300
-
-    rounded-xl
-
-    p-3
-  "
+      className="relative mx-auto w-[560px] min-h-[330px] overflow-hidden rounded-xl border border-gray-300 bg-white p-3 text-gray-900"
+      style={{ printColorAdjust: "exact", WebkitPrintColorAdjust: "exact" }}
     >
       {/* WATERMARK */}
-
       <img
         src="/amitylogo1.jpg"
-        alt="Amity"
-        className="
-          absolute
-
-          top-1/2
-          left-1/2
-
-          -translate-x-1/2
-          -translate-y-1/2
-
-          w-[120px]
-
-          opacity-[0.04]
-
-          pointer-events-none
-        "
+        alt=""
+        aria-hidden="true"
+        className="pointer-events-none absolute left-1/2 top-1/2 z-0 w-[120px] -translate-x-1/2 -translate-y-1/2 opacity-[0.04]"
       />
 
-      {/* HEADER */}
+      <div className="relative z-10">
+        {/* HEADER */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-2">
+            <img
+              src="/amitylogo1.jpg"
+              alt="Amity University Logo"
+              className="h-10 w-10 shrink-0 object-contain"
+            />
 
-      <div className="flex justify-between items-start">
-        <div className="flex gap-2">
-          <img
-            src="/amitylogo1.jpg"
-            alt="Amity"
-            className="
-              w-10
-              h-10
-              object-contain
-            "
-          />
+            <div>
+              <h1 className="text-[14px] font-extrabold leading-tight text-[#001B54]">
+                AMITY UNIVERSITY
+              </h1>
 
-          <div>
-            <h1
-              className="
-                text-[14px]
-                font-extrabold
-                text-[#001B54]
-                leading-none
-              "
-            >
-              AMITY UNIVERSITY
-            </h1>
+              <h2 className="text-[10px] font-semibold leading-tight text-[#001B54]">
+                MADHYA PRADESH
+              </h2>
 
-            <h2
-              className="
-                text-[10px]
-                text-[#001B54]
-                leading-none
-              "
-            >
-              MADHYA PRADESH
-            </h2>
+              <p className="mt-1 text-[9px] font-semibold text-[#001B54]">
+                SMART CAMPUS ERP
+              </p>
+            </div>
+          </div>
 
-            <p
-              className="
-                text-[9px]
-                font-semibold
-                mt-1
-                text-[#001B54]
-              "
-            >
-              SMART CAMPUS ERP
-            </p>
+          <div className="text-center">
+            <h3 className="text-[12px] font-bold text-[#001B54]">
+              MATERIAL REQUEST
+            </h3>
+
+            <p className="text-[9px] text-gray-600">Inventory Requirement</p>
+          </div>
+
+          <div className="min-w-[100px]">
+            <div className="rounded-t-lg bg-[#001B54] px-3 py-1 text-center text-[9px] font-bold text-white">
+              REQUEST ID
+            </div>
+
+            <div className="rounded-b-lg border border-[#001B54] px-2 py-1.5 text-center text-[9px] font-bold text-[#001B54] break-all">
+              {display(request?.requestId)}
+            </div>
           </div>
         </div>
 
-        <div className="text-center">
-          <h3
-            className="
-              text-[12px]
-              font-bold
-              text-[#001B54]
-            "
-          >
-            MATERIAL REQUEST
-          </h3>
+        <div className="my-2 border-b border-[#001B54]" />
 
-          <p className="text-[9px]">Inventory Requirement</p>
+        {/* STATUS */}
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-[9px] font-semibold text-gray-700">
+            Generated: {formatDate(request?.createdAt || new Date())}
+          </p>
+
+          <span
+            className={`rounded-lg px-2 py-1 text-[9px] font-bold ${getStatusColor(status)}`}
+          >
+            {status.replaceAll("_", " ")}
+          </span>
         </div>
 
-        <div>
-          <div
-            className="
-              bg-[#001B54]
-              text-white
+        {/* MATERIAL AND JOB CARD DETAILS */}
+        <div className="mt-3 grid grid-cols-2 items-start gap-2">
+          {/* MATERIAL DETAILS */}
+          <div className="overflow-hidden rounded-lg border border-gray-200">
+            <div className={sectionHeader}>MATERIAL DETAILS</div>
 
-              px-3
-              py-1
+            <table className="w-full border-collapse">
+              <tbody>
+                <tr>
+                  <td className={tableLabel}>Item Name</td>
+                  <td className={tableValue}>{display(request?.itemName)}</td>
+                </tr>
 
-              rounded-t-lg
+                <tr>
+                  <td className={tableLabel}>Quantity</td>
+                  <td className={tableValue}>{display(request?.quantity)}</td>
+                </tr>
 
-              text-center
+                <tr>
+                  <td className={tableLabel}>Status</td>
+                  <td className={`${tableValue} font-bold text-[#001B54]`}>
+                    {status.replaceAll("_", " ")}
+                  </td>
+                </tr>
 
-              font-bold
-
-              text-[9px]
-            "
-          >
-            REQUEST ID
+                <tr>
+                  <td className={tableLabel}>Reason</td>
+                  <td className={tableValue}>{display(request?.reason)}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
 
-          <div
-            className="
-              border
-              border-[#001B54]
+          {/* JOB CARD DETAILS */}
+          <div className="overflow-hidden rounded-lg border border-gray-200">
+            <div className={sectionHeader}>JOB CARD DETAILS</div>
 
-              px-2
-              py-1
+            <table className="w-full border-collapse">
+              <tbody>
+                <tr>
+                  <td className={tableLabel}>Job Card ID</td>
+                  <td className={tableValue}>{display(jobCard?.jobCardId)}</td>
+                </tr>
 
-              text-center
+                <tr>
+                  <td className={tableLabel}>Complaint ID</td>
+                  <td className={tableValue}>
+                    {display(complaint?.complaintId)}
+                  </td>
+                </tr>
 
-              font-bold
+                <tr>
+                  <td className={tableLabel}>Complaint Title</td>
+                  <td className={tableValue}>{display(complaint?.title)}</td>
+                </tr>
 
-              text-[9px]
-            "
-          >
-            {request?.requestId}
+                <tr>
+                  <td className={tableLabel}>Category</td>
+                  <td className={tableValue}>{display(complaint?.category)}</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
 
-      <div
-        className="
-          border-b
-          border-[#001B54]
+        {/* APPROVAL DETAILS */}
+        <div className="mt-3 overflow-hidden rounded-lg border border-gray-200">
+          <div className={sectionHeader}>APPROVAL DETAILS</div>
 
-          mt-2
-          mb-2
-        "
-      />
-
-      {/* STATUS */}
-
-      <div className="flex justify-between items-center">
-        <div
-          className="
-            text-[8px]
-            font-semibold
-          "
-        >
-          Generated: {new Date().toLocaleDateString()}
-        </div>
-
-        <div
-          className={`
-            px-2
-            py-1
-            rounded-lg
-            font-bold
-            text-[8px]
-
-            ${getStatusColor(request?.status)}
-          `}
-        >
-          {request?.status}
-        </div>
-      </div>
-      {/* ====================================== */}
-      {/* MATERIAL + JOB DETAILS */}
-      {/* ====================================== */}
-
-      <div
-        className="
-          grid
-          grid-cols-2
-          gap-2
-
-          mt-2
-        "
-      >
-        {/* MATERIAL DETAILS */}
-
-        <div
-          className="
-            border
-            rounded-lg
-            overflow-hidden
-          "
-        >
-          <div
-            className="
-              bg-[#001B54]
-              text-white
-
-              px-2
-              py-1
-
-              font-bold
-
-              text-[9px]
-            "
-          >
-            MATERIAL DETAILS
-          </div>
-
-          <table
-            className="
-              w-full
-
-              text-[8px]
-            "
-          >
+          <table className="w-full border-collapse">
             <tbody>
               <tr>
-                <td
-                  className="
-                    border
-                    p-1
-
-                    font-semibold
-
-                    bg-gray-50
-
-                    w-[40%]
-                  "
-                >
-                  Item Name
-                </td>
-
-                <td className="border p-1">{request?.itemName}</td>
-              </tr>
-
-              <tr>
-                <td
-                  className="
-                    border
-                    p-1
-
-                    font-semibold
-
-                    bg-gray-50
-                  "
-                >
-                  Quantity
-                </td>
-
-                <td className="border p-1">{request?.quantity}</td>
-              </tr>
-
-              <tr>
-                <td
-                  className="
-                    border
-                    p-1
-
-                    font-semibold
-
-                    bg-gray-50
-                  "
-                >
-                  Status
-                </td>
-
-                <td
-                  className="
-                    border
-                    p-1
-
-                    font-bold
-
-                    text-[#001B54]
-                  "
-                >
-                  {request?.status}
+                <td className={tableLabel}>Approved By</td>
+                <td className={tableValue}>
+                  {display(request?.approvedByStore?.name, "Pending")}
                 </td>
               </tr>
 
               <tr>
-                <td
-                  className="
-                    border
-                    p-1
-
-                    font-semibold
-
-                    bg-gray-50
-                  "
-                >
-                  Reason
+                <td className={tableLabel}>Issued By</td>
+                <td className={tableValue}>
+                  {display(request?.issuedBy?.name, "Not Issued")}
                 </td>
+              </tr>
 
-                <td className="border p-1">{request?.reason}</td>
+              <tr>
+                <td className={tableLabel}>Issued Date</td>
+                <td className={tableValue}>{formatDate(request?.issuedAt)}</td>
+              </tr>
+
+              <tr>
+                <td className={tableLabel}>Current Status</td>
+                <td className={`${tableValue} font-bold text-[#001B54]`}>
+                  {status.replaceAll("_", " ")}
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
 
-        {/* JOB CARD DETAILS */}
+        {/* SIGNATURES */}
+        <div className="mt-3 rounded-lg border border-gray-200 p-3">
+          <div className="grid grid-cols-2 gap-6">
+            <div className="text-center">
+              <h3 className="text-[9px] font-bold text-[#001B54]">
+                Maintenance Manager
+              </h3>
 
-        <div
-          className="
-            border
-            rounded-lg
-            overflow-hidden
-          "
-        >
-          <div
-            className="
-              bg-[#001B54]
-              text-white
+              <div className="h-8" />
 
-              px-2
-              py-1
+              <div className="border-t border-gray-400" />
 
-              font-bold
+              <p className="mt-1 text-[8px] text-gray-500">Signature</p>
+            </div>
 
-              text-[9px]
-            "
-          >
-            JOB CARD DETAILS
-          </div>
+            <div className="text-center">
+              <h3 className="text-[9px] font-bold text-[#001B54]">
+                Store Manager
+              </h3>
 
-          <table
-            className="
-              w-full
+              <div className="h-8" />
 
-              text-[8px]
-            "
-          >
-            <tbody>
-              <tr>
-                <td
-                  className="
-                    border
-                    p-1
+              <div className="border-t border-gray-400" />
 
-                    font-semibold
-
-                    bg-gray-50
-                  "
-                >
-                  Job Card ID
-                </td>
-
-                <td className="border p-1">
-                  {request?.jobCard?.jobCardId || "N/A"}
-                </td>
-              </tr>
-
-              <tr>
-                <td
-                  className="
-                    border
-                    p-1
-
-                    font-semibold
-
-                    bg-gray-50
-                  "
-                >
-                  Complaint ID
-                </td>
-
-                <td className="border p-1">
-                  {request?.jobCard?.complaint?.complaintId || "N/A"}
-                </td>
-              </tr>
-
-              <tr>
-                <td
-                  className="
-                    border
-                    p-1
-
-                    font-semibold
-
-                    bg-gray-50
-                  "
-                >
-                  Complaint Title
-                </td>
-
-                <td className="border p-1">
-                  {request?.jobCard?.complaint?.title || "N/A"}
-                </td>
-              </tr>
-
-              <tr>
-                <td
-                  className="
-                    border
-                    p-1
-
-                    font-semibold
-
-                    bg-gray-50
-                  "
-                >
-                  Category
-                </td>
-
-                <td className="border p-1">
-                  {request?.jobCard?.complaint?.category || "N/A"}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      {/* ====================================== */}
-      {/* APPROVAL DETAILS */}
-      {/* ====================================== */}
-
-      <div
-        className="
-          border
-          rounded-lg
-
-          overflow-hidden
-
-          mt-2
-        "
-      >
-        <div
-          className="
-            bg-[#001B54]
-            text-white
-
-            px-2
-            py-1
-
-            font-bold
-
-            text-[9px]
-          "
-        >
-          APPROVAL DETAILS
-        </div>
-
-        <table
-          className="
-            w-full
-
-            text-[8px]
-          "
-        >
-          <tbody>
-            <tr>
-              <td
-                className="
-      border
-      p-1
-      font-semibold
-      bg-gray-50
-    "
-              >
-                Approved By
-              </td>
-
-              <td className="border p-1">
-                {request?.approvedByStore?.name || "Pending"}
-              </td>
-            </tr>
-
-            <tr>
-              <td
-                className="
-      border
-      p-1
-      font-semibold
-      bg-gray-50
-    "
-              >
-                Issued By
-              </td>
-
-              <td className="border p-1">
-                {request?.issuedBy?.name || "Not Issued"}
-              </td>
-            </tr>
-
-            <tr>
-              <td
-                className="
-      border
-      p-1
-      font-semibold
-      bg-gray-50
-    "
-              >
-                Issued Date
-              </td>
-
-              <td className="border p-1">
-                {request?.issuedAt
-                  ? new Date(request.issuedAt).toLocaleString()
-                  : "Pending"}
-              </td>
-            </tr>
-
-            <tr>
-              <td
-                className="
-                  border
-                  p-1
-
-                  font-semibold
-
-                  bg-gray-50
-                "
-              >
-                Current Status
-              </td>
-
-              <td
-                className="
-                  border
-                  p-1
-
-                  font-bold
-
-                  text-[#001B54]
-                "
-              >
-                {request?.status}
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      {/* ====================================== */}
-      {/* SIGNATURES */}
-      {/* ====================================== */}
-
-      <div
-        className="
-          mt-2
-
-          border
-
-          rounded-lg
-
-          p-2
-        "
-      >
-        <div
-          className="
-            grid
-            grid-cols-2
-            gap-6
-          "
-        >
-          {/* MAINTENANCE */}
-
-          <div className="text-center">
-            <h3
-              className="
-                font-bold
-
-                text-[8px]
-              "
-            >
-              Maintenance Manager
-            </h3>
-
-            <div className="h-6"></div>
-
-            <div className="border-t"></div>
-
-            <p
-              className="
-                text-[7px]
-
-                mt-1
-              "
-            >
-              Signature
-            </p>
-          </div>
-
-          {/* STORE */}
-
-          <div className="text-center">
-            <h3
-              className="
-                font-bold
-
-                text-[8px]
-              "
-            >
-              Store Manager
-            </h3>
-
-            <div className="h-6"></div>
-
-            <div className="border-t"></div>
-
-            <p
-              className="
-                text-[7px]
-
-                mt-1
-              "
-            >
-              Signature
-            </p>
+              <p className="mt-1 text-[8px] text-gray-500">Signature</p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* ====================================== */}
-      {/* FOOTER */}
-      {/* ====================================== */}
+        {/* FOOTER */}
+        <div className="mt-2 rounded-lg bg-gray-100 px-2 py-2 text-center">
+          <p className="text-[8px] font-semibold text-gray-700">
+            Material Request generated through AMI MAINTENANCE
+          </p>
 
-      <div
-        className="
-          mt-1
-
-          bg-gray-100
-
-          rounded-lg
-
-          px-2
-          py-1
-
-          text-center
-        "
-      >
-        <p
-          className="
-            text-[7px]
-          "
-        >
-          Material Request generated through Smart Campus ERP
-        </p>
-
-        <p
-          className="
-            text-[7px]
-          "
-        >
-          Approved materials should be issued through Store Department
-        </p>
+          <p className="mt-1 text-[8px] text-gray-600">
+            Approved materials should be issued through the Store Department.
+          </p>
+        </div>
       </div>
     </div>
   );

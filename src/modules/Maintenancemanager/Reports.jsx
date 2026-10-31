@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import api from "../../services/api";
+import { useRealtime } from "../../context/RealtimeProvider";
 import {
   Activity,
   AlertTriangle,
@@ -21,19 +22,11 @@ import {
   SlidersHorizontal,
   Wrench,
 } from "lucide-react";
-
-// ==========================================================
-// AMI MAINTENANCE — PROFESSIONAL REPORT CENTER
-// Clean UI | Clickable KPIs | Detailed Reports | PDF & Excel
-// ==========================================================
-
 const PAGE_SIZE = 15;
 const API_REPORT = "/maintenance/reports";
 const API_COMPLAINTS = "/maintenance/worker/complaints";
-
 const INPUT =
   "w-full min-w-0 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-[#102B52] outline-none focus:border-[#D6AD59] focus:ring-2 focus:ring-amber-100";
-
 const upper = (v) =>
   String(v ?? "")
     .trim()
@@ -43,46 +36,36 @@ const lower = (v) =>
     .trim()
     .toLowerCase();
 const ident = (v) => String(v?._id ?? v ?? "");
-
 const closed = (c) => ["RESOLVED", "CLOSED"].includes(upper(c.status));
-
 function dayKey(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Kolkata",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).formatToParts(date);
-
   const get = (type) => parts.find((p) => p.type === type)?.value;
-
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
-
 function displayDate(value) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
-
   return new Intl.DateTimeFormat("en-IN", {
     timeZone: "Asia/Kolkata",
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
 }
-
 function shiftDay(date, count) {
   const d = new Date(`${date}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + count);
   return d.toISOString().slice(0, 10);
 }
-
 function periodDates(period) {
   const today = dayKey(new Date());
-
   switch (period) {
     case "TODAY":
       return [today, today];
@@ -100,48 +83,39 @@ function periodDates(period) {
       return ["", ""];
   }
 }
-
 function getLocation(c) {
   const area = upper(c.complaintArea);
-
   if (area === "HOSTEL" || (!area && c.hostel)) {
     const hostel = upper(c.hostel)
       .replace(/[^A-Z0-9]/g, "")
       .replace(/^(BOYS|GIRLS|FACULTY|STAFF)?HOSTEL/, "");
     return hostel || "UNSPECIFIED HOSTEL";
   }
-
   if (area === "DEPARTMENT" || (!area && c.block)) {
     return upper(c.block) || "UNSPECIFIED DEPARTMENT BLOCK";
   }
-
   if (area === "CAMPUS") {
     return (
       upper(String(c.issueLocation || "").split(" - ")[0]) ||
       "UNSPECIFIED CAMPUS LOCATION"
     );
   }
-
   return "UNSPECIFIED LOCATION";
 }
-
 function technicianName(c) {
   return c.assignedTo?.name || c.workerAssigned?.name || "Not Assigned";
 }
-
 function isOverdue(c, now) {
   if (!now || !c.deadline || closed(c)) return false;
   const deadline = new Date(c.deadline).getTime();
   return Number.isFinite(deadline) && deadline < now;
 }
-
 function isAwaiting(c) {
   return (
     upper(c.status) === "COMPLETED" ||
     upper(c.status) === "AWAITING_STUDENT_CONFIRMATION"
   );
 }
-
 function kpiMatch(c, key, now) {
   switch (key) {
     case "PENDING":
@@ -164,10 +138,8 @@ function kpiMatch(c, key, now) {
       return true;
   }
 }
-
 function StatusTag({ status }) {
   const s = upper(status);
-
   const tone = ["RESOLVED", "CLOSED"].includes(s)
     ? "bg-emerald-50 text-emerald-700"
     : s === "REOPENED"
@@ -175,7 +147,6 @@ function StatusTag({ status }) {
       : ["ASSIGNED", "IN_PROGRESS"].includes(s)
         ? "bg-blue-50 text-blue-700"
         : "bg-amber-50 text-amber-800";
-
   return (
     <span
       className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold ${tone}`}
@@ -184,7 +155,6 @@ function StatusTag({ status }) {
     </span>
   );
 }
-
 const KPI_CONFIG = [
   { key: "ALL", label: "Total Complaints", icon: ClipboardList },
   { key: "PENDING", label: "Pending", icon: Clock3 },
@@ -195,20 +165,20 @@ const KPI_CONFIG = [
   { key: "OVERDUE", label: "Overdue", icon: AlertTriangle },
   { key: "MATERIAL", label: "Material Required", icon: Package },
 ];
-
 export default function Reports() {
   const detailRef = useRef(null);
-
+  const { refreshKey } = useRealtime();
+  const reportRequestRef = useRef(0);
+  const detailRequestRef = useRef(0);
+  const initialRealtimeRef = useRef(true);
   const [complaints, setComplaints] = useState([]);
   const [summary, setSummary] = useState(null);
   const [now, setNow] = useState(null);
-
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [downloading, setDownloading] = useState("");
   const [error, setError] = useState("");
   const [detailError, setDetailError] = useState("");
-
   const [period, setPeriod] = useState("ALL");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
@@ -218,10 +188,8 @@ export default function Reports() {
   const [priority, setPriority] = useState("ALL");
   const [technician, setTechnician] = useState("ALL");
   const [search, setSearch] = useState("");
-
   const [activeKpi, setActiveKpi] = useState("ALL");
   const [page, setPage] = useState(1);
-
   const filters = useMemo(
     () => ({
       period,
@@ -246,97 +214,104 @@ export default function Reports() {
       search,
     ],
   );
-
   const invalidDates = Boolean(fromDate && toDate && fromDate > toDate);
-
   const loadReports = useCallback(
     async (silent = false) => {
-      if (silent) setRefreshing(true);
-      else setLoading(true);
-
+      const requestId = ++reportRequestRef.current;
+      if (!silent) setLoading(true);
       try {
-        const response = await api.get(API_REPORT, {
-          params: filters,
-        });
-
+        const response = await api.get(API_REPORT, { params: filters });
         if (!response.data?.success || !response.data?.report) {
           throw new Error("Invalid report response");
         }
-
+        if (requestId !== reportRequestRef.current) return;
         setSummary(response.data.report);
         setError("");
       } catch (err) {
-        setSummary(null);
-        setError(
-          err.response?.data?.message || err.message || "Unable to load report",
-        );
+        if (requestId !== reportRequestRef.current) return;
+        if (!silent) {
+          setSummary(null);
+          setError(
+            err.response?.data?.message ||
+              err.message ||
+              "Unable to load report",
+          );
+        }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (requestId === reportRequestRef.current && !silent) {
+          setLoading(false);
+        }
       }
     },
     [filters],
   );
-
-  const loadDetails = useCallback(async () => {
+  const loadDetails = useCallback(async (silent = false) => {
+    const requestId = ++detailRequestRef.current;
     try {
       const response = await api.get(API_COMPLAINTS);
-
       if (!Array.isArray(response.data?.complaints)) {
         throw new Error("Invalid complaint records response");
       }
-
+      if (requestId !== detailRequestRef.current) return;
       setComplaints(response.data.complaints);
       setDetailError("");
     } catch (err) {
+      if (requestId !== detailRequestRef.current || silent) return;
       setComplaints([]);
       setDetailError(
         err.response?.data?.message || "Detailed complaint records unavailable",
       );
     }
   }, []);
-
   useEffect(() => {
-    if (invalidDates) return;
-
+    if (invalidDates) {
+      reportRequestRef.current += 1;
+      setLoading(false);
+      return;
+    }
     void loadReports();
+    return () => {
+      reportRequestRef.current += 1;
+    };
   }, [loadReports, invalidDates]);
-
   useEffect(() => {
     void loadDetails();
     setNow(Date.now());
-
-    const timer = window.setInterval(() => {
-      setNow(Date.now());
-    }, 60000);
-
-    return () => window.clearInterval(timer);
+    const timer = window.setInterval(() => setNow(Date.now()), 60000);
+    return () => {
+      window.clearInterval(timer);
+      detailRequestRef.current += 1;
+    };
   }, [loadDetails]);
-
+  useEffect(() => {
+    if (initialRealtimeRef.current) {
+      initialRealtimeRef.current = false;
+      return;
+    }
+    if (invalidDates || downloading) return;
+    void loadReports(true);
+    void loadDetails(true);
+    setNow(Date.now());
+  }, [refreshKey]);
   function changePeriod(value) {
     setPeriod(value);
-
     if (value !== "CUSTOM") {
       const [from, to] = periodDates(value);
       setFromDate(from);
       setToDate(to);
     }
-
     setPage(1);
     setActiveKpi("ALL");
   }
-
   const locations = useMemo(
     () => [...new Set(complaints.map(getLocation))].sort(),
     [complaints],
   );
-
   const categories = useMemo(
     () =>
       [...new Set(complaints.map((c) => c.category).filter(Boolean))].sort(),
     [complaints],
   );
-
   const statuses = useMemo(
     () =>
       [
@@ -344,7 +319,6 @@ export default function Reports() {
       ].sort(),
     [complaints],
   );
-
   const priorities = useMemo(
     () =>
       [
@@ -352,28 +326,21 @@ export default function Reports() {
       ].sort(),
     [complaints],
   );
-
   const technicians = useMemo(() => {
     const map = new Map();
-
     complaints.forEach((c) => {
       const worker = c.assignedTo;
       if (worker?._id) {
         map.set(ident(worker), worker.name || ident(worker));
       }
     });
-
     return [...map].sort((a, b) => a[1].localeCompare(b[1]));
   }, [complaints]);
-
   const filtered = useMemo(() => {
     if (invalidDates) return [];
-
     const q = lower(search);
-
     return complaints.filter((c) => {
       const day = dayKey(c.createdAt);
-
       const searchable = [
         c.complaintId,
         c.title,
@@ -386,7 +353,6 @@ export default function Reports() {
       ]
         .map(lower)
         .join(" ");
-
       return (
         (!fromDate || (day && day >= fromDate)) &&
         (!toDate || (day && day <= toDate)) &&
@@ -410,15 +376,12 @@ export default function Reports() {
     technician,
     search,
   ]);
-
   const detailRows = useMemo(
     () => filtered.filter((c) => kpiMatch(c, activeKpi, now)),
     [filtered, activeKpi, now],
   );
-
   const values = useMemo(() => {
     if (!summary) return {};
-
     return {
       ALL: summary.totalComplaints ?? 0,
       PENDING: summary.pendingComplaints ?? 0,
@@ -431,23 +394,18 @@ export default function Reports() {
       MATERIAL: summary.materialRequired ?? 0,
     };
   }, [summary]);
-
   const safePage = Math.min(
     page,
     Math.max(1, Math.ceil(detailRows.length / PAGE_SIZE)),
   );
-
   const totalPages = Math.max(1, Math.ceil(detailRows.length / PAGE_SIZE));
-
   const visibleRows = detailRows.slice(
     (safePage - 1) * PAGE_SIZE,
     safePage * PAGE_SIZE,
   );
-
   function openKpi(key) {
     setActiveKpi(key);
     setPage(1);
-
     window.requestAnimationFrame(() => {
       detailRef.current?.scrollIntoView({
         behavior: "smooth",
@@ -455,7 +413,6 @@ export default function Reports() {
       });
     });
   }
-
   function resetFilters() {
     setPeriod("ALL");
     setFromDate("");
@@ -469,44 +426,40 @@ export default function Reports() {
     setActiveKpi("ALL");
     setPage(1);
   }
-
   async function refreshAll() {
-    await Promise.all([loadReports(true), loadDetails()]);
-    toast.success("Report refresh finished", { duration: 1200 });
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await Promise.all([loadReports(true), loadDetails()]);
+      setNow(Date.now());
+      toast.success("Report refresh finished", { duration: 1200 });
+    } finally {
+      setRefreshing(false);
+    }
   }
-
   async function downloadReport(format) {
     if (!summary || invalidDates || downloading) return;
-
     setDownloading(format);
-
     try {
       const response = await api.get(`${API_REPORT}/export/${format}`, {
         params: filters,
         responseType: "blob",
       });
-
       const isPDF = format === "pdf";
       const contentType = isPDF
         ? "application/pdf"
         : "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-
       const blob = new Blob([response.data], {
         type: contentType,
       });
-
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
-
       anchor.href = url;
       anchor.download = `AMI_MAINTENANCE_${period}_${dayKey(new Date())}.${isPDF ? "pdf" : "xlsx"}`;
-
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-
       toast.success(`${isPDF ? "PDF" : "Excel"} downloaded`, {
         duration: 1300,
       });
@@ -516,27 +469,22 @@ export default function Reports() {
       setDownloading("");
     }
   }
-
   return (
     <div className="min-w-0 space-y-5 pb-8 text-[#102B52]">
       {/* HEADER */}
-
       <section className="rounded-[24px] bg-gradient-to-r from-[#0A1E3B] to-[#204779] p-6 text-white shadow-md sm:p-7">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#E8C477]">
-              AMI MAINTENANCE · REPORT CENTER
+              AMI MAINT. · REPORT CENTER
             </p>
-
             <h1 className="mt-2 text-2xl font-black sm:text-[30px]">
               Maintenance Reports
             </h1>
-
             <p className="mt-2 text-xs leading-5 text-slate-300">
               Location-wise, date-wise and Technician-wise reporting.
             </p>
           </div>
-
           <button
             type="button"
             disabled={refreshing}
@@ -548,16 +496,13 @@ export default function Reports() {
           </button>
         </div>
       </section>
-
       {/* FILTERS */}
-
       <section className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
         <div className="mb-4 flex items-center justify-between gap-2">
           <h2 className="flex items-center gap-2 text-sm font-black">
             <SlidersHorizontal size={18} className="text-[#B18431]" />
             Report Filters
           </h2>
-
           <button
             type="button"
             onClick={resetFilters}
@@ -566,7 +511,6 @@ export default function Reports() {
             Reset
           </button>
         </div>
-
         <div className="mb-4 flex flex-wrap gap-2">
           {[
             ["ALL", "All Time"],
@@ -591,7 +535,6 @@ export default function Reports() {
             </button>
           ))}
         </div>
-
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <label className="space-y-1">
             <span className="text-[11px] font-bold">From Date</span>
@@ -606,7 +549,6 @@ export default function Reports() {
               }}
             />
           </label>
-
           <label className="space-y-1">
             <span className="text-[11px] font-bold">To Date</span>
             <input
@@ -620,7 +562,6 @@ export default function Reports() {
               }}
             />
           </label>
-
           <label className="space-y-1">
             <span className="text-[11px] font-bold">Location</span>
             <select
@@ -639,7 +580,6 @@ export default function Reports() {
               ))}
             </select>
           </label>
-
           <label className="space-y-1">
             <span className="text-[11px] font-bold">Category</span>
             <select
@@ -658,7 +598,6 @@ export default function Reports() {
               ))}
             </select>
           </label>
-
           <label className="space-y-1">
             <span className="text-[11px] font-bold">Status</span>
             <select
@@ -677,7 +616,6 @@ export default function Reports() {
               ))}
             </select>
           </label>
-
           <label className="space-y-1">
             <span className="text-[11px] font-bold">Priority</span>
             <select
@@ -696,7 +634,6 @@ export default function Reports() {
               ))}
             </select>
           </label>
-
           <label className="space-y-1">
             <span className="text-[11px] font-bold">Technician</span>
             <select
@@ -715,7 +652,6 @@ export default function Reports() {
               ))}
             </select>
           </label>
-
           <label className="space-y-1">
             <span className="text-[11px] font-bold">Search</span>
             <div className="relative">
@@ -735,16 +671,13 @@ export default function Reports() {
             </div>
           </label>
         </div>
-
         {invalidDates && (
           <p className="mt-3 text-xs font-semibold text-rose-600">
             From Date cannot be later than To Date.
           </p>
         )}
       </section>
-
       {/* ERROR */}
-
       {error && (
         <p
           role="alert"
@@ -753,9 +686,7 @@ export default function Reports() {
           {error}
         </p>
       )}
-
       {/* KPI BOXES */}
-
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-black">Report Overview</h2>
@@ -764,12 +695,10 @@ export default function Reports() {
             <ArrowDown size={13} className="inline" />
           </span>
         </div>
-
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {KPI_CONFIG.map((item) => {
             const Icon = item.icon;
             const active = activeKpi === item.key;
-
             return (
               <button
                 key={item.key}
@@ -786,11 +715,9 @@ export default function Reports() {
                   <Icon size={20} className="text-[#B18431]" />
                   <ArrowDown size={14} className="text-slate-400" />
                 </div>
-
                 <p className="mt-4 text-[27px] font-black">
                   {loading ? "…" : (values[item.key] ?? "—")}
                 </p>
-
                 <p className="mt-1 text-[11px] font-semibold text-slate-500">
                   {item.label}
                 </p>
@@ -799,9 +726,7 @@ export default function Reports() {
           })}
         </div>
       </section>
-
       {/* DETAIL TABLE */}
-
       <section
         ref={detailRef}
         className="scroll-mt-24 overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm"
@@ -814,7 +739,6 @@ export default function Reports() {
               {detailRows.length} loaded matching records
             </p>
           </div>
-
           {activeKpi !== "ALL" && (
             <button
               type="button"
@@ -825,11 +749,9 @@ export default function Reports() {
             </button>
           )}
         </div>
-
         {detailError && (
           <p className="p-4 text-xs text-rose-600">{detailError}</p>
         )}
-
         <div className="overflow-x-auto">
           <table className="w-full min-w-[950px] text-left text-xs">
             <thead className="bg-[#F8FAFD] text-slate-500">
@@ -849,7 +771,6 @@ export default function Reports() {
                 ))}
               </tr>
             </thead>
-
             <tbody className="divide-y divide-slate-100">
               {visibleRows.map((c) => (
                 <tr key={c._id} className="hover:bg-slate-50">
@@ -862,16 +783,13 @@ export default function Reports() {
                       {c.title}
                     </p>
                   </td>
-
                   <td className="px-4 py-3">{displayDate(c.createdAt)}</td>
-
                   <td className="px-4 py-3">
                     <p className="font-semibold">{getLocation(c)}</p>
                     <p className="text-slate-400">
                       {c.roomNumber || c.issueLocation || "—"}
                     </p>
                   </td>
-
                   <td className="px-4 py-3">{c.category || "—"}</td>
                   <td className="px-4 py-3">{technicianName(c)}</td>
                   <td className="px-4 py-3">{c.priority || "—"}</td>
@@ -882,20 +800,17 @@ export default function Reports() {
               ))}
             </tbody>
           </table>
-
           {!detailError && detailRows.length === 0 && (
             <p className="py-12 text-center text-xs text-slate-500">
               No matching records available.
             </p>
           )}
         </div>
-
         {totalPages > 1 && (
           <div className="flex items-center justify-between border-t p-4">
             <span className="text-xs text-slate-500">
               Page {safePage} of {totalPages}
             </span>
-
             <div className="flex gap-2">
               <button
                 className="rounded-lg border px-3 py-2 text-xs disabled:opacity-40"
@@ -904,7 +819,6 @@ export default function Reports() {
               >
                 <ChevronLeft size={16} />
               </button>
-
               <button
                 className="rounded-lg border px-3 py-2 text-xs disabled:opacity-40"
                 disabled={safePage === totalPages}
@@ -916,61 +830,45 @@ export default function Reports() {
           </div>
         )}
       </section>
-
       {/* DOWNLOAD */}
-
-      {/* ==========================================
-    AMI MAINTENANCE — PREMIUM REPORT EXPORT
-    ========================================== */}
-
+      {/* AMI MAINT. — PREMIUM REPORT EXPORT */}
       <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
           {/* LEFT — REPORT INFORMATION */}
-
           <div className="min-w-0 flex-1">
             <div className="flex items-start gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#102B52]/[0.07] text-[#102B52]">
                 <Download size={20} />
               </div>
-
               <div>
                 <h2 className="text-base font-black text-[#102B52]">
                   Download Maintenance Report
                 </h2>
-
                 <p className="mt-1 text-xs leading-5 text-slate-500">
                   Generate a detailed report using your selected reporting
                   period, location, category and filters.
                 </p>
               </div>
             </div>
-
             {/* CURRENT REPORT SCOPE */}
-
             <div className="mt-4 flex flex-wrap gap-2">
               <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-600">
                 {fromDate || "All Dates"} — {toDate || "All Dates"}
               </span>
-
               <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-600">
                 {location === "ALL" ? "All Locations" : location}
               </span>
-
               <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-[11px] font-semibold text-slate-600">
                 {category === "ALL" ? "All Categories" : category}
               </span>
-
               <span className="rounded-lg bg-amber-50 px-3 py-1.5 text-[11px] font-extrabold text-amber-800">
                 {summary?.totalComplaints ?? 0} Complaints
               </span>
             </div>
           </div>
-
           {/* RIGHT — DOWNLOAD BUTTONS */}
-
           <div className="grid w-full grid-cols-2 gap-3 sm:w-auto">
             {/* EXCEL DOWNLOAD */}
-
             <button
               type="button"
               onClick={() => downloadReport("excel")}
@@ -985,18 +883,14 @@ export default function Reports() {
               ) : (
                 <FileSpreadsheet size={18} className="shrink-0" />
               )}
-
               <span>
                 {downloading === "excel" ? "Generating..." : "Excel (.xlsx)"}
               </span>
-
               {downloading !== "excel" && (
                 <Download size={14} className="hidden shrink-0 sm:block" />
               )}
             </button>
-
             {/* PDF DOWNLOAD */}
-
             <button
               type="button"
               onClick={() => downloadReport("pdf")}
@@ -1011,20 +905,16 @@ export default function Reports() {
               ) : (
                 <FileText size={18} className="shrink-0" />
               )}
-
               <span>
                 {downloading === "pdf" ? "Generating..." : "PDF (.pdf)"}
               </span>
-
               {downloading !== "pdf" && (
                 <Download size={14} className="hidden shrink-0 sm:block" />
               )}
             </button>
           </div>
         </div>
-
         {/* FOOTER */}
-
         <div className="border-t border-slate-100 bg-[#F8FAFD] px-5 py-3 sm:px-6">
           <p className="flex items-center gap-2 text-[11px] text-slate-500">
             <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />

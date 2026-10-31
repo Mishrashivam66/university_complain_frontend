@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRealtime } from "../../context/RealtimeProvider";
 
 import axios from "axios";
 
@@ -24,7 +25,9 @@ import {
 
 const MaterialRequest = () => {
   // ======================================
+
   // NAVIGATION
+
   // ======================================
 
   const location = useLocation();
@@ -32,7 +35,9 @@ const MaterialRequest = () => {
   const navigate = useNavigate();
 
   // ======================================
+
   // COMPLAINT FROM ASSIGNED JOBS
+
   // ======================================
 
   const selectedComplaint = location.state?.complaint || null;
@@ -41,19 +46,25 @@ const MaterialRequest = () => {
     location.state?.complaintId || selectedComplaint?._id || "";
 
   // ======================================
+
   // API
+
   // ======================================
 
   const MATERIAL_API =
     "https://complaine-backend.vercel.app/api/maintenance/material-requests";
 
   // Assumes storeRoutes.js mounts:
+
   // router.use("/requests", requestRoutes)
+
   const GENERAL_REQUEST_API =
     "https://complaine-backend.vercel.app/api/store/requests";
 
   // ======================================
+
   // TAB
+
   // ======================================
 
   const [activeTab, setActiveTab] = useState(
@@ -61,7 +72,9 @@ const MaterialRequest = () => {
   );
 
   // ======================================
+
   // STATES
+
   // ======================================
 
   const [requests, setRequests] = useState([]);
@@ -72,14 +85,23 @@ const MaterialRequest = () => {
 
   const [submitting, setSubmitting] = useState(false);
 
+  const { refreshKey } = useRealtime();
+  const fetchSequenceRef = useRef(0);
+  const lastRefreshKeyRef = useRef(refreshKey);
+  const submittingRef = useRef(false);
+
   // ======================================
+
   // COMPLAINT MATERIAL FORM
+
   // ======================================
 
   const [materials, setMaterials] = useState([
     {
       itemName: "",
+
       quantity: "",
+
       unit: "PIECE",
     },
   ]);
@@ -87,7 +109,9 @@ const MaterialRequest = () => {
   const [reason, setReason] = useState("");
 
   // ======================================
+
   // GENERAL STORE REQUEST FORM
+
   // ======================================
 
   const [generalHostel, setGeneralHostel] = useState("");
@@ -97,26 +121,41 @@ const MaterialRequest = () => {
   const [generalQuantity, setGeneralQuantity] = useState("");
 
   // ======================================
+
   // UNITS
+
   // ======================================
 
   const units = [
     "PIECE",
+
     "METER",
+
     "KG",
+
     "GRAM",
+
     "LITER",
+
     "ML",
+
     "BOX",
+
     "PACKET",
+
     "ROLL",
+
     "SET",
+
     "PAIR",
+
     "OTHER",
   ];
 
   // ======================================
+
   // TOKEN
+
   // ======================================
 
   const getHeaders = () => {
@@ -128,68 +167,64 @@ const MaterialRequest = () => {
   };
 
   // ======================================
+
   // FETCH COMPLAINT MATERIAL REQUESTS
+
   // ======================================
 
-  const fetchMaterialRequests = async () => {
-    try {
-      const response = await axios.get(MATERIAL_API, {
-        headers: getHeaders(),
-      });
+  // Load both request lists together; silent mode never resets the page.
+  const fetchAllData = useCallback(async (mode = "silent") => {
+    const sequence = ++fetchSequenceRef.current;
+    if (mode === "initial") setLoading(true);
 
-      setRequests(response?.data?.requests || []);
-    } catch (error) {
-      console.log("MATERIAL REQUEST ERROR:", error);
+    const headers = {
+      Authorization: `Bearer ${localStorage.getItem("token")}`,
+    };
 
-      setRequests([]);
+    const [materialResult, generalResult] = await Promise.allSettled([
+      axios.get(MATERIAL_API, { headers }),
+      axios.get(`${GENERAL_REQUEST_API}/all`, { headers }),
+    ]);
+
+    if (sequence !== fetchSequenceRef.current) return;
+
+    if (materialResult.status === "fulfilled") {
+      setRequests(materialResult.value?.data?.requests || []);
+    } else {
+      console.error("MATERIAL REQUEST ERROR:", materialResult.reason);
+      if (mode === "initial") setRequests([]);
     }
-  };
 
-  // ======================================
-  // FETCH GENERAL REQUESTS
-  // ======================================
-
-  const fetchGeneralRequests = async () => {
-    try {
-      const response = await axios.get(`${GENERAL_REQUEST_API}/all`, {
-        headers: getHeaders(),
-      });
-
-      setGeneralRequests(response?.data?.requests || []);
-    } catch (error) {
-      console.log("GENERAL REQUEST ERROR:", error);
-
-      setGeneralRequests([]);
+    if (generalResult.status === "fulfilled") {
+      setGeneralRequests(generalResult.value?.data?.requests || []);
+    } else {
+      console.error("GENERAL REQUEST ERROR:", generalResult.reason);
+      if (mode === "initial") setGeneralRequests([]);
     }
-  };
 
-  // ======================================
-  // FETCH ALL
-  // ======================================
-
-  const fetchAllData = async () => {
-    try {
-      setLoading(true);
-
-      await Promise.allSettled([
-        fetchMaterialRequests(),
-        fetchGeneralRequests(),
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ======================================
-  // INITIAL LOAD
-  // ======================================
+    if (mode === "initial") setLoading(false);
+  }, []);
 
   useEffect(() => {
-    fetchAllData();
-  }, []);
+    fetchAllData("initial");
+    return () => {
+      fetchSequenceRef.current += 1;
+    };
+  }, [fetchAllData]);
+
+  useEffect(() => {
+    if (lastRefreshKeyRef.current === refreshKey) return;
+    lastRefreshKeyRef.current = refreshKey;
+    if (document.visibilityState !== "visible" || submittingRef.current) return;
+    fetchAllData("silent");
+  }, [refreshKey, fetchAllData]);
+
+  const fetchMaterialRequests = async () => fetchAllData("silent");
+  const fetchGeneralRequests = async () => fetchAllData("silent");
 
   // ======================================
   // EXISTING REQUEST FOR COMPLAINT
+
   // ======================================
 
   const existingRequest = useMemo(() => {
@@ -210,7 +245,9 @@ const MaterialRequest = () => {
   }, [requests, selectedComplaintId]);
 
   // ======================================
+
   // ADD MATERIAL
+
   // ======================================
 
   const addMaterial = () => {
@@ -219,14 +256,18 @@ const MaterialRequest = () => {
 
       {
         itemName: "",
+
         quantity: "",
+
         unit: "PIECE",
       },
     ]);
   };
 
   // ======================================
+
   // REMOVE MATERIAL
+
   // ======================================
 
   const removeMaterial = (index) => {
@@ -240,7 +281,9 @@ const MaterialRequest = () => {
   };
 
   // ======================================
+
   // UPDATE MATERIAL
+
   // ======================================
 
   const updateMaterial = (index, field, value) => {
@@ -258,7 +301,9 @@ const MaterialRequest = () => {
   };
 
   // ======================================
+
   // CREATE COMPLAINT MATERIAL REQUEST
+
   // ======================================
 
   const handleComplaintRequest = async (e) => {
@@ -289,6 +334,7 @@ const MaterialRequest = () => {
     }
 
     try {
+      submittingRef.current = true;
       setSubmitting(true);
 
       const payload = {
@@ -324,7 +370,9 @@ const MaterialRequest = () => {
       setMaterials([
         {
           itemName: "",
+
           quantity: "",
+
           unit: "PIECE",
         },
       ]);
@@ -339,12 +387,15 @@ const MaterialRequest = () => {
         error?.response?.data?.message || "Failed to create material request",
       );
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
   // ======================================
+
   // CREATE GENERAL STORE REQUEST
+
   // ======================================
 
   const handleGeneralRequest = async (e) => {
@@ -360,6 +411,7 @@ const MaterialRequest = () => {
     }
 
     try {
+      submittingRef.current = true;
       setSubmitting(true);
 
       const payload = {
@@ -398,22 +450,31 @@ const MaterialRequest = () => {
         error?.response?.data?.message || "Failed to create general request",
       );
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
   // ======================================
+
   // STATUS COLOR
+
   // ======================================
 
   const getStatusColor = (status) => {
     switch (status) {
       case "PENDING":
+        return "bg-yellow-100 text-yellow-700";
+
       case "Pending":
         return "bg-yellow-100 text-yellow-700";
 
       case "APPROVED_BY_STORE":
+        return "bg-green-100 text-green-700";
+
       case "APPROVED":
+        return "bg-green-100 text-green-700";
+
       case "Approved":
         return "bg-green-100 text-green-700";
 
@@ -427,6 +488,8 @@ const MaterialRequest = () => {
         return "bg-blue-100 text-blue-700";
 
       case "REJECTED":
+        return "bg-red-100 text-red-700";
+
       case "Rejected":
         return "bg-red-100 text-red-700";
 
@@ -439,7 +502,9 @@ const MaterialRequest = () => {
   };
 
   // ======================================
+
   // ITEM STATUS
+
   // ======================================
 
   const getItemStatusColor = (status) => {
@@ -462,7 +527,9 @@ const MaterialRequest = () => {
   };
 
   // ======================================
+
   // DATE
+
   // ======================================
 
   const formatDate = (date) => {
@@ -472,7 +539,9 @@ const MaterialRequest = () => {
   };
 
   // ======================================
+
   // LOADING
+
   // ======================================
 
   if (loading) {
@@ -485,33 +554,44 @@ const MaterialRequest = () => {
 
   return (
     <div className="space-y-8">
-      {/* ======================================
-          HEADER
-      ====================================== */}
-
       <div
         className="
+
           bg-gradient-to-r
+
           from-[#001B54]
+
           via-[#002B7F]
+
           to-[#7A0019]
 
           text-white
+
           rounded-3xl
+
           shadow-2xl
 
           p-6
+
           md:p-8
+
         "
       >
         <div
           className="
+
             flex
+
             flex-col
+
             lg:flex-row
+
             lg:items-center
+
             lg:justify-between
+
             gap-5
+
           "
         >
           <div className="flex items-center gap-5">
@@ -532,15 +612,23 @@ const MaterialRequest = () => {
             <button
               onClick={() => navigate(-1)}
               className="
+
                 bg-white/20
+
                 px-5
+
                 py-3
+
                 rounded-2xl
+
                 font-bold
 
                 flex
+
                 items-center
+
                 gap-2
+
               "
             >
               <ArrowLeft size={18} />
@@ -548,12 +636,15 @@ const MaterialRequest = () => {
             </button>
 
             <button
-              onClick={fetchAllData}
+              onClick={() => fetchAllData("silent")}
               className="
+
                 bg-white
+
                 text-[#001B54]
 
                 px-5
+
                 py-3
 
                 rounded-2xl
@@ -561,8 +652,11 @@ const MaterialRequest = () => {
                 font-bold
 
                 flex
+
                 items-center
+
                 gap-2
+
               "
             >
               <RefreshCw size={18} />
@@ -572,34 +666,45 @@ const MaterialRequest = () => {
         </div>
       </div>
 
-      {/* ======================================
-          TABS
-      ====================================== */}
-
       <div
         className="
+
           bg-white
+
           rounded-3xl
+
           shadow-xl
+
           p-3
 
           grid
+
           grid-cols-1
+
           sm:grid-cols-2
+
           gap-3
+
         "
       >
         <button
           onClick={() => setActiveTab("COMPLAINT")}
           className={`
+
             px-5
+
             py-4
+
             rounded-2xl
+
             font-bold
 
             flex
+
             items-center
+
             justify-center
+
             gap-2
 
             transition
@@ -607,16 +712,25 @@ const MaterialRequest = () => {
             ${
               activeTab === "COMPLAINT"
                 ? `
+
                   bg-gradient-to-r
+
                   from-[#001B54]
+
                   to-[#7A0019]
+
                   text-white
+
                 `
                 : `
+
                   bg-gray-100
+
                   text-gray-600
+
                 `
             }
+
           `}
         >
           <ClipboardList size={20} />
@@ -626,14 +740,21 @@ const MaterialRequest = () => {
         <button
           onClick={() => setActiveTab("GENERAL")}
           className={`
+
             px-5
+
             py-4
+
             rounded-2xl
+
             font-bold
 
             flex
+
             items-center
+
             justify-center
+
             gap-2
 
             transition
@@ -641,16 +762,25 @@ const MaterialRequest = () => {
             ${
               activeTab === "GENERAL"
                 ? `
+
                   bg-gradient-to-r
+
                   from-[#001B54]
+
                   to-[#7A0019]
+
                   text-white
+
                 `
                 : `
+
                   bg-gray-100
+
                   text-gray-600
+
                 `
             }
+
           `}
         >
           <Building2 size={20} />
@@ -658,23 +788,24 @@ const MaterialRequest = () => {
         </button>
       </div>
 
-      {/* ======================================
-          COMPLAINT TAB
-      ====================================== */}
-
       {activeTab === "COMPLAINT" && (
         <>
-          {/* SELECTED COMPLAINT */}
-
           {selectedComplaint ? (
             <div
               className="
+
                 bg-white
+
                 rounded-3xl
+
                 shadow-xl
+
                 border
+
                 border-gray-100
+
                 overflow-hidden
+
               "
             >
               <div className="bg-blue-50 px-6 py-5 border-b">
@@ -693,13 +824,19 @@ const MaterialRequest = () => {
 
               <div
                 className="
+
                   grid
+
                   grid-cols-1
+
                   md:grid-cols-2
+
                   xl:grid-cols-4
 
                   gap-5
+
                   p-6
+
                 "
               >
                 <div className="bg-gray-50 rounded-2xl p-4">
@@ -767,15 +904,21 @@ const MaterialRequest = () => {
           ) : (
             <div
               className="
+
                 bg-yellow-50
+
                 border
+
                 border-yellow-200
 
                 rounded-3xl
+
                 p-6
 
                 flex
+
                 gap-4
+
               "
             >
               <AlertTriangle size={25} className="text-yellow-700" />
@@ -792,18 +935,21 @@ const MaterialRequest = () => {
             </div>
           )}
 
-          {/* EXISTING REQUEST */}
-
           {selectedComplaint && existingRequest && (
             <div className="bg-white rounded-3xl shadow-xl overflow-hidden">
               <div
                 className="
+
                     bg-gradient-to-r
+
                     from-[#001B54]
+
                     to-[#7A0019]
 
                     text-white
+
                     p-6
+
                   "
               >
                 <div className="flex justify-between gap-4">
@@ -817,18 +963,23 @@ const MaterialRequest = () => {
 
                   <span
                     className={`
+
                         bg-white
+
                         h-fit
 
                         px-4
+
                         py-2
 
                         rounded-full
 
                         text-sm
+
                         font-bold
 
                         ${getStatusColor(existingRequest.status)}
+
                       `}
                   >
                     {existingRequest.status}
@@ -841,16 +992,25 @@ const MaterialRequest = () => {
                   <div
                     key={material._id || index}
                     className="
+
                           bg-gray-50
+
                           rounded-2xl
+
                           p-4
 
                           flex
+
                           flex-col
+
                           sm:flex-row
+
                           sm:items-center
+
                           sm:justify-between
+
                           gap-3
+
                         "
                   >
                     <div>
@@ -863,13 +1023,19 @@ const MaterialRequest = () => {
 
                     <span
                       className={`
+
                             px-3
+
                             py-1.5
+
                             rounded-full
+
                             text-xs
+
                             font-bold
 
                             ${getItemStatusColor(material.status)}
+
                           `}
                     >
                       {material.status}
@@ -886,19 +1052,23 @@ const MaterialRequest = () => {
             </div>
           )}
 
-          {/* CREATE COMPLAINT REQUEST */}
-
           {selectedComplaint && !existingRequest && (
             <form
               onSubmit={handleComplaintRequest}
               className="
+
                   bg-white
+
                   rounded-3xl
+
                   shadow-2xl
+
                   p-6
+
                   md:p-8
 
                   space-y-6
+
                 "
             >
               <div className="flex items-center gap-3">
@@ -919,10 +1089,15 @@ const MaterialRequest = () => {
                 <div
                   key={index}
                   className="
+
                         bg-gray-50
+
                         border
+
                         rounded-2xl
+
                         p-5
+
                       "
                 >
                   <div className="flex justify-between mb-4">
@@ -935,10 +1110,15 @@ const MaterialRequest = () => {
                         type="button"
                         onClick={() => removeMaterial(index)}
                         className="
+
                               bg-red-100
+
                               text-red-700
+
                               p-2
+
                               rounded-xl
+
                             "
                       >
                         <Trash2 size={18} />
@@ -948,10 +1128,15 @@ const MaterialRequest = () => {
 
                   <div
                     className="
+
                           grid
+
                           grid-cols-1
+
                           md:grid-cols-12
+
                           gap-4
+
                         "
                   >
                     <div className="md:col-span-6">
@@ -965,12 +1150,19 @@ const MaterialRequest = () => {
                         }
                         placeholder="Electrical Wire"
                         className="
+
                               w-full
+
                               mt-2
+
                               border
+
                               rounded-2xl
+
                               px-4
+
                               py-4
+
                             "
                       />
                     </div>
@@ -988,12 +1180,19 @@ const MaterialRequest = () => {
                         }
                         placeholder="10"
                         className="
+
                               w-full
+
                               mt-2
+
                               border
+
                               rounded-2xl
+
                               px-4
+
                               py-4
+
                             "
                       />
                     </div>
@@ -1007,13 +1206,21 @@ const MaterialRequest = () => {
                           updateMaterial(index, "unit", e.target.value)
                         }
                         className="
+
                               w-full
+
                               mt-2
+
                               border
+
                               rounded-2xl
+
                               px-4
+
                               py-4
+
                               bg-white
+
                             "
                       >
                         {units.map((unit) => (
@@ -1031,9 +1238,13 @@ const MaterialRequest = () => {
                 type="button"
                 onClick={addMaterial}
                 className="
+
                     w-full
+
                     border-2
+
                     border-dashed
+
                     border-[#001B54]
 
                     text-[#001B54]
@@ -1041,7 +1252,9 @@ const MaterialRequest = () => {
                     py-4
 
                     rounded-2xl
+
                     font-bold
+
                   "
               >
                 + Add More Material
@@ -1056,13 +1269,21 @@ const MaterialRequest = () => {
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="Why are these materials required?"
                   className="
+
                       w-full
+
                       mt-2
+
                       border
+
                       rounded-2xl
+
                       px-4
+
                       py-4
+
                       resize-none
+
                     "
                 />
               </div>
@@ -1071,10 +1292,13 @@ const MaterialRequest = () => {
                 type="submit"
                 disabled={submitting}
                 className="
+
                     w-full
 
                     bg-gradient-to-r
+
                     from-[#001B54]
+
                     to-[#7A0019]
 
                     text-white
@@ -1086,11 +1310,15 @@ const MaterialRequest = () => {
                     font-bold
 
                     flex
+
                     items-center
+
                     justify-center
+
                     gap-2
 
                     disabled:opacity-50
+
                   "
               >
                 {submitting ? (
@@ -1110,23 +1338,24 @@ const MaterialRequest = () => {
         </>
       )}
 
-      {/* ======================================
-          GENERAL REQUEST TAB
-      ====================================== */}
-
       {activeTab === "GENERAL" && (
         <>
           <form
             onSubmit={handleGeneralRequest}
             className="
+
               bg-white
+
               rounded-3xl
+
               shadow-2xl
 
               p-6
+
               md:p-8
 
               space-y-6
+
             "
           >
             <div className="flex gap-3 items-center">
@@ -1145,10 +1374,15 @@ const MaterialRequest = () => {
 
             <div
               className="
+
                 grid
+
                 grid-cols-1
+
                 md:grid-cols-3
+
                 gap-5
+
               "
             >
               <div>
@@ -1160,12 +1394,19 @@ const MaterialRequest = () => {
                   onChange={(e) => setGeneralHostel(e.target.value)}
                   placeholder="Example: H1"
                   className="
+
                     w-full
+
                     mt-2
+
                     border
+
                     rounded-2xl
+
                     px-4
+
                     py-4
+
                   "
                 />
               </div>
@@ -1179,12 +1420,19 @@ const MaterialRequest = () => {
                   onChange={(e) => setGeneralItem(e.target.value)}
                   placeholder="Example: Cleaning Gloves"
                   className="
+
                     w-full
+
                     mt-2
+
                     border
+
                     rounded-2xl
+
                     px-4
+
                     py-4
+
                   "
                 />
               </div>
@@ -1199,12 +1447,19 @@ const MaterialRequest = () => {
                   onChange={(e) => setGeneralQuantity(e.target.value)}
                   placeholder="20"
                   className="
+
                     w-full
+
                     mt-2
+
                     border
+
                     rounded-2xl
+
                     px-4
+
                     py-4
+
                   "
                 />
               </div>
@@ -1214,10 +1469,13 @@ const MaterialRequest = () => {
               type="submit"
               disabled={submitting}
               className="
+
                 w-full
 
                 bg-gradient-to-r
+
                 from-[#001B54]
+
                 to-[#7A0019]
 
                 text-white
@@ -1229,11 +1487,15 @@ const MaterialRequest = () => {
                 font-bold
 
                 flex
+
                 justify-center
+
                 items-center
+
                 gap-2
 
                 disabled:opacity-50
+
               "
             >
               {submitting ? (
@@ -1250,14 +1512,17 @@ const MaterialRequest = () => {
             </button>
           </form>
 
-          {/* GENERAL HISTORY */}
-
           <div
             className="
+
               bg-white
+
               rounded-3xl
+
               shadow-xl
+
               p-6
+
             "
           >
             <div className="flex justify-between items-center mb-6">
@@ -1271,12 +1536,19 @@ const MaterialRequest = () => {
 
               <span
                 className="
+
                   bg-blue-100
+
                   text-blue-700
+
                   px-4
+
                   py-2
+
                   rounded-full
+
                   font-bold
+
                 "
               >
                 {generalRequests.length}
@@ -1295,16 +1567,23 @@ const MaterialRequest = () => {
                   <div
                     key={request._id}
                     className="
+
                         border
+
                         rounded-2xl
+
                         p-5
 
                         grid
+
                         grid-cols-1
+
                         md:grid-cols-5
 
                         gap-4
+
                         items-center
+
                       "
                   >
                     <div>
@@ -1334,17 +1613,21 @@ const MaterialRequest = () => {
                     <div>
                       <span
                         className={`
+
                             inline-block
 
                             px-3
+
                             py-1.5
 
                             rounded-full
 
                             text-xs
+
                             font-bold
 
                             ${getStatusColor(request.status)}
+
                           `}
                       >
                         {request.status}
@@ -1358,17 +1641,18 @@ const MaterialRequest = () => {
         </>
       )}
 
-      {/* ======================================
-          COMPLAINT MATERIAL HISTORY
-      ====================================== */}
-
       {activeTab === "COMPLAINT" && (
         <div
           className="
+
             bg-white
+
             rounded-3xl
+
             shadow-xl
+
             p-6
+
           "
         >
           <div className="flex justify-between items-center mb-6">
@@ -1384,12 +1668,19 @@ const MaterialRequest = () => {
 
             <span
               className="
+
                 bg-blue-100
+
                 text-blue-700
+
                 px-4
+
                 py-2
+
                 rounded-full
+
                 font-bold
+
               "
             >
               {requests.length}
@@ -1408,24 +1699,34 @@ const MaterialRequest = () => {
                 <div
                   key={request._id}
                   className="
+
                     border
+
                     rounded-2xl
+
                     overflow-hidden
+
                   "
                 >
                   <div
                     className="
+
                       bg-gray-50
+
                       p-5
 
                       flex
+
                       flex-col
+
                       md:flex-row
 
                       md:items-center
+
                       md:justify-between
 
                       gap-4
+
                     "
                   >
                     <div>
@@ -1440,14 +1741,21 @@ const MaterialRequest = () => {
 
                     <span
                       className={`
+
                         h-fit
+
                         px-4
+
                         py-2
+
                         rounded-full
+
                         text-sm
+
                         font-bold
 
                         ${getStatusColor(request.status)}
+
                       `}
                     >
                       {request.status}
@@ -1457,19 +1765,28 @@ const MaterialRequest = () => {
                   <div className="p-5">
                     <div
                       className="
+
                         grid
+
                         grid-cols-1
+
                         md:grid-cols-2
+
                         gap-3
+
                       "
                     >
                       {request.materials?.map((material, index) => (
                         <div
                           key={material._id || index}
                           className="
+
                               bg-blue-50
+
                               rounded-xl
+
                               p-4
+
                             "
                         >
                           <div className="flex justify-between gap-4">
@@ -1485,14 +1802,21 @@ const MaterialRequest = () => {
 
                             <span
                               className={`
+
                                   h-fit
+
                                   px-3
+
                                   py-1
+
                                   rounded-full
+
                                   text-xs
+
                                   font-bold
 
                                   ${getItemStatusColor(material.status)}
+
                                 `}
                             >
                               {material.status}

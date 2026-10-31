@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 
 // ======================================================
-// AMI MAINTENANCE
+// AMI MAINT.
 // PREMIUM TECHNICIAN PERFORMANCE ANALYTICS
 // ======================================================
 
@@ -632,7 +632,7 @@ export default function WorkerPerformance() {
       doc.setTextColor(233, 194, 119);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
-      doc.text("AMI MAINTENANCE", 14, 12);
+      doc.text("AMI MAINT.", 14, 12);
 
       doc.setFontSize(19);
       doc.setTextColor(255, 255, 255);
@@ -701,7 +701,7 @@ export default function WorkerPerformance() {
             doc.rect(0, 0, width, 13, "F");
             doc.setFontSize(9);
             doc.setTextColor(255, 255, 255);
-            doc.text("AMI MAINTENANCE", 12, 8);
+            doc.text("AMI MAINT.", 12, 8);
           }
         },
       });
@@ -715,7 +715,7 @@ export default function WorkerPerformance() {
         doc.setFontSize(8);
         doc.setTextColor(110, 124, 145);
         doc.text(
-          "AMI MAINTENANCE | University Maintenance Operations",
+          "AMI MAINT. | University Maintenance Operations",
           12,
           height - 8,
         );
@@ -779,7 +779,7 @@ export default function WorkerPerformance() {
               <Activity size={13} className="text-[#E8C477]" />
 
               <span className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#F0D494]">
-                AMI MAINTENANCE · WORKFORCE INTELLIGENCE
+                AMI MAINT. · WORKFORCE INTELLIGENCE
               </span>
             </div>
 
@@ -1195,7 +1195,7 @@ export default function WorkerPerformance() {
 
       <footer className="flex items-center gap-2 border-t border-slate-200 pt-4 text-[11px] text-slate-400">
         <ShieldCheck size={14} />
-        AMI MAINTENANCE · Technician Performance Analytics
+        AMI MAINT. · Technician Performance Analytics
       </footer>
     </main>
   );

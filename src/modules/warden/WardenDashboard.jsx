@@ -245,7 +245,7 @@ const WardenDashboard = () => {
               <Wrench size={14} className="text-[#E8C877]" />
 
               <span className="text-[11px] font-bold tracking-[0.15em] text-[#F3D994]">
-                AMI MAINTENANCE
+                AMI MAINT.
               </span>
             </div>
 

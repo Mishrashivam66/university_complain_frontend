@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useNavigate } from "react-router-dom";
 
@@ -23,11 +23,11 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
+import { useRealtime } from "../../context/RealtimeProvider";
 
 // ==========================================
 // CONFIG
 // ==========================================
-
 const API = "/store/inventory";
 
 const fieldClass =
@@ -44,9 +44,11 @@ const statusOf = (item) => {
   if (item.isActive === false) return "Inactive";
 
   const stock = Number(item.currentStock || 0);
+
   const minimum = Number(item.minimumStock || 0);
 
   if (stock <= 0) return "Out of Stock";
+
   if (stock <= minimum) return "Low Stock";
 
   return "Available";
@@ -66,18 +68,23 @@ const badgeClass = (status) => {
 
 const blankEdit = {
   itemCode: "",
+
   itemName: "",
+
   itemDescription: "",
+
   category: "",
+
   otherCategory: "",
+
   unit: "",
+
   minimumStock: "",
 };
 
 // ==========================================
 // COMPONENTS
 // ==========================================
-
 function StockStatus({ item }) {
   const status = statusOf(item);
 
@@ -88,6 +95,7 @@ function StockStatus({ item }) {
       )}`}
     >
       <span className="h-1.5 w-1.5 rounded-full bg-current" />
+
       {status}
     </span>
   );
@@ -152,24 +160,35 @@ function Toast({ toast, onClose }) {
 // ==========================================
 // MAIN COMPONENT
 // ==========================================
-
 export default function InventoryManagement() {
   const navigate = useNavigate();
+  const { refreshKey } = useRealtime();
+  const previousRefreshKeyRef = useRef(refreshKey);
+  const requestVersionRef = useRef(0);
+  const savingRef = useRef(false);
 
   const [inventory, setInventory] = useState([]);
+
   const [loading, setLoading] = useState(true);
+
   const [refreshing, setRefreshing] = useState(false);
+
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
+
   const [filter, setFilter] = useState("ALL");
+
   const [category, setCategory] = useState("ALL");
 
   const [page, setPage] = useState(1);
+
   const [pageSize, setPageSize] = useState(10);
 
   const [selectedItem, setSelectedItem] = useState(null);
+
   const [editForm, setEditForm] = useState(blankEdit);
+
   const [saving, setSaving] = useState(false);
 
   const [toast, setToast] = useState(null);
@@ -177,7 +196,6 @@ export default function InventoryManagement() {
   // ==========================================
   // NOTIFICATIONS
   // ==========================================
-
   const notify = (message, type = "success") => {
     setToast({ message, type });
   };
@@ -187,6 +205,7 @@ export default function InventoryManagement() {
 
     const timer = setTimeout(
       () => setToast(null),
+
       toast.type === "error" ? 3500 : 1400,
     );
 
@@ -196,49 +215,61 @@ export default function InventoryManagement() {
   // ==========================================
   // FETCH INVENTORY
   // ==========================================
+  const fetchInventory = useCallback(async (mode = "initial") => {
+    const manual = mode === "manual";
+    const silent = mode === "silent";
+    const requestVersion = ++requestVersionRef.current;
 
-  const fetchInventory = useCallback(async (showRefresh = false) => {
-    if (showRefresh) setRefreshing(true);
-    else setLoading(true);
+    if (manual) setRefreshing(true);
+    else if (!silent) setLoading(true);
 
     try {
-      setError("");
-
       const { data } = await api.get(`${API}/all`);
+      if (requestVersion !== requestVersionRef.current) return;
 
       const list = data?.inventory ?? data?.items ?? [];
-
       if (!Array.isArray(list)) {
         throw new Error("Invalid inventory API response format.");
       }
 
       setInventory(list);
-
-      if (showRefresh) {
-        notify("Inventory refreshed successfully.");
-      }
+      setError("");
+      if (manual) notify("Inventory refreshed successfully.");
     } catch (err) {
+      if (requestVersion !== requestVersionRef.current) return;
       console.error("INVENTORY FETCH ERROR:", err);
-
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Failed to load inventory.",
-      );
+      if (!silent) {
+        setError(
+          err.response?.data?.message ||
+            err.message ||
+            "Failed to load inventory.",
+        );
+      }
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (requestVersion === requestVersionRef.current) {
+        if (!silent) setLoading(false);
+        if (manual) setRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
-    fetchInventory();
+    void fetchInventory("initial");
+    return () => {
+      requestVersionRef.current += 1;
+    };
   }, [fetchInventory]);
+
+  useEffect(() => {
+    if (previousRefreshKeyRef.current === refreshKey) return;
+    previousRefreshKeyRef.current = refreshKey;
+    if (document.visibilityState !== "visible" || savingRef.current) return;
+    void fetchInventory("silent");
+  }, [refreshKey, fetchInventory]);
 
   // ==========================================
   // STATS & FILTERS
   // ==========================================
-
   const stats = useMemo(() => {
     const active = inventory.filter((item) => item.isActive !== false);
 
@@ -263,6 +294,7 @@ export default function InventoryManagement() {
           inventory.map((item) => clean(item.category)).filter(Boolean),
         ),
       ].sort(),
+
     [inventory],
   );
 
@@ -272,13 +304,20 @@ export default function InventoryManagement() {
     return inventory.filter((item) => {
       const searchable = [
         item.itemCode,
+
         item.itemName,
+
         item.itemDescription,
+
         item.category,
+
         item.otherCategory,
+
         item.unit,
       ]
+
         .join(" ")
+
         .toLowerCase();
 
       const matchesSearch = !term || searchable.includes(term);
@@ -301,6 +340,7 @@ export default function InventoryManagement() {
 
   const paginatedItems = filteredItems.slice(
     (safePage - 1) * pageSize,
+
     safePage * pageSize,
   );
 
@@ -311,17 +351,22 @@ export default function InventoryManagement() {
   // ==========================================
   // EDIT ITEM
   // ==========================================
-
   const openEdit = (item) => {
     setSelectedItem(item);
 
     setEditForm({
       itemCode: item.itemCode || "",
+
       itemName: item.itemName || "",
+
       itemDescription: item.itemDescription || "",
+
       category: item.category || "",
+
       otherCategory: item.otherCategory || "",
+
       unit: item.unit || "Nos",
+
       minimumStock: String(item.minimumStock ?? 5),
     });
   };
@@ -337,6 +382,7 @@ export default function InventoryManagement() {
       !editForm.unit.trim()
     ) {
       notify("Item name, category and UOM are required.", "error");
+
       return;
     }
 
@@ -346,10 +392,12 @@ export default function InventoryManagement() {
       Number(editForm.minimumStock) < 0
     ) {
       notify("Enter a valid minimum stock quantity.", "error");
+
       return;
     }
 
     const oldCode = clean(selectedItem.itemCode);
+
     const newCode = clean(editForm.itemCode).toUpperCase();
 
     // Existing assigned codes remain unchanged here.
@@ -358,25 +406,34 @@ export default function InventoryManagement() {
     if (oldCode && oldCode.toUpperCase() !== newCode) {
       notify(
         "Existing Item Codes cannot be renamed here because stock history may reference them.",
+
         "error",
       );
+
       return;
     }
 
     if (!oldCode && !newCode) {
       notify("Enter a unique Item Code for this material.", "error");
+
       return;
     }
 
     setSaving(true);
+    savingRef.current = true;
 
     try {
       const payload = {
         itemName: editForm.itemName.trim(),
+
         itemDescription: editForm.itemDescription.trim(),
+
         category: editForm.category.trim(),
+
         otherCategory: editForm.otherCategory.trim(),
+
         unit: editForm.unit.trim(),
+
         minimumStock: Number(editForm.minimumStock),
       };
 
@@ -396,15 +453,17 @@ export default function InventoryManagement() {
 
       notify("Inventory details updated successfully.");
 
-      await fetchInventory();
+      await fetchInventory("silent");
     } catch (err) {
       notify(
         err.response?.data?.message ||
           err.message ||
           "Failed to update inventory details.",
+
         "error",
       );
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -412,48 +471,69 @@ export default function InventoryManagement() {
   // ==========================================
   // CSV EXPORT
   // ==========================================
-
   const exportCSV = () => {
     if (!filteredItems.length) {
       notify("No inventory records available to export.", "error");
+
       return;
     }
 
     const header = [
       "Item Code",
+
       "Item Description",
+
       "UOM",
+
       "Category Name",
+
       "Opening Qty",
+
       "Incoming",
+
       "Outgoing",
+
       "Closing Qty",
+
       "Minimum Stock",
+
       "Status",
     ];
 
     const rows = filteredItems.map((item) => [
       item.itemCode || "",
+
       item.itemDescription || item.itemName || "",
+
       item.unit || "",
+
       item.category || "",
+
       item.openingQuantity ?? "",
+
       item.incomingQuantity ?? 0,
+
       item.outgoingQuantity ?? 0,
+
       item.currentStock ?? 0,
+
       item.minimumStock ?? 0,
+
       statusOf(item),
     ]);
 
     const escapeCSV = (value) => {
       const text = String(value ?? "");
+
       const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
 
       return `"${safe.replace(/"/g, '""')}"`;
     };
 
     const content = [header, ...rows]
+
       .map((row) => row.map(escapeCSV).join(","))
+
       .join("\r\n");
 
     const blob = new Blob(["\uFEFF", content], {
@@ -461,16 +541,23 @@ export default function InventoryManagement() {
     });
 
     const url = URL.createObjectURL(blob);
+
     const anchor = document.createElement("a");
 
     anchor.href = url;
+
     anchor.download = `AMI_Inventory_${new Date()
+
       .toISOString()
+
       .slice(0, 10)}.csv`;
 
     document.body.appendChild(anchor);
+
     anchor.click();
+
     anchor.remove();
+
     URL.revokeObjectURL(url);
 
     notify("Inventory exported successfully.");
@@ -479,7 +566,6 @@ export default function InventoryManagement() {
   // ==========================================
   // RENDER
   // ==========================================
-
   return (
     <div className="min-w-0 space-y-6 pb-10">
       <Toast toast={toast} onClose={() => setToast(null)} />
@@ -491,7 +577,7 @@ export default function InventoryManagement() {
           <div>
             <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#E6C777]">
               <Boxes size={17} />
-              AMI MAINTENANCE · STORE MANAGER
+              AMI MAINT. · STORE MANAGER
             </div>
 
             <h1 className="text-2xl font-extrabold tracking-tight md:text-4xl">
@@ -507,7 +593,7 @@ export default function InventoryManagement() {
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              onClick={() => fetchInventory(true)}
+              onClick={() => fetchInventory("manual")}
               disabled={refreshing}
               className="inline-flex items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 py-3 text-sm font-bold text-white hover:bg-white/20 disabled:opacity-50"
             >
@@ -582,6 +668,7 @@ export default function InventoryManagement() {
               {stats.missingCode} inventory items have no Item Code in the API
               response.
             </p>
+
             <p className="mt-1 text-xs leading-5 text-amber-800">
               Verify the deployed inventory route and MongoDB data. Missing
               codes can be assigned through the item editor after verifying
@@ -624,6 +711,7 @@ export default function InventoryManagement() {
               size={18}
               className="absolute left-3.5 top-3.5 text-slate-400"
             />
+
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
@@ -638,6 +726,7 @@ export default function InventoryManagement() {
             onChange={(event) => setCategory(event.target.value)}
           >
             <option value="ALL">All Categories</option>
+
             {categories.map((name) => (
               <option key={name} value={name}>
                 {name}
@@ -651,10 +740,15 @@ export default function InventoryManagement() {
             onChange={(event) => setFilter(event.target.value)}
           >
             <option value="ALL">All Stock Statuses</option>
+
             <option value="Available">Available</option>
+
             <option value="Low Stock">Low Stock</option>
+
             <option value="Out of Stock">Out of Stock</option>
+
             <option value="Inactive">Inactive</option>
+
             <option value="MISSING_CODE">Missing Item Code</option>
           </select>
 
@@ -662,7 +756,9 @@ export default function InventoryManagement() {
             type="button"
             onClick={() => {
               setSearch("");
+
               setFilter("ALL");
+
               setCategory("ALL");
             }}
             className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600"
@@ -688,7 +784,9 @@ export default function InventoryManagement() {
               onChange={(event) => setPageSize(Number(event.target.value))}
             >
               <option value={10}>10</option>
+
               <option value={25}>25</option>
+
               <option value={50}>50</option>
             </select>
           </div>
@@ -702,15 +800,25 @@ export default function InventoryManagement() {
               <tr>
                 {[
                   "Item Code",
+
                   "Item Description",
+
                   "UOM",
+
                   "Category",
+
                   "Opening",
+
                   "Incoming",
+
                   "Outgoing",
+
                   "Closing",
+
                   "Minimum",
+
                   "Status",
+
                   "Action",
                 ].map((heading) => (
                   <th
@@ -731,6 +839,7 @@ export default function InventoryManagement() {
                       size={29}
                       className="mx-auto animate-spin text-[#001B54]"
                     />
+
                     <p className="mt-3 text-sm text-slate-500">
                       Loading inventory...
                     </p>
@@ -757,6 +866,7 @@ export default function InventoryManagement() {
                           item.itemName ||
                           "Unnamed Item"}
                       </p>
+
                       {item.itemDescription &&
                         item.itemName &&
                         item.itemDescription !== item.itemName && (
@@ -818,6 +928,7 @@ export default function InventoryManagement() {
                 <tr>
                   <td colSpan={11} className="px-4 py-14 text-center">
                     <Package size={35} className="mx-auto text-slate-300" />
+
                     <p className="mt-3 font-semibold text-slate-600">
                       No inventory items found
                     </p>
@@ -934,6 +1045,7 @@ export default function InventoryManagement() {
                   onChange={(event) =>
                     setEditForm((old) => ({
                       ...old,
+
                       itemCode: event.target.value.toUpperCase(),
                     }))
                   }
@@ -949,10 +1061,15 @@ export default function InventoryManagement() {
               <div className="grid gap-4 sm:grid-cols-2">
                 {[
                   ["itemName", "Item Name"],
+
                   ["itemDescription", "Item Description"],
+
                   ["category", "Category"],
+
                   ["otherCategory", "Other Category"],
+
                   ["unit", "UOM"],
+
                   ["minimumStock", "Minimum Stock"],
                 ].map(([key, label]) => (
                   <label
@@ -972,6 +1089,7 @@ export default function InventoryManagement() {
                       onChange={(event) =>
                         setEditForm((old) => ({
                           ...old,
+
                           [key]: event.target.value,
                         }))
                       }
@@ -1009,6 +1127,7 @@ export default function InventoryManagement() {
                   className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#001B54] px-4 py-3 text-sm font-bold text-white disabled:opacity-60"
                 >
                   {saving && <Loader2 size={17} className="animate-spin" />}
+
                   {saving ? "Saving..." : "Save Changes"}
                 </button>
               </div>

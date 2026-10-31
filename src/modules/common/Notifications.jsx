@@ -27,7 +27,7 @@ import {
 import api from "../../services/api";
 
 // =====================================================
-// AMI MAINTENANCE - PREMIUM NOTIFICATION BELL
+// AMI MAINT. - PREMIUM NOTIFICATION BELL
 // Shared by Student, Manager, Technician and others
 // =====================================================
 
@@ -582,7 +582,7 @@ export default function NotificationBell() {
 
         <div className="relative mt-4 flex items-center gap-2 text-[11px] font-semibold text-[#F2CE84]">
           <span className="h-1.5 w-1.5 rounded-full bg-[#F2CE84]" />
-          AMI MAINTENANCE • Notification Center
+          AMI MAINT. • Notification Center
         </div>
       </div>
 
@@ -865,7 +865,7 @@ export default function NotificationBell() {
       ======================================== */}
 
       <div className="flex shrink-0 items-center justify-between gap-2 border-t border-slate-100 bg-white px-4 py-3">
-        <span className="text-[11px] text-slate-400">AMI Maintenance</span>
+        <span className="text-[11px] text-slate-400">AMI MAINT.</span>
 
         <button
           type="button"

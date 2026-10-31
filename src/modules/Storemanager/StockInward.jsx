@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+
 import * as XLSX from "xlsx";
 
 import {
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
+import { useRealtime } from "../../context/RealtimeProvider";
 
 const API = "/store/stock-inward";
 
@@ -33,25 +35,37 @@ const labelClass =
 
 const quantityOptions = [
   { value: "Incoming", label: "Incoming (Recommended)" },
+
   { value: "Closing Qty", label: "Closing Qty" },
+
   { value: "Opening Qty", label: "Opening Qty" },
+
   { value: "Quantity", label: "Quantity" },
+
   { value: "QTY", label: "QTY" },
 ];
 
 const blankRow = () => ({
   itemCode: "",
+
   itemName: "",
+
   category: "",
+
   unit: "Nos",
+
   quantity: "",
 });
 
 const initialDetails = () => ({
   billNo: "",
+
   grnNo: "",
+
   vendorName: "",
+
   receiptDate: new Date().toLocaleDateString("en-CA"),
+
   remarks: "",
 });
 
@@ -60,6 +74,7 @@ const clean = (value) => String(value ?? "").trim();
 const normalize = (value) =>
   clean(value)
     .toLowerCase()
+
     .replace(/[^a-z0-9]/g, "");
 
 function formatDate(value) {
@@ -71,7 +86,9 @@ function formatDate(value) {
 }
 
 // ==========================================
+
 // EXCEL PARSER
+
 // ==========================================
 
 async function previewWorkbook(file, quantityColumn) {
@@ -86,7 +103,9 @@ async function previewWorkbook(file, quantityColumn) {
   try {
     workbook = XLSX.read(buffer, {
       type: "array",
+
       cellDates: true,
+
       cellFormula: false,
     });
   } catch (error) {
@@ -94,6 +113,7 @@ async function previewWorkbook(file, quantityColumn) {
 
     throw new Error(
       "Unable to read the Excel file. Please upload a valid .xlsx workbook.",
+
       { cause: error },
     );
   }
@@ -110,8 +130,11 @@ async function previewWorkbook(file, quantityColumn) {
 
   const data = XLSX.utils.sheet_to_json(sheet, {
     header: 1,
+
     defval: "",
+
     blankrows: false,
+
     raw: false,
   });
 
@@ -121,16 +144,22 @@ async function previewWorkbook(file, quantityColumn) {
 
   const aliases = {
     itemCode: ["itemcode", "itemid"],
+
     itemName: ["itemdescription", "itemname", "description"],
+
     unit: ["uom", "unit"],
+
     category: ["categoryname", "category"],
   };
 
   let headerIndex = -1;
+
   let columns = null;
 
   // Search for the actual header row.
+
   // University Excel files may contain
+
   // titles and blank rows above the headers.
 
   for (let index = 0; index < Math.min(data.length, 20); index++) {
@@ -163,7 +192,9 @@ async function previewWorkbook(file, quantityColumn) {
 
     if (validHeaders) {
       headerIndex = index;
+
       columns = selected;
+
       break;
     }
   }
@@ -175,6 +206,7 @@ async function previewWorkbook(file, quantityColumn) {
   }
 
   const records = [];
+
   const codes = new Set();
 
   for (let index = headerIndex + 1; index < data.length; index++) {
@@ -183,13 +215,17 @@ async function previewWorkbook(file, quantityColumn) {
     const itemCode = clean(row[columns.itemCode]).toUpperCase();
 
     const itemName = clean(row[columns.itemName]);
+
     const category = clean(row[columns.category]);
+
     const unit = clean(row[columns.unit]);
+
     const rawQuantity = clean(row[columns.quantity]);
 
     if (!itemCode && !itemName) continue;
 
     // Zero quantity means no stock to add.
+
     if (rawQuantity === "" || Number(rawQuantity) === 0) {
       continue;
     }
@@ -218,10 +254,15 @@ async function previewWorkbook(file, quantityColumn) {
 
     records.push({
       rowNumber: index + 1,
+
       itemCode,
+
       itemName,
+
       category,
+
       unit,
+
       quantity,
     });
   }
@@ -240,7 +281,9 @@ async function previewWorkbook(file, quantityColumn) {
 }
 
 // ==========================================
+
 // TOAST
+
 // ==========================================
 
 function Notice({ notice, onClose }) {
@@ -274,13 +317,22 @@ function Notice({ notice, onClose }) {
 }
 
 // ==========================================
+
 // MAIN COMPONENT
+
 // ==========================================
 
 export default function StockInward({ onBack }) {
+  const realtime = useRealtime();
+  const refreshKey = realtime?.refreshKey ?? 0;
+  const previousRefreshKeyRef = useRef(refreshKey);
+  const historyRequestRef = useRef(0);
+  const submittingRef = useRef(false);
+
   const [mode, setMode] = useState("excel");
 
   const [details, setDetails] = useState(initialDetails);
+
   const [rows, setRows] = useState([blankRow()]);
 
   const [file, setFile] = useState(null);
@@ -288,11 +340,13 @@ export default function StockInward({ onBack }) {
   const [quantityColumn, setQuantityColumn] = useState("Incoming");
 
   const [preview, setPreview] = useState([]);
+
   const [previewLoading, setPreviewLoading] = useState(false);
 
   const [previewError, setPreviewError] = useState("");
 
   const [history, setHistory] = useState([]);
+
   const [historyLoading, setHistoryLoading] = useState(false);
 
   const [historySearch, setHistorySearch] = useState("");
@@ -300,12 +354,15 @@ export default function StockInward({ onBack }) {
   const [submitting, setSubmitting] = useState(false);
 
   const [notice, setNotice] = useState(null);
+
   const [result, setResult] = useState(null);
 
   const fileInputRef = useRef(null);
 
   // ==========================================
+
   // TOAST MESSAGE
+
   // ==========================================
 
   const notify = useCallback((message, type = "success") => {
@@ -319,6 +376,7 @@ export default function StockInward({ onBack }) {
       () => {
         setNotice(null);
       },
+
       notice.type === "error" ? 4500 : 1600,
     );
 
@@ -326,42 +384,69 @@ export default function StockInward({ onBack }) {
   }, [notice]);
 
   // ==========================================
+
   // LOAD HISTORY
+
   // ==========================================
 
-  const loadHistory = useCallback(async () => {
-    setHistoryLoading(true);
+  const loadHistory = useCallback(
+    async (silent = false) => {
+      const requestId = ++historyRequestRef.current;
+      if (!silent) setHistoryLoading(true);
 
-    try {
-      const response = await api.get(`${API}/history`);
-
-      setHistory(response.data?.inward || []);
-    } catch (error) {
-      console.error("INWARD HISTORY ERROR:", error);
-
-      notify(
-        error?.response?.data?.message ||
-          "Failed to load stock inward history.",
-        "error",
-      );
-    } finally {
-      setHistoryLoading(false);
-    }
-  }, [notify]);
+      try {
+        const response = await api.get(`${API}/history`);
+        if (requestId !== historyRequestRef.current) return;
+        setHistory(
+          Array.isArray(response.data?.inward) ? response.data.inward : [],
+        );
+      } catch (error) {
+        if (requestId !== historyRequestRef.current) return;
+        console.error("INWARD HISTORY ERROR:", error);
+        if (!silent) {
+          notify(
+            error?.response?.data?.message ||
+              "Failed to load stock inward history.",
+            "error",
+          );
+        }
+      } finally {
+        if (requestId === historyRequestRef.current && !silent) {
+          setHistoryLoading(false);
+        }
+      }
+    },
+    [notify],
+  );
 
   useEffect(() => {
-    loadHistory();
+    void loadHistory();
+    return () => {
+      historyRequestRef.current += 1;
+    };
   }, [loadHistory]);
 
+  useEffect(() => {
+    if (previousRefreshKeyRef.current === refreshKey) return;
+    previousRefreshKeyRef.current = refreshKey;
+    if (document.visibilityState !== "visible" || submittingRef.current) return;
+    void loadHistory(true);
+  }, [refreshKey, loadHistory]);
+
   // ==========================================
+
   // PREVIEW EXCEL
+
   // ==========================================
 
   useEffect(() => {
     if (!file) {
       setPreview([]);
+
       setPreviewError("");
+
       setPreviewLoading(false);
+
       return;
     }
 
@@ -369,7 +454,9 @@ export default function StockInward({ onBack }) {
 
     const loadPreview = async () => {
       setPreviewLoading(true);
+
       setPreview([]);
+
       setPreviewError("");
 
       try {
@@ -383,6 +470,7 @@ export default function StockInward({ onBack }) {
 
         if (!cancelled) {
           setPreview([]);
+
           setPreviewError(
             error.message || "Unable to preview the selected Excel file.",
           );
@@ -402,12 +490,15 @@ export default function StockInward({ onBack }) {
   }, [file, quantityColumn]);
 
   // ==========================================
+
   // FORM HELPERS
+
   // ==========================================
 
   const updateDetails = (key, value) => {
     setDetails((old) => ({
       ...old,
+
       [key]: value,
     }));
   };
@@ -420,11 +511,17 @@ export default function StockInward({ onBack }) {
 
   const resetForm = () => {
     setDetails(initialDetails());
+
     setRows([blankRow()]);
+
     setFile(null);
+
     setPreview([]);
+
     setPreviewError("");
+
     setResult(null);
+
     setQuantityColumn("Incoming");
 
     if (fileInputRef.current) {
@@ -433,7 +530,9 @@ export default function StockInward({ onBack }) {
   };
 
   // ==========================================
+
   // FILE SELECTION
+
   // ==========================================
 
   const handleFileChange = (event) => {
@@ -446,22 +545,29 @@ export default function StockInward({ onBack }) {
       selected.size > MAX_FILE_SIZE
     ) {
       setFile(null);
+
       setPreview([]);
+
       setPreviewError("");
 
       notify("Please upload a valid .xlsx file smaller than 5 MB.", "error");
 
       event.target.value = "";
+
       return;
     }
 
     setFile(selected);
+
     setResult(null);
+
     setPreviewError("");
   };
 
   // ==========================================
+
   // SUBMIT
+
   // ==========================================
 
   const submit = async (event) => {
@@ -475,8 +581,10 @@ export default function StockInward({ onBack }) {
     ) {
       notify(
         "Please enter the Bill Number, GRN Number, Vendor Name and Receipt Date.",
+
         "error",
       );
+
       return;
     }
 
@@ -485,8 +593,10 @@ export default function StockInward({ onBack }) {
         notify(
           previewError ||
             "Please select a valid Excel file and verify the import preview.",
+
           "error",
         );
+
         return;
       }
     }
@@ -505,8 +615,10 @@ export default function StockInward({ onBack }) {
       if (!valid) {
         notify(
           "Please complete all required item details with valid quantities.",
+
           "error",
         );
+
         return;
       }
 
@@ -515,13 +627,16 @@ export default function StockInward({ onBack }) {
       if (new Set(codes).size !== codes.length) {
         notify(
           "Duplicate Item Codes are not allowed in the same stock inward.",
+
           "error",
         );
+
         return;
       }
     }
 
     setSubmitting(true);
+
     setResult(null);
 
     try {
@@ -545,9 +660,13 @@ export default function StockInward({ onBack }) {
 
           items: rows.map((row) => ({
             itemCode: row.itemCode.trim().toUpperCase(),
+
             itemName: row.itemName.trim(),
+
             category: row.category.trim(),
+
             unit: row.unit.trim(),
+
             quantity: Number(row.quantity),
           })),
         });
@@ -560,8 +679,11 @@ export default function StockInward({ onBack }) {
       await loadHistory();
 
       setFile(null);
+
       setPreview([]);
+
       setPreviewError("");
+
       setRows([blankRow()]);
 
       if (fileInputRef.current) {
@@ -573,27 +695,35 @@ export default function StockInward({ onBack }) {
       notify(
         error?.response?.data?.message ||
           "Failed to save the stock inward record.",
+
         "error",
       );
     } finally {
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };
 
   const filteredHistory = history.filter((entry) =>
     [entry.inwardNo, entry.billNo, entry.grnNo, entry.vendorName]
+
       .join(" ")
+
       .toLowerCase()
+
       .includes(historySearch.toLowerCase()),
   );
 
   const previewQuantity = preview.reduce(
     (sum, row) => sum + Number(row.quantity || 0),
+
     0,
   );
 
   // ==========================================
+
   // RENDER
+
   // ==========================================
 
   return (
@@ -618,7 +748,7 @@ export default function StockInward({ onBack }) {
 
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-[#E6C777]">
-                AMI MAINTENANCE · STORE MANAGER
+                AMI MAINT. · STORE MANAGER
               </p>
 
               <h1 className="text-2xl font-bold md:text-3xl">
@@ -646,6 +776,7 @@ export default function StockInward({ onBack }) {
           type="button"
           onClick={() => {
             setMode("excel");
+
             setResult(null);
           }}
           className={`flex items-center gap-3 rounded-2xl border p-5 text-left transition ${
@@ -671,6 +802,7 @@ export default function StockInward({ onBack }) {
           type="button"
           onClick={() => {
             setMode("manual");
+
             setResult(null);
           }}
           className={`flex items-center gap-3 rounded-2xl border p-5 text-left transition ${
@@ -717,17 +849,25 @@ export default function StockInward({ onBack }) {
             {[
               {
                 key: "billNo",
+
                 label: "Bill Number",
+
                 placeholder: "BILL-001",
               },
+
               {
                 key: "grnNo",
+
                 label: "GRN / Receipt Note Number",
+
                 placeholder: "GRN-001",
               },
+
               {
                 key: "vendorName",
+
                 label: "Vendor Name",
+
                 placeholder: "Supplier Name",
               },
             ].map((field) => (
@@ -848,6 +988,7 @@ export default function StockInward({ onBack }) {
 
                 <div>
                   <p className="font-bold">Excel Preview Failed</p>
+
                   <p className="mt-1">{previewError}</p>
                 </div>
               </div>
@@ -883,9 +1024,13 @@ export default function StockInward({ onBack }) {
                       <tr>
                         {[
                           "Item Code",
+
                           "Description",
+
                           "Category",
+
                           "UOM",
+
                           "Add Qty",
                         ].map((heading) => (
                           <th key={heading} className="px-4 py-3">
@@ -977,9 +1122,13 @@ export default function StockInward({ onBack }) {
                   <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                     {[
                       ["itemCode", "Item Code", "RDET38240"],
+
                       ["itemName", "Description", "LED Tube Light"],
+
                       ["category", "Category", "Electrical"],
+
                       ["unit", "UOM", "Nos"],
+
                       ["quantity", "Incoming Qty", "50"],
                     ].map(([key, label, placeholder]) => (
                       <label key={key}>
@@ -1064,8 +1213,11 @@ export default function StockInward({ onBack }) {
           <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
             {[
               ["Items", result.totalRows],
+
               ["New Items", result.newItems],
+
               ["Updated", result.updatedItems],
+
               ["Added Qty", result.totalQuantity],
             ].map(([label, value]) => (
               <div key={label} className="rounded-xl bg-white p-3">
@@ -1097,7 +1249,7 @@ export default function StockInward({ onBack }) {
 
           <button
             type="button"
-            onClick={loadHistory}
+            onClick={() => void loadHistory()}
             disabled={historyLoading}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
           >
@@ -1129,12 +1281,19 @@ export default function StockInward({ onBack }) {
               <tr>
                 {[
                   "Inward No.",
+
                   "Receipt Date",
+
                   "Bill No.",
+
                   "GRN No.",
+
                   "Vendor",
+
                   "Source",
+
                   "Items",
+
                   "Quantity",
                 ].map((title) => (
                   <th key={title} className="px-4 py-3 font-semibold">

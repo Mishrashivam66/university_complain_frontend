@@ -44,7 +44,7 @@ import { getMyComplaints } from "../../services/studentService";
 import useRealtimeRefresh from "../notifications/hooks/useRealtimeRefresh";
 
 // =====================================================
-// AMI MAINTENANCE - PREMIUM STUDENT DASHBOARD
+// AMI MAINT. - PREMIUM STUDENT DASHBOARD
 // =====================================================
 
 const STATUS_STYLES = {
@@ -567,7 +567,7 @@ export default function Dashboard() {
           <div className="min-w-0">
             <span className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-white/5 px-3 py-1.5 text-[11px] font-extrabold tracking-[0.16em] text-[#F1C875]">
               <ShieldCheck size={15} />
-              AMI MAINTENANCE
+              AMI MAINT.
             </span>
 
             <div className="mt-5 flex items-center gap-2 text-xs font-medium text-blue-100">
@@ -1254,7 +1254,7 @@ export default function Dashboard() {
       <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 pt-5 text-xs text-slate-400">
         <span className="inline-flex items-center gap-2">
           <ShieldCheck size={15} />
-          AMI MAINTENANCE · Student Portal
+          AMI MAINT. · Student Portal
         </span>
 
         <span>University Maintenance Management</span>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import {
@@ -27,9 +27,10 @@ import {
   X,
 } from "lucide-react";
 import api from "../../services/api";
+import { useRealtime } from "../../context/RealtimeProvider";
 
 // =====================================================
-// AMI MAINTENANCE — UNIFIED COMPLAINT OPERATIONS
+// AMI MAINT. — UNIFIED COMPLAINT OPERATIONS
 // =====================================================
 
 const PAGE_SIZE = 12;
@@ -309,6 +310,9 @@ function InfoItem({ label, value }) {
 
 export default function Complaints() {
   const navigate = useNavigate();
+  const { refreshKey } = useRealtime();
+  const lastRefreshKey = useRef(refreshKey);
+  const fetchInProgress = useRef(false);
 
   const [complaints, setComplaints] = useState([]);
   const [workers, setWorkers] = useState([]);
@@ -356,9 +360,16 @@ export default function Complaints() {
   // FETCH DATA
   // =====================================================
 
-  const fetchAll = useCallback(async (silent = false) => {
-    if (silent) setRefreshing(true);
-    else setLoading(true);
+  const fetchAll = useCallback(async (silent = false, automatic = false) => {
+    // Do not overlap automatic/manual API requests.
+    if (fetchInProgress.current) return;
+    fetchInProgress.current = true;
+
+    // Background updates must not hide the page or show a spinner.
+    if (!automatic) {
+      if (silent) setRefreshing(true);
+      else setLoading(true);
+    }
 
     const endpoints = {
       complaints: "/maintenance/worker/complaints",
@@ -392,7 +403,7 @@ export default function Complaints() {
 
         if (result.status === "rejected") {
           nextAvailability[key] = false;
-          console.error(`AMI MAINTENANCE ${key} API ERROR:`, result.reason);
+          console.error(`AMI MAINT. ${key} API ERROR:`, result.reason);
           return;
         }
 
@@ -419,7 +430,7 @@ export default function Complaints() {
       setAvailable(nextAvailability);
       setNow(Date.now());
 
-      if (silent) {
+      if (silent && !automatic) {
         if (nextAvailability.complaints) {
           toast.success("Complaints refreshed", {
             duration: 1000,
@@ -430,10 +441,13 @@ export default function Complaints() {
       }
     } catch (error) {
       console.error("COMPLAINT FETCH ERROR:", error);
-      toast.error("Unable to load complaint data");
+      if (!automatic) toast.error("Unable to load complaint data");
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      fetchInProgress.current = false;
+      if (!automatic) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, []);
 
@@ -450,6 +464,16 @@ export default function Complaints() {
 
     return () => window.clearInterval(timer);
   }, [fetchAll]);
+
+  // Refresh visible data every 20 seconds via the global provider.
+  // Keep the currently open drawer, forms, filters, and pagination intact.
+  useEffect(() => {
+    if (refreshKey === lastRefreshKey.current) return;
+    lastRefreshKey.current = refreshKey;
+
+    if (working || Boolean(bulkBusy)) return;
+    void fetchAll(false, true);
+  }, [refreshKey, fetchAll, working, bulkBusy]);
 
   useEffect(() => {
     if (!selectedId) return undefined;
@@ -1108,7 +1132,7 @@ export default function Complaints() {
               <Wrench size={13} className="text-[#E8C477]" />
 
               <p className="text-[10px] font-extrabold uppercase tracking-[0.15em] text-[#E8C477]">
-                AMI MAINTENANCE · OPERATIONS CENTER
+                AMI MAINT. · OPERATIONS CENTER
               </p>
             </div>
 
@@ -1602,7 +1626,7 @@ export default function Complaints() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[#E8C477]">
-                    AMI MAINTENANCE
+                    AMI MAINT.
                   </p>
 
                   <h2 className="mt-2 text-xl font-black">
@@ -2334,7 +2358,7 @@ export default function Complaints() {
 
       <footer className="flex items-center gap-2 border-t border-slate-200 pt-4 text-xs text-slate-400">
         <ShieldCheck size={14} />
-        AMI MAINTENANCE · Unified Complaint Operations
+        AMI MAINT. · Unified Complaint Operations
       </footer>
     </div>
   );

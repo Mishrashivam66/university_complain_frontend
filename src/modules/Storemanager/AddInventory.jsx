@@ -282,7 +282,7 @@ export default function AddInventory() {
           <div>
             <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#E6C777]">
               <PackagePlus size={17} />
-              AMI MAINTENANCE · STORE MANAGER
+              AMI MAINT. · STORE MANAGER
             </p>
 
             <h1 className="text-3xl font-extrabold md:text-4xl">

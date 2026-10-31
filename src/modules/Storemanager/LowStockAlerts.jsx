@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import { useNavigate } from "react-router-dom";
 
 import {
@@ -23,12 +24,16 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
+import { useRealtime } from "../../context/RealtimeProvider";
 
 // ==========================================
+
 // CONFIGURATION
+
 // ==========================================
 
 const INVENTORY_API = "/store/inventory/all";
+
 const STOCK_INWARD_URL = "/store/dashboard?view=stock-inward";
 
 const inputClass =
@@ -42,11 +47,14 @@ const formatQty = (value) =>
 const clean = (value) => String(value ?? "").trim();
 
 // ==========================================
+
 // STOCK HELPERS
+
 // ==========================================
 
 function getStockStatus(item) {
   const current = Number(item.currentStock ?? 0);
+
   const minimum = Number(item.minimumStock ?? 0);
 
   if (current <= 0) {
@@ -62,6 +70,7 @@ function getStockStatus(item) {
 
 function getShortage(item) {
   const current = Number(item.currentStock ?? 0);
+
   const minimum = Number(item.minimumStock ?? 0);
 
   return Math.max(0, minimum - current);
@@ -76,7 +85,9 @@ function stockBadge(status) {
 }
 
 // ==========================================
+
 // REUSABLE STAT CARD
+
 // ==========================================
 
 function StatCard({ title, value, subtitle, icon: Icon, iconClass }) {
@@ -104,7 +115,9 @@ function StatCard({ title, value, subtitle, icon: Icon, iconClass }) {
 }
 
 // ==========================================
+
 // TOAST
+
 // ==========================================
 
 function Notice({ notice, onClose }) {
@@ -142,35 +155,49 @@ function Notice({ notice, onClose }) {
 }
 
 // ==========================================
+
 // MAIN COMPONENT
+
 // ==========================================
 
 const LowStockAlerts = () => {
   const navigate = useNavigate();
+  const { refreshKey } = useRealtime();
+  const lastRefreshKey = useRef(refreshKey);
+  const requestVersion = useRef(0);
 
   // ==========================================
+
   // STATE
+
   // ==========================================
 
   const [items, setItems] = useState([]);
 
   const [loading, setLoading] = useState(true);
+
   const [refreshing, setRefreshing] = useState(false);
 
   const [search, setSearch] = useState("");
+
   const [statusFilter, setStatusFilter] = useState("ALL");
+
   const [categoryFilter, setCategoryFilter] = useState("ALL");
 
   const [view, setView] = useState("table");
 
   const [page, setPage] = useState(1);
+
   const [pageSize, setPageSize] = useState(10);
 
   const [error, setError] = useState("");
+
   const [notice, setNotice] = useState(null);
 
   // ==========================================
+
   // NOTIFICATIONS
+
   // ==========================================
 
   const notify = useCallback((message, type = "success") => {
@@ -184,6 +211,7 @@ const LowStockAlerts = () => {
       () => {
         setNotice(null);
       },
+
       notice.type === "error" ? 3500 : 1400,
     );
 
@@ -191,75 +219,84 @@ const LowStockAlerts = () => {
   }, [notice]);
 
   // ==========================================
+
   // FETCH LIVE INVENTORY
+
   // ==========================================
 
   const fetchLowStock = useCallback(
-    async (showRefresh = false) => {
-      if (showRefresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+    async (mode = "initial") => {
+      const silent = mode === "silent";
+      const manual = mode === "manual";
+      const requestId = ++requestVersion.current;
+
+      if (manual) setRefreshing(true);
+      if (!silent && !manual) setLoading(true);
 
       try {
-        setError("");
-
         const response = await api.get(INVENTORY_API);
+        if (requestId !== requestVersion.current) return;
 
         const inventory =
           response.data?.inventory ?? response.data?.items ?? [];
-
         if (!Array.isArray(inventory)) {
           throw new Error("Invalid inventory data received from the server.");
         }
 
-        // Both low-stock and completely out-of-stock
-        // items need attention. Inactive items excluded.
+        // Inactive items excluded; both low and zero stock trigger alerts.
         const alerts = inventory
-          .filter((item) => {
-            if (item.isActive === false) return false;
-
-            return getStockStatus(item) !== "AVAILABLE";
-          })
+          .filter(
+            (item) =>
+              item.isActive !== false && getStockStatus(item) !== "AVAILABLE",
+          )
           .sort((a, b) => {
             const aStatus = getStockStatus(a);
             const bStatus = getStockStatus(b);
-
-            if (aStatus !== bStatus) {
-              return aStatus === "OUT_OF_STOCK" ? -1 : 1;
-            }
-
+            if (aStatus !== bStatus) return aStatus === "OUT_OF_STOCK" ? -1 : 1;
             return getShortage(b) - getShortage(a);
           });
 
         setItems(alerts);
-
-        if (showRefresh) {
-          notify("Low stock alerts refreshed successfully.");
-        }
+        setError("");
+        if (manual) notify("Low stock alerts refreshed successfully.");
       } catch (err) {
+        if (requestId !== requestVersion.current) return;
         console.error("LOW STOCK FETCH ERROR:", err);
-
-        setError(
-          err.response?.data?.message ||
-            err.message ||
-            "Failed to load low stock alerts.",
-        );
+        // A temporary background network error should not replace visible data.
+        if (!silent) {
+          setError(
+            err.response?.data?.message ||
+              err.message ||
+              "Failed to load low stock alerts.",
+          );
+        }
       } finally {
-        setLoading(false);
-        setRefreshing(false);
+        if (requestId === requestVersion.current) {
+          if (!silent && !manual) setLoading(false);
+          if (manual) setRefreshing(false);
+        }
       }
     },
     [notify],
   );
 
   useEffect(() => {
-    fetchLowStock();
+    fetchLowStock("initial");
+    return () => {
+      requestVersion.current += 1;
+    };
   }, [fetchLowStock]);
 
+  useEffect(() => {
+    if (lastRefreshKey.current === refreshKey) return;
+    lastRefreshKey.current = refreshKey;
+    if (document.visibilityState === "visible") fetchLowStock("silent");
+  }, [refreshKey, fetchLowStock]);
+
   // ==========================================
+
   // SUMMARY
+
   // ==========================================
 
   const summary = useMemo(() => {
@@ -273,15 +310,20 @@ const LowStockAlerts = () => {
 
     return {
       total: items.length,
+
       outOfStock,
+
       lowStock,
+
       categories: new Set(items.map((item) => item.category).filter(Boolean))
         .size,
     };
   }, [items]);
 
   // ==========================================
+
   // CATEGORY OPTIONS
+
   // ==========================================
 
   const categories = useMemo(() => {
@@ -291,7 +333,9 @@ const LowStockAlerts = () => {
   }, [items]);
 
   // ==========================================
+
   // SEARCH AND FILTER
+
   // ==========================================
 
   const filteredItems = useMemo(() => {
@@ -300,12 +344,18 @@ const LowStockAlerts = () => {
     return items.filter((item) => {
       const searchable = [
         item.itemCode,
+
         item.itemName,
+
         item.itemDescription,
+
         item.category,
+
         item.unit,
       ]
+
         .join(" ")
+
         .toLowerCase();
 
       const matchesSearch = !query || searchable.includes(query);
@@ -330,25 +380,36 @@ const LowStockAlerts = () => {
 
   const visibleItems = filteredItems.slice(
     (currentPage - 1) * pageSize,
+
     currentPage * pageSize,
   );
 
   // ==========================================
+
   // RESTOCK NAVIGATION
+
   // ==========================================
 
   const restockItem = (item) => {
     // Navigate to the existing Stock Inward page.
+
     // Do not directly overwrite currentStock.
+
     //
+
     // Users can enter this Item Code in
+
     // Manual Stock Inward with Bill and GRN.
+
     navigate(STOCK_INWARD_URL, {
       state: {
         restockItem: {
           itemCode: item.itemCode,
+
           itemName: item.itemName,
+
           category: item.category,
+
           unit: item.unit,
         },
       },
@@ -357,13 +418,18 @@ const LowStockAlerts = () => {
 
   const resetFilters = () => {
     setSearch("");
+
     setStatusFilter("ALL");
+
     setCategoryFilter("ALL");
+
     setPage(1);
   };
 
   // ==========================================
+
   // RENDER
+
   // ==========================================
 
   return (
@@ -377,7 +443,7 @@ const LowStockAlerts = () => {
           <div>
             <p className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-[#E6C777]">
               <ShieldAlert size={17} />
-              AMI MAINTENANCE · STORE MANAGER
+              AMI MAINT. · STORE MANAGER
             </p>
 
             <h1 className="text-2xl font-extrabold md:text-4xl">
@@ -444,6 +510,7 @@ const LowStockAlerts = () => {
       {error && (
         <div className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           <AlertTriangle size={20} className="shrink-0" />
+
           <span>{error}</span>
         </div>
       )}
@@ -464,7 +531,7 @@ const LowStockAlerts = () => {
 
           <button
             type="button"
-            onClick={() => fetchLowStock(true)}
+            onClick={() => fetchLowStock("manual")}
             disabled={refreshing || loading}
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
           >
@@ -495,7 +562,9 @@ const LowStockAlerts = () => {
             onChange={(event) => setStatusFilter(event.target.value)}
           >
             <option value="ALL">All Alert Types</option>
+
             <option value="OUT_OF_STOCK">Out of Stock</option>
+
             <option value="LOW_STOCK">Low Stock</option>
           </select>
 
@@ -565,7 +634,9 @@ const LowStockAlerts = () => {
               aria-label="Rows per page"
             >
               <option value={10}>10</option>
+
               <option value={25}>25</option>
+
               <option value={50}>50</option>
             </select>
           </div>
@@ -576,6 +647,7 @@ const LowStockAlerts = () => {
         {loading ? (
           <div className="flex flex-col items-center justify-center py-16">
             <Loader2 size={32} className="animate-spin text-[#001B54]" />
+
             <p className="mt-3 text-sm text-slate-500">
               Loading stock alerts...
             </p>
@@ -603,13 +675,21 @@ const LowStockAlerts = () => {
                 <tr>
                   {[
                     "Item Code",
+
                     "Item Description",
+
                     "Category",
+
                     "UOM",
+
                     "Current",
+
                     "Minimum",
+
                     "Shortage",
+
                     "Alert Status",
+
                     "Action",
                   ].map((heading) => (
                     <th
@@ -730,7 +810,9 @@ const LowStockAlerts = () => {
                   <div className="mt-5 grid grid-cols-3 gap-2">
                     {[
                       ["Current", formatQty(item.currentStock)],
+
                       ["Minimum", formatQty(item.minimumStock)],
+
                       ["Shortage", formatQty(getShortage(item))],
                     ].map(([label, value]) => (
                       <div key={label} className="rounded-xl bg-slate-50 p-3">
