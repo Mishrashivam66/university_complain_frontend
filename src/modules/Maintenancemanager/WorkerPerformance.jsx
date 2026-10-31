@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRealtime } from "../../context/RealtimeProvider";
+
 import toast from "react-hot-toast";
+
 import jsPDF from "jspdf";
+
 import autoTable from "jspdf-autotable";
+
 import api from "../../services/api";
 
 import {
@@ -26,13 +31,13 @@ import {
   Trophy,
   Users,
 } from "lucide-react";
-
-// ======================================================
-// AMI MAINT.
-// PREMIUM TECHNICIAN PERFORMANCE ANALYTICS
-// ======================================================
+//======================================================
+//AMI MAINT.
+//PREMIUM TECHNICIAN PERFORMANCE ANALYTICS
+//======================================================
 
 const API_URL = "/maintenance/performance";
+
 const PAGE_SIZE = 10;
 
 const INPUT =
@@ -48,10 +53,12 @@ const GOLD =
   "inline-flex items-center justify-center gap-2 rounded-xl bg-[#D6AD59] px-4 py-3 text-xs font-extrabold text-[#081B35] transition hover:bg-[#EAC77F] disabled:opacity-50";
 
 const text = (value) => String(value ?? "").trim();
+
 const upper = (value) => text(value).toUpperCase();
 
 const number = (value) => {
   const result = Number(value);
+
   return Number.isFinite(result) ? result : 0;
 };
 
@@ -62,7 +69,9 @@ const formatted = (value) => number(value).toLocaleString("en-IN");
 function formatDate(value = new Date()) {
   return new Intl.DateTimeFormat("en-IN", {
     dateStyle: "medium",
+
     timeStyle: "short",
+
     timeZone: "Asia/Kolkata",
   }).format(value);
 }
@@ -76,18 +85,21 @@ function getStatusStyle(status) {
     case "TOP_PERFORMER":
       return {
         label: "Top Performer",
+
         style: "bg-emerald-50 text-emerald-700 ring-emerald-200",
       };
 
     case "LOW_PERFORMANCE":
       return {
         label: "Needs Attention",
+
         style: "bg-rose-50 text-rose-700 ring-rose-200",
       };
 
     default:
       return {
         label: text(status) ? text(status).replaceAll("_", " ") : "Not Rated",
+
         style: "bg-amber-50 text-amber-800 ring-amber-200",
       };
   }
@@ -108,28 +120,35 @@ function StatusBadge({ status }) {
 function initials(name) {
   return getWorkerName({ name })
     .split(/\s+/)
+
     .slice(0, 2)
+
     .map((part) => part[0] || "")
+
     .join("")
+
     .toUpperCase();
 }
 
 function getRate(worker) {
   const assigned = number(worker.assignedJobs);
+
   const completed = number(worker.completedJobs);
 
   return assigned > 0 ? Math.min(100, (completed / assigned) * 100) : 0;
 }
-
-// ======================================================
-// SUMMARY CARD
-// ======================================================
+//======================================================
+//SUMMARY CARD
+//======================================================
 
 function StatCard({ icon: Icon, title, value, description, tone = "blue" }) {
   const styles = {
     blue: "bg-blue-50 text-blue-600",
+
     gold: "bg-amber-50 text-amber-600",
+
     green: "bg-emerald-50 text-emerald-600",
+
     red: "bg-rose-50 text-rose-600",
   };
 
@@ -153,10 +172,9 @@ function StatCard({ icon: Icon, title, value, description, tone = "blue" }) {
     </div>
   );
 }
-
-// ======================================================
-// PERFORMANCE BAR
-// ======================================================
+//======================================================
+//PERFORMANCE BAR
+//======================================================
 
 function PerformanceBar({ value, showLabel = true }) {
   const score = percent(value);
@@ -175,6 +193,7 @@ function PerformanceBar({ value, showLabel = true }) {
           <span className="text-[11px] font-semibold text-slate-500">
             Performance
           </span>
+
           <span className="text-xs font-black text-[#102B52]">
             {score.toFixed(1)}%
           </span>
@@ -190,16 +209,18 @@ function PerformanceBar({ value, showLabel = true }) {
     </div>
   );
 }
-
-// ======================================================
-// SMALL INFORMATION TILE
-// ======================================================
+//======================================================
+//SMALL INFORMATION TILE
+//======================================================
 
 function MiniStat({ label, value, icon: Icon, tone = "blue" }) {
   const tones = {
     blue: "text-blue-600 bg-blue-50",
+
     green: "text-emerald-600 bg-emerald-50",
+
     gold: "text-amber-600 bg-amber-50",
+
     red: "text-rose-600 bg-rose-50",
   };
 
@@ -219,10 +240,9 @@ function MiniStat({ label, value, icon: Icon, tone = "blue" }) {
     </div>
   );
 }
-
-// ======================================================
-// TECHNICIAN DETAIL CARD
-// ======================================================
+//======================================================
+//TECHNICIAN DETAIL CARD
+//======================================================
 
 function TechnicianCard({ worker, rank }) {
   const [expanded, setExpanded] = useState(false);
@@ -307,8 +327,11 @@ function TechnicianCard({ worker, rank }) {
             <div className="grid grid-cols-2 gap-3">
               {[
                 ["Employee ID", worker.id || worker.employeeId],
+
                 ["Shift", worker.shift],
+
                 ["Rating", worker.rating],
+
                 ["Completion Rate", `${getRate(worker).toFixed(1)}%`],
               ].map(([label, value]) => (
                 <div key={label} className="rounded-xl bg-[#F8FAFD] p-3">
@@ -332,17 +355,15 @@ function TechnicianCard({ worker, rank }) {
     </article>
   );
 }
-
-// ======================================================
-// CSV HELPERS
-// ======================================================
+//======================================================
+//CSV HELPERS
+//======================================================
 
 function csvCell(value) {
   const raw = String(value ?? "");
 
-  // Preserve values as text and reduce spreadsheet
-  // formula-injection risk in downloaded CSV files.
-  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw;
+  // Prevent CSV formula injection
+  const safe = /^[=+@\t\r-]/.test(raw) ? `'${raw}` : raw;
 
   return `"${safe.replaceAll('"', '""')}"`;
 }
@@ -355,101 +376,112 @@ function saveCSV(rows, filename) {
   });
 
   const url = URL.createObjectURL(blob);
+
   const link = document.createElement("a");
 
   link.href = url;
+
   link.download = filename;
+
   document.body.appendChild(link);
+
   link.click();
+
   link.remove();
 
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-
-// ======================================================
-// MAIN PAGE
-// ======================================================
+//======================================================
+//MAIN PAGE
+//======================================================
 
 export default function WorkerPerformance() {
+  const { refreshKey } = useRealtime();
+  const firstRefresh = useRef(true);
+  const requestController = useRef(null);
+  const requestSequence = useRef(0);
   const [workers, setWorkers] = useState([]);
+
   const [loading, setLoading] = useState(true);
+
   const [refreshing, setRefreshing] = useState(false);
+
   const [error, setError] = useState("");
 
   const [search, setSearch] = useState("");
+
   const [department, setDepartment] = useState("ALL");
+
   const [status, setStatus] = useState("ALL");
+
   const [sortBy, setSortBy] = useState("SCORE_DESC");
+
   const [view, setView] = useState("TABLE");
+
   const [page, setPage] = useState(1);
+  //====================================================
+  //FETCH WORKERS
+  //====================================================
 
-  // ====================================================
-  // FETCH WORKERS
-  // ====================================================
+  const fetchWorkers = useCallback(async ({ mode = "auto" } = {}) => {
+    // Automatic refresh is silent. Only manual refresh displays feedback.
+    requestController.current?.abort();
+    const controller = new AbortController();
+    requestController.current = controller;
+    const sequence = ++requestSequence.current;
 
-  const fetchWorkers = useCallback(async ({ silent = false, signal } = {}) => {
-    if (silent) setRefreshing(true);
-    else setLoading(true);
+    if (mode === "initial") setLoading(true);
+    if (mode === "manual") setRefreshing(true);
 
     try {
-      const response = await api.get(API_URL, { signal });
-
+      const response = await api.get(API_URL, { signal: controller.signal });
+      if (controller.signal.aborted || sequence !== requestSequence.current)
+        return;
       const records = response?.data?.workers;
-
-      if (!Array.isArray(records)) {
+      if (!Array.isArray(records))
         throw new Error("Invalid performance API response");
-      }
-
-      if (signal?.aborted) return;
-
       setWorkers(records);
       setError("");
-
-      if (silent) {
-        toast.success("Performance data refreshed", {
-          duration: 1100,
-        });
+      if (mode === "manual") {
+        toast.success("Performance data refreshed", { duration: 1100 });
       }
     } catch (err) {
       if (
-        signal?.aborted ||
+        controller.signal.aborted ||
+        sequence !== requestSequence.current ||
         err?.code === "ERR_CANCELED" ||
         err?.name === "CanceledError"
-      ) {
+      )
         return;
-      }
-
       console.error("PERFORMANCE FETCH ERROR:", err);
-
       const message =
         err?.response?.data?.message || "Unable to load Technician Performance";
-
-      setError(message);
-
-      if (!silent) {
-        toast.error(message, { duration: 2000 });
+      // Keep the last valid dataset on a failed silent refresh.
+      if (mode !== "auto") {
+        setError(message);
+        if (mode === "initial") toast.error(message, { duration: 2000 });
+        if (mode === "manual") toast.error(message, { duration: 1200 });
       }
     } finally {
-      if (!signal?.aborted) {
-        setLoading(false);
-        setRefreshing(false);
+      if (!controller.signal.aborted && sequence === requestSequence.current) {
+        if (mode === "initial") setLoading(false);
+        if (mode === "manual") setRefreshing(false);
       }
     }
   }, []);
 
   useEffect(() => {
-    const controller = new AbortController();
-
-    void fetchWorkers({
-      signal: controller.signal,
-    });
-
-    return () => controller.abort();
+    void fetchWorkers({ mode: "initial" });
+    return () => requestController.current?.abort();
   }, [fetchWorkers]);
 
-  // ====================================================
-  // SUMMARY STATISTICS
-  // ====================================================
+  useEffect(() => {
+    if (firstRefresh.current) {
+      firstRefresh.current = false;
+      return;
+    }
+    void fetchWorkers({ mode: "auto" });
+  }, [refreshKey, fetchWorkers]);
 
   const summary = useMemo(() => {
     const total = workers.length;
@@ -466,29 +498,41 @@ export default function WorkerPerformance() {
       total > 0
         ? workers.reduce(
             (sum, worker) => sum + number(worker.performanceScore),
+
             0,
           ) / total
         : 0;
 
     return {
       total,
+
       top,
+
       low,
+
       average,
+
       assigned: workers.reduce(
         (sum, worker) => sum + number(worker.assignedJobs),
+
         0,
       ),
+
       completed: workers.reduce(
         (sum, worker) => sum + number(worker.completedJobs),
+
         0,
       ),
+
       pending: workers.reduce(
         (sum, worker) => sum + number(worker.pendingJobs),
+
         0,
       ),
+
       reopened: workers.reduce(
         (sum, worker) => sum + number(worker.reopenedComplaints),
+
         0,
       ),
     };
@@ -497,8 +541,11 @@ export default function WorkerPerformance() {
   const departments = useMemo(
     () =>
       [...new Set(workers.map((w) => text(w.department)))]
+
         .filter(Boolean)
+
         .sort(),
+
     [workers],
   );
 
@@ -510,13 +557,20 @@ export default function WorkerPerformance() {
         !q ||
         [
           worker.name,
+
           worker.id,
+
           worker.employeeId,
+
           worker.department,
+
           worker.shift,
         ]
+
           .map((v) => text(v).toLowerCase())
+
           .join(" ")
+
           .includes(q);
 
       return (
@@ -552,46 +606,70 @@ export default function WorkerPerformance() {
 
   const visibleWorkers = filteredWorkers.slice(
     (safePage - 1) * PAGE_SIZE,
+
     safePage * PAGE_SIZE,
   );
-
-  // ====================================================
-  // EXPORT CSV / EXCEL COMPATIBLE
-  // ====================================================
+  //====================================================
+  //EXPORT CSV / EXCEL COMPATIBLE
+  //====================================================
 
   function exportExcel() {
     if (!filteredWorkers.length) {
       toast.error("No Technician records to export");
+
       return;
     }
 
     const rows = [
       [
         "Technician Name",
+
         "Employee ID",
+
         "Department",
+
         "Shift",
+
         "Assigned Jobs",
+
         "Completed Jobs",
+
         "Pending Jobs",
+
         "Reopened Complaints",
+
         "Completion Rate",
+
         "Performance Score",
+
         "Rating",
+
         "Status",
       ],
+
       ...filteredWorkers.map((worker) => [
         getWorkerName(worker),
+
         worker.id || worker.employeeId || "",
+
         worker.department || "",
+
         worker.shift || "",
+
         number(worker.assignedJobs),
+
         number(worker.completedJobs),
+
         number(worker.pendingJobs),
+
         number(worker.reopenedComplaints),
+
         `${getRate(worker).toFixed(1)}%`,
+
         `${percent(worker.performanceScore).toFixed(1)}%`,
+
         worker.rating ?? "",
+
         readableStatus(worker.status),
       ]),
     ];
@@ -602,105 +680,155 @@ export default function WorkerPerformance() {
       duration: 1100,
     });
   }
-
-  // ====================================================
-  // EXPORT PDF
-  // ====================================================
+  //====================================================
+  //EXPORT PDF
+  //====================================================
 
   function exportPDF() {
     if (!filteredWorkers.length) {
       toast.error("No Technician records to export");
+
       return;
     }
 
     try {
       const doc = new jsPDF({
         orientation: "landscape",
+
         unit: "mm",
+
         format: "a4",
       });
 
       const width = doc.internal.pageSize.getWidth();
+
       const height = doc.internal.pageSize.getHeight();
 
       doc.setFillColor(8, 27, 53);
+
       doc.rect(0, 0, width, 39, "F");
 
       doc.setFillColor(214, 173, 89);
+
       doc.rect(0, 38, width, 1.2, "F");
 
       doc.setTextColor(233, 194, 119);
+
       doc.setFont("helvetica", "bold");
+
       doc.setFontSize(10);
+
       doc.text("AMI MAINT.", 14, 12);
 
       doc.setFontSize(19);
+
       doc.setTextColor(255, 255, 255);
+
       doc.text("Technician Performance Report", 14, 23);
 
       doc.setFont("helvetica", "normal");
+
       doc.setFontSize(9);
+
       doc.setTextColor(212, 223, 239);
+
       doc.text(`Generated: ${formatDate()}`, 14, 32);
 
       doc.setTextColor(23, 45, 74);
+
       doc.setFontSize(10);
+
       doc.text(
         `Technicians: ${filteredWorkers.length} | Average Score: ${summary.average.toFixed(
           1,
         )}%`,
+
         14,
+
         48,
       );
 
       autoTable(doc, {
         startY: 55,
+
         margin: { left: 12, right: 12, bottom: 17 },
+
         head: [
           [
             "Technician",
+
             "Department",
+
             "Assigned",
+
             "Completed",
+
             "Pending",
+
             "Reopened",
+
             "Score",
+
             "Status",
           ],
         ],
+
         body: filteredWorkers.map((worker) => [
           getWorkerName(worker),
+
           text(worker.department) || "—",
+
           number(worker.assignedJobs),
+
           number(worker.completedJobs),
+
           number(worker.pendingJobs),
+
           number(worker.reopenedComplaints),
+
           `${percent(worker.performanceScore).toFixed(1)}%`,
+
           readableStatus(worker.status),
         ]),
+
         theme: "grid",
+
         styles: {
           fontSize: 8,
+
           cellPadding: 3.5,
+
           textColor: [23, 45, 74],
+
           lineColor: [227, 232, 240],
+
           lineWidth: 0.1,
+
           overflow: "linebreak",
         },
+
         headStyles: {
           fillColor: [16, 43, 82],
+
           textColor: [255, 255, 255],
+
           fontStyle: "bold",
         },
+
         alternateRowStyles: {
           fillColor: [248, 250, 253],
         },
+
         didDrawPage: (data) => {
           if (data.pageNumber > 1) {
             doc.setFillColor(8, 27, 53);
+
             doc.rect(0, 0, width, 13, "F");
+
             doc.setFontSize(9);
+
             doc.setTextColor(255, 255, 255);
+
             doc.text("AMI MAINT.", 12, 8);
           }
         },
@@ -710,15 +838,23 @@ export default function WorkerPerformance() {
 
       for (let i = 1; i <= pages; i++) {
         doc.setPage(i);
+
         doc.setDrawColor(220, 226, 234);
+
         doc.line(12, height - 13, width - 12, height - 13);
+
         doc.setFontSize(8);
+
         doc.setTextColor(110, 124, 145);
+
         doc.text(
           "AMI MAINT. | University Maintenance Operations",
+
           12,
+
           height - 8,
         );
+
         doc.text(`Page ${i} of ${pages}`, width - 12, height - 8, {
           align: "right",
         });
@@ -731,40 +867,44 @@ export default function WorkerPerformance() {
       });
     } catch (err) {
       console.error("PDF EXPORT ERROR:", err);
+
       toast.error("PDF generation failed");
     }
   }
 
   function resetFilters() {
     setSearch("");
+
     setDepartment("ALL");
+
     setStatus("ALL");
+
     setSortBy("SCORE_DESC");
+
     setPage(1);
   }
 
   function readableStatus(value) {
     return text(value).replaceAll("_", " ") || "Unrated";
   }
-
-  // ====================================================
-  // LOADING
-  // ====================================================
+  //====================================================
+  //LOADING
+  //====================================================
 
   if (loading) {
     return (
       <div className="flex min-h-[55vh] items-center justify-center gap-3">
         <Loader2 size={27} className="animate-spin text-[#102B52]" />
+
         <span className="text-sm font-semibold text-[#102B52]">
           Loading Technician Performance...
         </span>
       </div>
     );
   }
-
-  // ====================================================
-  // MAIN UI
-  // ====================================================
+  //====================================================
+  //MAIN UI
+  //====================================================
 
   return (
     <main className="min-w-0 space-y-6 pb-8 text-[#102B52]">
@@ -799,12 +939,13 @@ export default function WorkerPerformance() {
               type="button"
               className={BTN}
               disabled={refreshing}
-              onClick={() => fetchWorkers({ silent: true })}
+              onClick={() => fetchWorkers({ mode: "manual" })}
             >
               <RefreshCcw
                 size={16}
                 className={refreshing ? "animate-spin" : ""}
               />
+
               {refreshing ? "Refreshing..." : "Refresh"}
             </button>
 
@@ -840,13 +981,14 @@ export default function WorkerPerformance() {
         >
           <p className="flex items-center gap-2 text-xs font-semibold text-rose-700">
             <AlertCircle size={17} />
+
             {error}
           </p>
 
           <button
             type="button"
             className="text-xs font-bold text-rose-700 underline"
-            onClick={() => fetchWorkers({ silent: true })}
+            onClick={() => fetchWorkers({ mode: "manual" })}
           >
             Retry
           </button>
@@ -901,6 +1043,7 @@ export default function WorkerPerformance() {
             <h2 className="text-base font-extrabold">
               Workforce Workload Snapshot
             </h2>
+
             <p className="mt-1 text-[11px] text-slate-500">
               Aggregated work statistics across all Technicians
             </p>
@@ -945,6 +1088,7 @@ export default function WorkerPerformance() {
             <h2 className="text-base font-extrabold">
               Technician Performance Records
             </h2>
+
             <p className="mt-1 text-xs text-slate-500">
               Search, compare and export Technician performance
             </p>
@@ -961,12 +1105,14 @@ export default function WorkerPerformance() {
               size={17}
               className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
             />
+
             <input
               className={`${INPUT} pl-10`}
               value={search}
               placeholder="Search name, ID, department..."
               onChange={(e) => {
                 setSearch(e.target.value);
+
                 setPage(1);
               }}
             />
@@ -977,10 +1123,12 @@ export default function WorkerPerformance() {
             value={department}
             onChange={(e) => {
               setDepartment(e.target.value);
+
               setPage(1);
             }}
           >
             <option value="ALL">All Departments</option>
+
             {departments.map((item) => (
               <option key={item} value={item}>
                 {item}
@@ -993,12 +1141,16 @@ export default function WorkerPerformance() {
             value={status}
             onChange={(e) => {
               setStatus(e.target.value);
+
               setPage(1);
             }}
           >
             <option value="ALL">All Performance Statuses</option>
+
             <option value="TOP_PERFORMER">Top Performer</option>
+
             <option value="LOW_PERFORMANCE">Needs Attention</option>
+
             <option value="AVERAGE">Average</option>
           </select>
 
@@ -1007,13 +1159,18 @@ export default function WorkerPerformance() {
             value={sortBy}
             onChange={(e) => {
               setSortBy(e.target.value);
+
               setPage(1);
             }}
           >
             <option value="SCORE_DESC">Score: Highest First</option>
+
             <option value="SCORE_ASC">Score: Lowest First</option>
+
             <option value="COMPLETED_DESC">Most Completed</option>
+
             <option value="PENDING_DESC">Most Pending</option>
+
             <option value="NAME_ASC">Name: A to Z</option>
           </select>
         </div>
@@ -1066,9 +1223,11 @@ export default function WorkerPerformance() {
       {filteredWorkers.length === 0 ? (
         <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center">
           <Users size={38} className="mx-auto text-slate-300" />
+
           <h3 className="mt-4 text-sm font-extrabold">
             No Technician Records Found
           </h3>
+
           <p className="mt-2 text-xs text-slate-500">
             Try another search or clear filters.
           </p>
@@ -1093,11 +1252,17 @@ export default function WorkerPerformance() {
                 <thead className="bg-[#F8FAFD] text-[10px] font-bold uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-5 py-4">Technician</th>
+
                     <th className="px-4 py-4">Assigned</th>
+
                     <th className="px-4 py-4">Completed</th>
+
                     <th className="px-4 py-4">Pending</th>
+
                     <th className="px-4 py-4">Reopened</th>
+
                     <th className="px-4 py-4">Performance</th>
+
                     <th className="px-4 py-4">Status</th>
                   </tr>
                 </thead>
@@ -1113,10 +1278,12 @@ export default function WorkerPerformance() {
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#102B52] text-xs font-black text-[#E8C477]">
                             {initials(worker.name)}
                           </div>
+
                           <div>
                             <p className="font-extrabold text-[#102B52]">
                               {getWorkerName(worker)}
                             </p>
+
                             <p className="mt-1 text-[11px] text-slate-500">
                               {worker.department || "—"}
                             </p>
@@ -1127,18 +1294,23 @@ export default function WorkerPerformance() {
                       <td className="px-4 py-4 font-bold">
                         {formatted(worker.assignedJobs)}
                       </td>
+
                       <td className="px-4 py-4 font-bold text-emerald-700">
                         {formatted(worker.completedJobs)}
                       </td>
+
                       <td className="px-4 py-4 font-bold">
                         {formatted(worker.pendingJobs)}
                       </td>
+
                       <td className="px-4 py-4 font-bold text-rose-600">
                         {formatted(worker.reopenedComplaints)}
                       </td>
+
                       <td className="px-4 py-4">
                         <PerformanceBar value={worker.performanceScore} />
                       </td>
+
                       <td className="px-4 py-4">
                         <StatusBadge status={worker.status} />
                       </td>

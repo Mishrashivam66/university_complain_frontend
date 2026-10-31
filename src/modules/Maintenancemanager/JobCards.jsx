@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRealtime } from "../../context/RealtimeProvider";
+
 import { createPortal } from "react-dom";
+
 import toast from "react-hot-toast";
+
 import api from "../../services/api";
+
 import { useNavigate } from "react-router-dom";
+
 import PrintableJobCard from "./PrintableJobCard";
+
 import BulkPrintableJobCards from "./BulkPrintableJobCards";
 
 import {
@@ -30,32 +37,40 @@ import {
   X,
 } from "lucide-react";
 
-// ======================================================
-// AMI MAINT. — PREMIUM JOB CARD MANAGEMENT
-// ======================================================
-
 const API_URL = "/maintenance/job-cards";
+
 const PAGE_SIZE = 10;
 
 const TABS = [
   {
     id: "PRINT_QUEUE",
+
     label: "Print Queue",
+
     icon: Printer,
   },
+
   {
     id: "PRINTED",
+
     label: "Printed / Active",
+
     icon: Activity,
   },
+
   {
     id: "VERIFICATION",
+
     label: "Verification",
+
     icon: ShieldCheck,
   },
+
   {
     id: "COMPLETED",
+
     label: "Completed",
+
     icon: CheckCircle2,
   },
 ];
@@ -75,11 +90,13 @@ const SECONDARY =
 const upper = (value) =>
   String(value ?? "")
     .trim()
+
     .toUpperCase();
 
 const lower = (value) =>
   String(value ?? "")
     .trim()
+
     .toLowerCase();
 
 const isCompleted = (job) =>
@@ -93,6 +110,7 @@ const isPrintedActive = (job) => isPrinted(job) && !isCompleted(job);
 
 const formatNumber = (value) => {
   const number = Number(value);
+
   return Number.isFinite(number) ? number : 0;
 };
 
@@ -105,7 +123,9 @@ function formatDate(value) {
 
   return new Intl.DateTimeFormat("en-IN", {
     timeZone: "Asia/Kolkata",
+
     dateStyle: "medium",
+
     timeStyle: "short",
   }).format(date);
 }
@@ -174,8 +194,11 @@ function StatusBadge({ status }) {
 function StatCard({ title, value, icon: Icon, tone }) {
   const tones = {
     blue: "bg-blue-50 text-blue-600",
+
     gold: "bg-amber-50 text-amber-600",
+
     green: "bg-emerald-50 text-emerald-600",
+
     purple: "bg-indigo-50 text-indigo-600",
   };
 
@@ -261,8 +284,11 @@ function getMaterials(job) {
     (request?.materials || []).forEach((material) => {
       result.push({
         ...material,
+
         complaintId: item.complaint?.complaintId || "—",
+
         requestId: request.requestId || "—",
+
         storeSlipNo: request.storeSlipNo || item.storeSlipNo || "—",
       });
     });
@@ -271,17 +297,11 @@ function getMaterials(job) {
   return result;
 }
 
-// ======================================================
-// JOB CARD DETAILS
-// ======================================================
-
 function JobDetails({ job }) {
   const materials = getMaterials(job);
 
   return (
     <div className="space-y-5">
-      {/* BASIC INFORMATION */}
-
       <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
         <SectionHeading icon={FileText} title="Job Card Information" />
 
@@ -303,8 +323,6 @@ function JobDetails({ job }) {
         </div>
       </div>
 
-      {/* TECHNICIAN INFORMATION */}
-
       <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
         <SectionHeading icon={UserRound} title="Assigned Technician" />
 
@@ -325,8 +343,6 @@ function JobDetails({ job }) {
           <InfoItem title="Worker Status" value={job.workerStatus} />
         </div>
       </div>
-
-      {/* WORK PROGRESS */}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
         <SectionHeading icon={Activity} title="Work Progress" />
@@ -353,6 +369,7 @@ function JobDetails({ job }) {
         <div className="mt-5">
           <div className="flex justify-between text-xs font-bold">
             <span>Completion Progress</span>
+
             <span>{getProgress(job).toFixed(0)}%</span>
           </div>
 
@@ -367,8 +384,6 @@ function JobDetails({ job }) {
         </div>
       </div>
 
-      {/* COMPLAINT DETAILS */}
-
       <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
         <SectionHeading
           icon={ClipboardList}
@@ -381,14 +396,23 @@ function JobDetails({ job }) {
               <tr>
                 {[
                   "S.No",
+
                   "Complaint ID",
+
                   "Room / Floor",
+
                   "Issue (English)",
+
                   "Issue (Hindi)",
+
                   "Priority",
+
                   "Material",
+
                   "Store Status",
+
                   "Verification",
+
                   "Status",
                 ].map((title) => (
                   <th key={title} className="px-3 py-3 font-bold">
@@ -449,8 +473,6 @@ function JobDetails({ job }) {
         </div>
       </div>
 
-      {/* MATERIAL DETAILS */}
-
       <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
         <SectionHeading icon={Package} title="Material Summary" />
 
@@ -480,13 +502,21 @@ function JobDetails({ job }) {
                 <tr>
                   {[
                     "Complaint",
+
                     "Request",
+
                     "Item",
+
                     "Requested",
+
                     "Approved",
+
                     "Issued",
+
                     "Unit",
+
                     "Status",
+
                     "Store Slip",
                   ].map((title) => (
                     <th key={title} className="px-3 py-3 font-bold">
@@ -500,17 +530,25 @@ function JobDetails({ job }) {
                 {materials.map((material, index) => (
                   <tr key={material._id || index}>
                     <td className="px-3 py-3">{material.complaintId}</td>
+
                     <td className="px-3 py-3">{material.requestId}</td>
+
                     <td className="px-3 py-3 font-bold">{material.itemName}</td>
+
                     <td className="px-3 py-3">{material.quantity ?? "—"}</td>
+
                     <td className="px-3 py-3">
                       {material.approvedQuantity ?? "—"}
                     </td>
+
                     <td className="px-3 py-3">
                       {material.issuedQuantity ?? "—"}
                     </td>
+
                     <td className="px-3 py-3">{material.unit}</td>
+
                     <td className="px-3 py-3">{material.status || "—"}</td>
+
                     <td className="px-3 py-3">{material.storeSlipNo}</td>
                   </tr>
                 ))}
@@ -519,8 +557,6 @@ function JobDetails({ job }) {
           </div>
         )}
       </div>
-
-      {/* REMARKS */}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
         <SectionHeading icon={FileText} title="Work Remarks" />
@@ -537,8 +573,6 @@ function JobDetails({ job }) {
           />
         </div>
       </div>
-
-      {/* VERIFICATION */}
 
       <div className="rounded-2xl border border-slate-200 bg-white p-4 sm:p-5">
         <SectionHeading
@@ -578,106 +612,91 @@ function JobDetails({ job }) {
   );
 }
 
-// ======================================================
-// MAIN COMPONENT
-// ======================================================
-
 export default function JobCards() {
   const navigate = useNavigate();
+  const { refreshKey } = useRealtime() || { refreshKey: 0 };
+  const lastRefreshKey = useRef(refreshKey);
+  const requestController = useRef(null);
+
   const [jobCards, setJobCards] = useState([]);
 
   const [loading, setLoading] = useState(true);
+
   const [refreshing, setRefreshing] = useState(false);
+
   const [error, setError] = useState("");
 
   const [activeTab, setActiveTab] = useState("PRINT_QUEUE");
 
   const [search, setSearch] = useState("");
+
   const [statusFilter, setStatusFilter] = useState("ALL");
+
   const [page, setPage] = useState(1);
 
   const [selectedJobCard, setSelectedJobCard] = useState(null);
 
   const [bulkMode, setBulkMode] = useState(false);
+
   const [selectedIds, setSelectedIds] = useState([]);
 
   const [printJob, setPrintJob] = useState(null);
+
   const [bulkPrintJobs, setBulkPrintJobs] = useState([]);
 
   const [markingIds, setMarkingIds] = useState([]);
 
-  // ====================================================
-  // FETCH JOB CARDS
-  // ====================================================
+  const fetchJobCards = useCallback(
+    async ({ initial = false, manual = false } = {}) => {
+      requestController.current?.abort();
+      const controller = new AbortController();
+      requestController.current = controller;
+      if (initial) setLoading(true);
+      if (manual) setRefreshing(true);
 
-  const fetchJobCards = useCallback(async ({ silent = false, signal } = {}) => {
-    if (silent) {
-      setRefreshing(true);
-    } else {
-      setLoading(true);
-    }
-
-    try {
-      const response = await api.get(API_URL, {
-        signal,
-      });
-
-      const items = response?.data?.jobCards;
-
-      if (!Array.isArray(items)) {
-        throw new Error("Invalid Job Card response");
-      }
-
-      if (!signal?.aborted) {
-        setJobCards(items);
+      try {
+        const response = await api.get(API_URL, { signal: controller.signal });
+        if (!Array.isArray(response?.data?.jobCards)) {
+          throw new Error("Invalid Job Card response");
+        }
+        if (controller.signal.aborted) return;
+        setJobCards(response.data.jobCards);
         setError("");
-
-        if (silent) {
-          toast.success("Job Cards refreshed", {
-            duration: 1200,
-          });
+        if (manual) toast.success("Job Cards refreshed", { duration: 1000 });
+      } catch (err) {
+        if (
+          controller.signal.aborted ||
+          err?.code === "ERR_CANCELED" ||
+          err?.name === "CanceledError"
+        )
+          return;
+        const message =
+          err?.response?.data?.message ||
+          err?.message ||
+          "Failed to load Job Cards";
+        setError(message);
+        if (manual) toast.error(message, { duration: 1000 });
+      } finally {
+        if (requestController.current === controller) {
+          if (initial) setLoading(false);
+          if (manual) setRefreshing(false);
         }
       }
-    } catch (err) {
-      if (err?.code === "ERR_CANCELED" || err?.name === "CanceledError") {
-        return;
-      }
-
-      console.error("JOB CARD FETCH ERROR:", err);
-
-      const message =
-        err?.response?.data?.message ||
-        err.message ||
-        "Failed to load Job Cards";
-
-      setError(message);
-
-      if (!silent) {
-        toast.error(message, {
-          duration: 2000,
-        });
-      }
-    } finally {
-      if (!signal?.aborted) {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    }
-  }, []);
+    },
+    [],
+  );
 
   useEffect(() => {
-    const controller = new AbortController();
-
-    void fetchJobCards({
-      signal: controller.signal,
-    });
-
-    return () => controller.abort();
+    void fetchJobCards({ initial: true });
+    return () => requestController.current?.abort();
   }, [fetchJobCards]);
 
-  // ====================================================
-  // DERIVED DATA
-  // ====================================================
+  useEffect(() => {
+    if (lastRefreshKey.current === refreshKey) return;
+    lastRefreshKey.current = refreshKey;
+    if (printJob || bulkPrintJobs.length) return;
+    void fetchJobCards();
+  }, [refreshKey, fetchJobCards, printJob, bulkPrintJobs.length]);
 
   const stats = useMemo(() => {
     return {
@@ -688,8 +707,11 @@ export default function JobCards() {
           !isCompleted(job) &&
           [
             "ASSIGNED",
+
             "IN_PROGRESS",
+
             "PARTIALLY_COMPLETED",
+
             "WAITING_MATERIAL",
           ].includes(upper(job.status)),
       ).length,
@@ -728,12 +750,18 @@ export default function JobCards() {
     return tabJobCards.filter((job) => {
       const searchable = [
         job.jobCardId,
+
         job.category,
+
         job.hostel,
+
         job.block,
+
         job.assignedWorker?.name,
       ]
+
         .map(lower)
+
         .join(" ");
 
       const matchStatus =
@@ -749,8 +777,13 @@ export default function JobCards() {
 
   const visible = filtered.slice(
     (safePage - 1) * PAGE_SIZE,
+
     safePage * PAGE_SIZE,
   );
+
+  const currentSelectedJob = selectedJobCard
+    ? jobCards.find((job) => job._id === selectedJobCard._id) || selectedJobCard
+    : null;
 
   const selectedJobs = useMemo(() => {
     const selected = new Set(selectedIds);
@@ -761,25 +794,29 @@ export default function JobCards() {
   const allVisibleSelected =
     visible.length > 0 && visible.every((job) => selectedIds.includes(job._id));
 
-  // ====================================================
-  // TABS AND SELECTION
-  // ====================================================
   function changeTab(next) {
     if (next === "VERIFICATION") {
       navigate("/maintenance/verification");
+
       return;
     }
 
     setActiveTab(next);
+
     setSearch("");
+
     setStatusFilter("ALL");
+
     setPage(1);
+
     setBulkMode(false);
+
     setSelectedIds([]);
   }
 
   function toggleBulkMode() {
     setBulkMode((current) => !current);
+
     setSelectedIds([]);
   }
 
@@ -803,15 +840,11 @@ export default function JobCards() {
     });
   }
 
-  // ====================================================
-  // PRINTING
-  // ====================================================
-
   function handlePrint(job) {
     setBulkPrintJobs([]);
+
     setPrintJob(job);
 
-    // Allow React to mount the print portal.
     window.setTimeout(() => {
       window.print();
     }, 500);
@@ -820,14 +853,17 @@ export default function JobCards() {
   function handleBulkPrint() {
     if (!selectedJobs.length) {
       toast.error("Select at least one Job Card");
+
       return;
     }
 
     setPrintJob(null);
+
     setBulkPrintJobs([]);
 
     if (selectedJobs.length === 1) {
       handlePrint(selectedJobs[0]);
+
       return;
     }
 
@@ -841,6 +877,7 @@ export default function JobCards() {
   useEffect(() => {
     const handleAfterPrint = () => {
       setPrintJob(null);
+
       setBulkPrintJobs([]);
     };
 
@@ -850,10 +887,6 @@ export default function JobCards() {
       window.removeEventListener("afterprint", handleAfterPrint);
     };
   }, []);
-
-  // ====================================================
-  // MARK PRINTED
-  // ====================================================
 
   async function markPrinted(job) {
     if (markingIds.includes(job._id)) return;
@@ -868,7 +901,9 @@ export default function JobCards() {
           item._id === job._id
             ? {
                 ...item,
+
                 printStatus: "PRINTED",
+
                 printedAt: new Date().toISOString(),
               }
             : item,
@@ -895,6 +930,7 @@ export default function JobCards() {
     }
 
     const jobs = [...selectedJobs];
+
     const ids = jobs.map((job) => job._id);
 
     setMarkingIds(ids);
@@ -905,7 +941,9 @@ export default function JobCards() {
       );
 
       const successIds = jobs
+
         .filter((_, index) => results[index].status === "fulfilled")
+
         .map((job) => job._id);
 
       const failedCount = jobs.length - successIds.length;
@@ -918,7 +956,9 @@ export default function JobCards() {
             successIds.includes(job._id)
               ? {
                   ...job,
+
                   printStatus: "PRINTED",
+
                   printedAt,
                 }
               : job,
@@ -942,10 +982,6 @@ export default function JobCards() {
     }
   }
 
-  // ====================================================
-  // LOADING
-  // ====================================================
-
   if (loading) {
     return (
       <div className="flex min-h-[55vh] items-center justify-center gap-3">
@@ -958,15 +994,9 @@ export default function JobCards() {
     );
   }
 
-  // ====================================================
-  // MAIN UI
-  // ====================================================
-
   return (
     <>
       <div className="min-w-0 space-y-6 pb-8 text-[#102B52] print:hidden">
-        {/* PREMIUM HEADER */}
-
         <section className="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-[#081B35] via-[#102E55] to-[#204779] p-6 text-white shadow-lg sm:p-8">
           <div className="pointer-events-none absolute -right-14 -top-24 h-64 w-64 rounded-full border-[42px] border-white/[0.04]" />
 
@@ -1010,7 +1040,7 @@ export default function JobCards() {
               <button
                 type="button"
                 disabled={refreshing}
-                onClick={() => fetchJobCards({ silent: true })}
+                onClick={() => fetchJobCards({ manual: true })}
                 className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-xs font-bold text-white hover:bg-white/20 disabled:opacity-50"
               >
                 <RefreshCw
@@ -1023,8 +1053,6 @@ export default function JobCards() {
           </div>
         </section>
 
-        {/* LOAD ERROR */}
-
         {error && (
           <div
             role="alert"
@@ -1032,20 +1060,19 @@ export default function JobCards() {
           >
             <p className="flex items-center gap-2 text-xs font-semibold text-rose-700">
               <AlertCircle size={17} />
+
               {error}
             </p>
 
             <button
               type="button"
-              onClick={() => fetchJobCards({ silent: true })}
+              onClick={() => fetchJobCards({ manual: true })}
               className="text-xs font-bold text-rose-700 underline"
             >
               Retry
             </button>
           </div>
         )}
-
-        {/* STATISTICS */}
 
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
@@ -1076,12 +1103,6 @@ export default function JobCards() {
             tone="green"
           />
         </div>
-
-        {/* WORKFLOW TABS */}
-
-        {/* ==========================================
-    JOB CARD WORKFLOW TABS
-    ========================================== */}
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {TABS.map((item) => {
@@ -1133,8 +1154,6 @@ export default function JobCards() {
           })}
         </div>
 
-        {/* SEARCH / FILTER */}
-
         <section className="rounded-[22px] border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -1163,6 +1182,7 @@ export default function JobCards() {
                 placeholder="Search Job ID, location, category, Technician..."
                 onChange={(event) => {
                   setSearch(event.target.value);
+
                   setPage(1);
                 }}
               />
@@ -1173,25 +1193,32 @@ export default function JobCards() {
               value={statusFilter}
               onChange={(event) => {
                 setStatusFilter(event.target.value);
+
                 setPage(1);
               }}
             >
               <option value="ALL">All Statuses</option>
+
               <option value="CREATED">Created</option>
+
               <option value="ASSIGNED">Assigned</option>
+
               <option value="IN_PROGRESS">In Progress</option>
+
               <option value="WAITING_MATERIAL">Waiting Material</option>
+
               <option value="PARTIALLY_COMPLETED">Partially Completed</option>
+
               <option value="READY_FOR_VERIFICATION">
                 Ready for Verification
               </option>
+
               <option value="COMPLETED">Completed</option>
+
               <option value="CLOSED">Closed</option>
             </select>
           </div>
         </section>
-
-        {/* BULK TOOLBAR */}
 
         {bulkMode && activeTab === "PRINT_QUEUE" && (
           <section className="sticky top-3 z-30 rounded-[22px] border border-[#D6AD59]/40 bg-white p-4 shadow-xl">
@@ -1253,8 +1280,6 @@ export default function JobCards() {
           </section>
         )}
 
-        {/* JOB CARD LIST */}
-
         <div className="grid items-start gap-4 xl:grid-cols-2">
           {visible.length === 0 ? (
             <div className="rounded-3xl border border-slate-200 bg-white p-12 text-center xl:col-span-2">
@@ -1282,8 +1307,6 @@ export default function JobCards() {
                       : "border-slate-200"
                   }`}
                 >
-                  {/* CARD HEADER */}
-
                   <div className="bg-gradient-to-r from-[#081B35] to-[#204779] p-5 text-white">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
@@ -1314,6 +1337,7 @@ export default function JobCards() {
                     <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-slate-300">
                       <span className="flex items-center gap-1.5">
                         <Clock3 size={13} />
+
                         {formatDate(job.createdAt)}
                       </span>
 
@@ -1325,8 +1349,6 @@ export default function JobCards() {
                       )}
                     </div>
                   </div>
-
-                  {/* CARD BODY */}
 
                   <div className="p-5">
                     <div className="grid grid-cols-2 gap-3">
@@ -1345,8 +1367,6 @@ export default function JobCards() {
                       />
                     </div>
 
-                    {/* PROGRESS */}
-
                     <div className="mt-5">
                       <div className="flex justify-between text-xs font-bold">
                         <span>Work Progress</span>
@@ -1363,8 +1383,6 @@ export default function JobCards() {
                         />
                       </div>
                     </div>
-
-                    {/* ACTIONS */}
 
                     <div className="mt-5 flex flex-wrap gap-2">
                       <button
@@ -1410,8 +1428,6 @@ export default function JobCards() {
           )}
         </div>
 
-        {/* PAGINATION */}
-
         {totalPages > 1 && (
           <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-4">
             <p className="text-xs text-slate-500">
@@ -1446,20 +1462,14 @@ export default function JobCards() {
         </footer>
       </div>
 
-      {/* ===================================================
-          DETAILS MODAL — SCREEN ONLY
-      =================================================== */}
-
       {selectedJobCard && (
         <div
           role="dialog"
           aria-modal="true"
-          aria-label={`Job Card ${selectedJobCard.jobCardId}`}
+          aria-label={`Job Card ${currentSelectedJob.jobCardId}`}
           className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 p-2 backdrop-blur-sm print:hidden sm:p-5"
         >
           <div className="flex max-h-[95vh] w-full max-w-[1050px] flex-col overflow-hidden rounded-[22px] bg-[#F8FAFD] shadow-2xl">
-            {/* MODAL HEADER */}
-
             <div className="shrink-0 bg-[#102B52] p-4 text-white sm:p-5">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -1468,7 +1478,7 @@ export default function JobCards() {
                   </p>
 
                   <h2 className="mt-2 break-all text-xl font-black">
-                    {selectedJobCard.jobCardId}
+                    {currentSelectedJob.jobCardId}
                   </h2>
 
                   <p className="mt-1 text-xs text-slate-300">
@@ -1487,13 +1497,9 @@ export default function JobCards() {
               </div>
             </div>
 
-            {/* MODAL BODY */}
-
             <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-5">
-              <JobDetails job={selectedJobCard} />
+              <JobDetails job={currentSelectedJob} />
             </div>
-
-            {/* MODAL ACTIONS */}
 
             <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 bg-white p-4">
               <button
@@ -1509,7 +1515,7 @@ export default function JobCards() {
                   <button
                     type="button"
                     className={GOLD}
-                    onClick={() => handlePrint(selectedJobCard)}
+                    onClick={() => handlePrint(currentSelectedJob)}
                   >
                     <Printer size={15} />
                     Print Job Card
@@ -1518,8 +1524,8 @@ export default function JobCards() {
                   <button
                     type="button"
                     className={PRIMARY}
-                    disabled={markingIds.includes(selectedJobCard._id)}
-                    onClick={() => markPrinted(selectedJobCard)}
+                    disabled={markingIds.includes(currentSelectedJob._id)}
+                    onClick={() => markPrinted(currentSelectedJob)}
                   >
                     <Check size={15} />
                     Mark Printed
@@ -1531,22 +1537,19 @@ export default function JobCards() {
         </div>
       )}
 
-      {/* ===================================================
-          ORIGINAL PRINTABLE COMPONENTS
-          Actual document formatting remains unchanged.
-      =================================================== */}
-
       {printJob &&
         createPortal(
           <div id="job-card-print-root">
             <PrintableJobCard job={printJob} />
           </div>,
+
           document.body,
         )}
 
       {bulkPrintJobs.length > 0 &&
         createPortal(
           <BulkPrintableJobCards jobs={bulkPrintJobs} />,
+
           document.body,
         )}
     </>
