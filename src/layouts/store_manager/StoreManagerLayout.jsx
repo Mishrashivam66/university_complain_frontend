@@ -4,6 +4,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowDownToLine,
+  BarChart3,
   ChevronRight,
   ClipboardList,
   FileSpreadsheet,
@@ -20,21 +21,35 @@ import {
 
 import NotificationBell from "../../modules/notifications/components/NotificationBell";
 import StockInward from "../../modules/Storemanager/StockInward";
+import UnifiedStoreReports from "../../modules/Storemanager/UnifiedStoreReports";
 
 // ==========================================
-// STORE MANAGER CONFIGURATION
+// STORE MANAGER SPECIAL PAGE URLS
+// ==========================================
+// Existing dashboard route is reused.
+// No extra React Router route is required.
 // ==========================================
 
 const STOCK_INWARD_URL = "/store/dashboard?view=stock-inward";
 
-const getStoredUser = () => {
+const STORE_REPORTS_URL = "/store/dashboard?view=reports";
+
+// ==========================================
+// GET LOGGED-IN STORE MANAGER
+// ==========================================
+
+function getStoredUser() {
   try {
     const stored = localStorage.getItem("user");
     return stored ? JSON.parse(stored) : {};
   } catch {
     return {};
   }
-};
+}
+
+// ==========================================
+// SIDEBAR MENU CONFIGURATION
+// ==========================================
 
 const menuGroups = [
   {
@@ -60,7 +75,7 @@ const menuGroups = [
         name: "Stock Inward",
         path: STOCK_INWARD_URL,
         icon: ArrowDownToLine,
-        special: true,
+        special: "stock-inward",
       },
       {
         name: "Low Stock Alerts",
@@ -89,79 +104,109 @@ const menuGroups = [
       },
     ],
   },
+
+  // NEW SEPARATE REPORT SECTION
+  {
+    title: "REPORTS & ANALYTICS",
+    items: [
+      {
+        name: "Store Reports",
+        path: STORE_REPORTS_URL,
+        icon: BarChart3,
+        special: "reports",
+      },
+    ],
+  },
 ];
 
 // ==========================================
 // MAIN LAYOUT
 // ==========================================
 
-const StoreManagerLayout = () => {
+export default function StoreManagerLayout() {
   const navigate = useNavigate();
   const location = useLocation();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
   const [logoutOpen, setLogoutOpen] = useState(false);
+
   const [user] = useState(getStoredUser);
 
-  const isStockInward = useMemo(() => {
-    const params = new URLSearchParams(location.search);
+  // ========================================
+  // IDENTIFY SPECIAL DASHBOARD VIEWS
+  // ========================================
 
-    return (
-      location.pathname === "/store/dashboard" &&
-      params.get("view") === "stock-inward"
-    );
+  const dashboardView = useMemo(() => {
+    if (location.pathname !== "/store/dashboard") {
+      return "";
+    }
+
+    return new URLSearchParams(location.search).get("view") || "";
   }, [location.pathname, location.search]);
+
+  const isStockInward = dashboardView === "stock-inward";
+
+  const isReports = dashboardView === "reports";
+
+  // ========================================
+  // DYNAMIC PAGE TITLE
+  // ========================================
 
   const currentPage = useMemo(() => {
     if (isStockInward) {
       return "Stock Inward";
     }
 
-    const allItems = menuGroups.flatMap((group) => group.items);
+    if (isReports) {
+      return "Store Reports";
+    }
 
-    const current = allItems.find(
-      (item) => !item.special && location.pathname === item.path,
-    );
+    const current = menuGroups
+      .flatMap((group) => group.items)
+      .find((item) => !item.special && item.path === location.pathname);
 
     return current?.name || "Store Management";
-  }, [location.pathname, isStockInward]);
+  }, [location.pathname, isStockInward, isReports]);
 
-  // ==========================================
+  // ========================================
   // MOBILE NAVIGATION
-  // ==========================================
+  // ========================================
 
   useEffect(() => {
     setSidebarOpen(false);
   }, [location.pathname, location.search]);
 
   useEffect(() => {
-    if (!sidebarOpen && !logoutOpen) return;
+    if (!sidebarOpen && !logoutOpen) {
+      return undefined;
+    }
 
-    const handleEscape = (event) => {
+    const onEscape = (event) => {
       if (event.key === "Escape") {
         setSidebarOpen(false);
         setLogoutOpen(false);
       }
     };
 
-    window.addEventListener("keydown", handleEscape);
+    window.addEventListener("keydown", onEscape);
 
     return () => {
-      window.removeEventListener("keydown", handleEscape);
+      window.removeEventListener("keydown", onEscape);
     };
   }, [sidebarOpen, logoutOpen]);
 
-  // ==========================================
+  // ========================================
   // PROFILE
-  // ==========================================
+  // ========================================
 
   const userName = user?.name || "Store Manager";
 
   const userInitial = userName.trim().charAt(0).toUpperCase() || "S";
 
-  // ==========================================
+  // ========================================
   // LOGOUT
-  // ==========================================
+  // ========================================
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -170,20 +215,25 @@ const StoreManagerLayout = () => {
     setLogoutOpen(false);
     setSidebarOpen(false);
 
-    navigate("/", { replace: true });
+    navigate("/", {
+      replace: true,
+    });
   };
 
-  // ==========================================
-  // SIDEBAR LINK
-  // ==========================================
+  // ========================================
+  // SIDEBAR LINKS
+  // ========================================
 
   const renderMenuLink = (item) => {
     const Icon = item.icon;
 
-    const selected = item.special
-      ? isStockInward
-      : location.pathname === item.path &&
-        !(item.path === "/store/dashboard" && isStockInward);
+    const selected =
+      item.special === "stock-inward"
+        ? isStockInward
+        : item.special === "reports"
+          ? isReports
+          : location.pathname === item.path &&
+            !(item.path === "/store/dashboard" && (isStockInward || isReports));
 
     return (
       <NavLink
@@ -229,11 +279,13 @@ const StoreManagerLayout = () => {
     );
   };
 
+  // ========================================
+  // RENDER MAIN LAYOUT
+  // ========================================
+
   return (
     <div className="min-h-screen bg-[#F5F7FC] text-slate-800">
-      {/* ======================================
-          MOBILE BACKDROP
-      ====================================== */}
+      {/* MOBILE BACKDROP */}
 
       {sidebarOpen && (
         <button
@@ -244,9 +296,7 @@ const StoreManagerLayout = () => {
         />
       )}
 
-      {/* ======================================
-          STORE SIDEBAR
-      ====================================== */}
+      {/* STORE MANAGER SIDEBAR */}
 
       <aside
         className={[
@@ -300,7 +350,7 @@ const StoreManagerLayout = () => {
           </div>
         </div>
 
-        {/* NAVIGATION GROUPS */}
+        {/* SIDEBAR NAVIGATION */}
 
         <nav
           className="min-h-0 flex-1 space-y-5 overflow-y-auto px-3 py-5"
@@ -316,7 +366,7 @@ const StoreManagerLayout = () => {
             </div>
           ))}
 
-          {/* QUICK STOCK INWARD CARD */}
+          {/* QUICK STOCK INWARD */}
 
           <div className="mx-2 rounded-xl border border-[#E6C777]/20 bg-[#E6C777]/[0.08] p-3">
             <div className="flex items-center gap-2">
@@ -376,9 +426,7 @@ const StoreManagerLayout = () => {
         </div>
       </aside>
 
-      {/* ======================================
-          MAIN CONTENT
-      ====================================== */}
+      {/* MAIN CONTENT */}
 
       <div className="min-h-screen min-w-0 lg:ml-[286px]">
         {/* TOP NAVBAR */}
@@ -435,20 +483,22 @@ const StoreManagerLayout = () => {
           </div>
         </header>
 
-        {/* PAGE */}
+        {/* PAGE CONTENT */}
 
         <main className="min-h-[calc(100vh-86px)] min-w-0 p-4 sm:p-5 xl:p-7">
           {isStockInward ? (
             <StockInward onBack={() => navigate("/store/dashboard")} />
+          ) : isReports ? (
+            // NEW REPORTS PAGE
+            <UnifiedStoreReports />
           ) : (
+            // EXISTING DASHBOARD AND OTHER MODULES
             <Outlet />
           )}
         </main>
       </div>
 
-      {/* ======================================
-          LOGOUT CONFIRMATION
-      ====================================== */}
+      {/* LOGOUT MODAL */}
 
       {logoutOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#00112B]/65 p-4 backdrop-blur-sm">
@@ -496,6 +546,4 @@ const StoreManagerLayout = () => {
       )}
     </div>
   );
-};
-
-export default StoreManagerLayout;
+}
