@@ -36,7 +36,13 @@ import { useRealtime } from "../../context/RealtimeProvider";
 const PAGE_SIZE = 12;
 const CLOSED = ["RESOLVED", "CLOSED"];
 
-const UNITS = [
+// Existing manager-accessible route. The Store Manager controls both
+// the Category Master and the inventory items returned by this API.
+const MATERIAL_CATALOG_API = "/maintenance/material-requests/catalog";
+
+// The request module uses canonical UOMs. Normalize Store Inventory UOMs
+// (e.g., Nos, Litre, Pcs) so the existing request workflow remains valid.
+const REQUEST_UNITS = new Set([
   "PIECE",
   "METER",
   "KG",
@@ -49,7 +55,48 @@ const UNITS = [
   "SET",
   "PAIR",
   "OTHER",
-];
+]);
+
+function requestUnit(value) {
+  const key = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replaceAll(".", "");
+  const aliases = {
+    NOS: "PIECE",
+    NO: "PIECE",
+    PCS: "PIECE",
+    PC: "PIECE",
+    PIECES: "PIECE",
+    EACH: "PIECE",
+    UNIT: "PIECE",
+    UNITS: "PIECE",
+    METRE: "METER",
+    METERS: "METER",
+    METRES: "METER",
+    MTR: "METER",
+    KGS: "KG",
+    KILOGRAM: "KG",
+    KILOGRAMS: "KG",
+    G: "GRAM",
+    GRAMS: "GRAM",
+    L: "LITER",
+    LTR: "LITER",
+    LITRE: "LITER",
+    LITRES: "LITER",
+    LITERS: "LITER",
+    MILLILITER: "ML",
+    MILLILITRE: "ML",
+    MILLILITERS: "ML",
+    BOXES: "BOX",
+    PACKETS: "PACKET",
+    ROLLS: "ROLL",
+    SETS: "SET",
+    PAIRS: "PAIR",
+  };
+  const normalized = aliases[key] || key;
+  return REQUEST_UNITS.has(normalized) ? normalized : "OTHER";
+}
 
 const TABS = [
   ["ALL", "All Complaints"],
@@ -87,9 +134,12 @@ const idOf = (value) => String(value?._id ?? value ?? "");
 const readable = (value) => String(value || "—").replaceAll("_", " ");
 
 const newMaterial = () => ({
+  category: "",
+  inventoryId: "",
+  itemCode: "",
   itemName: "",
   quantity: "",
-  unit: "PIECE",
+  unit: "",
 });
 
 function dateIST(value) {
@@ -354,7 +404,103 @@ export default function Complaints() {
   const [materials, setMaterials] = useState([newMaterial()]);
   const [reason, setReason] = useState("");
 
+  // Inventory categories and items are Store Manager-managed, not hardcoded.
+  const [materialCatalog, setMaterialCatalog] = useState({
+    categories: [],
+    items: [],
+  });
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState("");
+  const catalogRequestRef = useRef(0);
+  const lastCatalogRefreshKeyRef = useRef(refreshKey);
   const [now, setNow] = useState(null);
+
+  const fetchMaterialCatalog = useCallback(async (silent = false) => {
+    const requestId = ++catalogRequestRef.current;
+    if (!silent) setCatalogLoading(true);
+
+    try {
+      const { data } = await api.get(MATERIAL_CATALOG_API);
+
+      if (
+        data?.success !== true ||
+        data?.source !== "CATEGORY_MASTER" ||
+        !Array.isArray(data?.categories) ||
+        !Array.isArray(data?.items)
+      ) {
+        throw new Error(
+          "Invalid Material Catalog response. The Category Master API is required.",
+        );
+      }
+
+      const categoryNames = [
+        ...new Map(
+          data.categories
+            .map((record) =>
+              typeof record === "string"
+                ? record.trim()
+                : String(record?.name || "").trim(),
+            )
+            .filter(Boolean)
+            .map((name) => [name.toLowerCase(), name]),
+        ).values(),
+      ].sort((a, b) => a.localeCompare(b));
+
+      const canonicalNames = new Map(
+        categoryNames.map((name) => [name.toLowerCase(), name]),
+      );
+
+      const items = data.items.flatMap((item) => {
+        const itemId = String(item?._id || "").trim();
+        const itemName = String(item?.itemName || "").trim();
+        const rawCategory = String(item?.categoryName || "").trim();
+        const categoryName = canonicalNames.get(rawCategory.toLowerCase());
+
+        if (!itemId || !itemName || !categoryName || item?.isActive === false) {
+          return [];
+        }
+
+        return [
+          {
+            _id: itemId,
+            itemCode: String(item.itemCode || "").trim(),
+            itemName,
+            categoryName,
+            unit: String(item.unit || "PIECE").trim(),
+            currentStock: Number(item.currentStock || 0),
+          },
+        ];
+      });
+
+      items.sort(
+        (a, b) =>
+          a.categoryName.localeCompare(b.categoryName) ||
+          a.itemName.localeCompare(b.itemName),
+      );
+
+      if (requestId === catalogRequestRef.current) {
+        setMaterialCatalog({ categories: categoryNames, items });
+        setCatalogError("");
+      }
+    } catch (error) {
+      if (requestId !== catalogRequestRef.current) return;
+      console.error("STORE MATERIAL CATALOG ERROR:", error);
+      setCatalogError(
+        error?.response?.data?.message ||
+          error?.message ||
+          "Unable to load Store Manager inventory catalog.",
+      );
+      // Do not show stale choices if the catalog cannot be verified.
+      setMaterialCatalog({ categories: [], items: [] });
+    } finally {
+      if (requestId === catalogRequestRef.current && !silent) {
+        setCatalogLoading(false);
+      }
+    }
+  }, []);
+
+  const itemsForStoreCategory = (categoryName) =>
+    materialCatalog.items.filter((item) => item.categoryName === categoryName);
 
   // =====================================================
   // FETCH DATA
@@ -474,6 +620,30 @@ export default function Complaints() {
     if (working || Boolean(bulkBusy)) return;
     void fetchAll(false, true);
   }, [refreshKey, fetchAll, working, bulkBusy]);
+
+  // Fetch the catalog when the actual Complaints drawer Materials tab opens.
+  useEffect(() => {
+    if (selectedId && drawerTab === "MATERIAL") {
+      void fetchMaterialCatalog();
+    }
+  }, [selectedId, drawerTab, fetchMaterialCatalog]);
+
+  // Silent refresh keeps the selected category/item and entered quantity intact.
+  useEffect(() => {
+    if (lastCatalogRefreshKeyRef.current === refreshKey) return;
+    lastCatalogRefreshKeyRef.current = refreshKey;
+
+    if (selectedId && drawerTab === "MATERIAL" && !working && !catalogLoading) {
+      void fetchMaterialCatalog(true);
+    }
+  }, [
+    refreshKey,
+    selectedId,
+    drawerTab,
+    working,
+    catalogLoading,
+    fetchMaterialCatalog,
+  ]);
 
   useEffect(() => {
     if (!selectedId) return undefined;
@@ -895,9 +1065,39 @@ export default function Complaints() {
 
   function updateMaterial(index, field, value) {
     setMaterials((previous) =>
-      previous.map((material, i) =>
-        i === index ? { ...material, [field]: value } : material,
-      ),
+      previous.map((material, i) => {
+        if (i !== index) return material;
+
+        // Category change invalidates an earlier material selection.
+        if (field === "category") {
+          return {
+            ...material,
+            category: value,
+            inventoryId: "",
+            itemCode: "",
+            itemName: "",
+            unit: "",
+          };
+        }
+
+        // Only a real inventory record may populate Material Name.
+        if (field === "inventoryId") {
+          const item = materialCatalog.items.find(
+            (record) =>
+              record._id === value && record.categoryName === material.category,
+          );
+
+          return {
+            ...material,
+            inventoryId: item?._id || "",
+            itemCode: item?.itemCode || "",
+            itemName: item?.itemName || "",
+            unit: item ? requestUnit(item.unit) : "",
+          };
+        }
+
+        return { ...material, [field]: value };
+      }),
     );
   }
 
@@ -922,15 +1122,32 @@ export default function Complaints() {
       return;
     }
 
-    const invalid = materials.some(
-      (material) =>
-        !material.itemName.trim() ||
-        !Number.isFinite(Number(material.quantity)) ||
-        Number(material.quantity) <= 0,
-    );
+    if (catalogLoading || catalogError) {
+      toast.error("Store inventory catalog unavailable. Refresh it first.");
+      return;
+    }
+
+    const invalid = materials.some((material) => {
+      const item = materialCatalog.items.find(
+        (record) =>
+          record._id === material.inventoryId &&
+          record.categoryName === material.category,
+      );
+      const quantity = Number(material.quantity);
+
+      return (
+        !item ||
+        !Number.isFinite(quantity) ||
+        quantity <= 0 ||
+        Math.abs(quantity * 1000 - Math.round(quantity * 1000)) > 1e-7 ||
+        !material.unit
+      );
+    });
 
     if (invalid) {
-      toast.error("Enter valid material details");
+      toast.error(
+        "Select a Store category and material, then enter valid quantity.",
+      );
       return;
     }
 
@@ -939,11 +1156,21 @@ export default function Complaints() {
     try {
       await api.post("/maintenance/material-requests/create", {
         complaintId: selected._id,
-        materials: materials.map((material) => ({
-          itemName: material.itemName.trim(),
-          quantity: Number(material.quantity),
-          unit: material.unit,
-        })),
+        materials: materials.map((material) => {
+          const inventoryItem = materialCatalog.items.find(
+            (record) => record._id === material.inventoryId,
+          );
+
+          return {
+            itemName: inventoryItem.itemName,
+            // Existing Store issue handling prefers an exact Item Code when present.
+            ...(inventoryItem.itemCode
+              ? { itemCode: inventoryItem.itemCode }
+              : {}),
+            quantity: Number(material.quantity),
+            unit: requestUnit(inventoryItem.unit),
+          };
+        }),
         reason: reason.trim(),
       });
 
@@ -1959,9 +2186,51 @@ export default function Complaints() {
                         onSubmit={createMaterialRequest}
                         className="space-y-4 rounded-2xl bg-white p-5 shadow-sm"
                       >
-                        <h3 className="text-sm font-black">
-                          Request Materials from Store Manager
-                        </h3>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <h3 className="text-sm font-black">
+                              Request Materials from Store Manager
+                            </h3>
+                            <p className="mt-1 text-xs text-slate-500">
+                              Select a Store category, then choose a material
+                              from inventory.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            className={SECONDARY}
+                            disabled={catalogLoading}
+                            onClick={() => void fetchMaterialCatalog()}
+                          >
+                            <RefreshCw
+                              size={15}
+                              className={catalogLoading ? "animate-spin" : ""}
+                            />
+                            Refresh Store Items
+                          </button>
+                        </div>
+
+                        {catalogError && (
+                          <div
+                            role="alert"
+                            className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800"
+                          >
+                            Catalog unavailable: {catalogError}
+                            <p className="mt-1">
+                              Check GET
+                              /api/maintenance/material-requests/catalog and
+                              MAINTENANCE_MANAGER access.
+                            </p>
+                          </div>
+                        )}
+                        {!catalogError &&
+                          !catalogLoading &&
+                          materialCatalog.categories.length === 0 && (
+                            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                              No categories created yet. Ask Store Manager to
+                              create categories in Add Inventory.
+                            </div>
+                          )}
 
                         {materials.map((material, index) => (
                           <div
@@ -1988,19 +2257,77 @@ export default function Complaints() {
                               )}
                             </div>
 
-                            <input
-                              required
-                              className={INPUT}
-                              placeholder="Material Name"
-                              value={material.itemName}
-                              onChange={(event) =>
-                                updateMaterial(
-                                  index,
-                                  "itemName",
-                                  event.target.value,
-                                )
-                              }
-                            />
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-slate-600">
+                                Store Category *
+                              </label>
+                              <select
+                                required
+                                className={INPUT}
+                                value={material.category}
+                                disabled={
+                                  catalogLoading || Boolean(catalogError)
+                                }
+                                onChange={(event) =>
+                                  updateMaterial(
+                                    index,
+                                    "category",
+                                    event.target.value,
+                                  )
+                                }
+                              >
+                                <option value="">Select Category</option>
+                                {materialCatalog.categories.map((name) => (
+                                  <option key={name} value={name}>
+                                    {name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <label className="text-xs font-bold text-slate-600">
+                                Material Name *
+                              </label>
+                              <select
+                                required
+                                className={INPUT}
+                                value={material.inventoryId}
+                                disabled={
+                                  !material.category ||
+                                  catalogLoading ||
+                                  Boolean(catalogError)
+                                }
+                                onChange={(event) =>
+                                  updateMaterial(
+                                    index,
+                                    "inventoryId",
+                                    event.target.value,
+                                  )
+                                }
+                              >
+                                <option value="">Select Material</option>
+                                {itemsForStoreCategory(material.category).map(
+                                  (item) => (
+                                    <option key={item._id} value={item._id}>
+                                      {item.itemName} ·{" "}
+                                      {item.itemCode || "No Code"} · Stock{" "}
+                                      {item.currentStock}
+                                    </option>
+                                  ),
+                                )}
+                              </select>
+                              {material.category &&
+                                !catalogLoading &&
+                                itemsForStoreCategory(material.category)
+                                  .length === 0 && (
+                                  <p className="text-xs font-medium text-amber-700">
+                                    No materials assigned to this category yet.
+                                    Assign items in Store Manager Inventory
+                                    Management.
+                                  </p>
+                                )}
+                            </div>
 
                             <div className="grid grid-cols-2 gap-2">
                               <input
@@ -2020,23 +2347,13 @@ export default function Complaints() {
                                 }
                               />
 
-                              <select
-                                className={INPUT}
+                              <input
+                                className={`${INPUT} bg-slate-50`}
                                 value={material.unit}
-                                onChange={(event) =>
-                                  updateMaterial(
-                                    index,
-                                    "unit",
-                                    event.target.value,
-                                  )
-                                }
-                              >
-                                {UNITS.map((unit) => (
-                                  <option key={unit} value={unit}>
-                                    {unit}
-                                  </option>
-                                ))}
-                              </select>
+                                placeholder="Unit (auto)"
+                                readOnly
+                                aria-label="Unit from selected Store material"
+                              />
                             </div>
                           </div>
                         ))}
@@ -2066,7 +2383,12 @@ export default function Complaints() {
 
                         <button
                           type="submit"
-                          disabled={working}
+                          disabled={
+                            working ||
+                            catalogLoading ||
+                            Boolean(catalogError) ||
+                            materialCatalog.items.length === 0
+                          }
                           className={`${PRIMARY} w-full`}
                         >
                           <Send size={15} />
