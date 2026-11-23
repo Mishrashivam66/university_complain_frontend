@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import {
   AlertTriangle,
@@ -15,6 +15,7 @@ import {
   Filter,
   Loader2,
   Package,
+  PackagePlus,
   RefreshCw,
   Search,
   ShieldCheck,
@@ -23,17 +24,31 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
+
 import { useRealtime } from "../../context/RealtimeProvider";
+import AddInventory from "./AddInventory";
 
 // ==========================================
+
 // CONFIG
+
 // ==========================================
+
 const API = "/store/inventory";
 
 const fieldClass =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#D0AE61] focus:ring-2 focus:ring-[#D0AE61]/20";
 
 const clean = (value) => String(value ?? "").trim();
+
+// Display custom categories stored as Other + otherCategory.
+const displayCategory = (item) => {
+  const base = clean(item?.category);
+  if (/^others?$/i.test(base)) {
+    return clean(item?.otherCategory) || "Other";
+  }
+  return base || "Uncategorized";
+};
 
 const formatQty = (value) =>
   Number(value || 0).toLocaleString("en-IN", {
@@ -83,8 +98,11 @@ const blankEdit = {
 };
 
 // ==========================================
+
 // COMPONENTS
+
 // ==========================================
+
 function StockStatus({ item }) {
   const status = statusOf(item);
 
@@ -158,13 +176,22 @@ function Toast({ toast, onClose }) {
 }
 
 // ==========================================
+
 // MAIN COMPONENT
+
 // ==========================================
+
 export default function InventoryManagement() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const isAddView = searchParams.get("view") === "add";
+
   const { refreshKey } = useRealtime();
+
   const previousRefreshKeyRef = useRef(refreshKey);
+
   const requestVersionRef = useRef(0);
+
   const savingRef = useRef(false);
 
   const [inventory, setInventory] = useState([]);
@@ -194,8 +221,11 @@ export default function InventoryManagement() {
   const [toast, setToast] = useState(null);
 
   // ==========================================
+
   // NOTIFICATIONS
+
   // ==========================================
+
   const notify = (message, type = "success") => {
     setToast({ message, type });
   };
@@ -213,11 +243,16 @@ export default function InventoryManagement() {
   }, [toast]);
 
   // ==========================================
+
   // FETCH INVENTORY
+
   // ==========================================
+
   const fetchInventory = useCallback(async (mode = "initial") => {
     const manual = mode === "manual";
+
     const silent = mode === "silent";
+
     const requestVersion = ++requestVersionRef.current;
 
     if (manual) setRefreshing(true);
@@ -225,19 +260,25 @@ export default function InventoryManagement() {
 
     try {
       const { data } = await api.get(`${API}/all`);
+
       if (requestVersion !== requestVersionRef.current) return;
 
       const list = data?.inventory ?? data?.items ?? [];
+
       if (!Array.isArray(list)) {
         throw new Error("Invalid inventory API response format.");
       }
 
       setInventory(list);
+
       setError("");
+
       if (manual) notify("Inventory refreshed successfully.");
     } catch (err) {
       if (requestVersion !== requestVersionRef.current) return;
+
       console.error("INVENTORY FETCH ERROR:", err);
+
       if (!silent) {
         setError(
           err.response?.data?.message ||
@@ -248,28 +289,37 @@ export default function InventoryManagement() {
     } finally {
       if (requestVersion === requestVersionRef.current) {
         if (!silent) setLoading(false);
+
         if (manual) setRefreshing(false);
       }
     }
   }, []);
 
   useEffect(() => {
-    void fetchInventory("initial");
+    if (!isAddView) {
+      void fetchInventory("initial");
+    }
     return () => {
       requestVersionRef.current += 1;
     };
-  }, [fetchInventory]);
+  }, [fetchInventory, isAddView]);
 
   useEffect(() => {
     if (previousRefreshKeyRef.current === refreshKey) return;
+
     previousRefreshKeyRef.current = refreshKey;
+
     if (document.visibilityState !== "visible" || savingRef.current) return;
+
     void fetchInventory("silent");
   }, [refreshKey, fetchInventory]);
 
   // ==========================================
+
   // STATS & FILTERS
+
   // ==========================================
+
   const stats = useMemo(() => {
     const active = inventory.filter((item) => item.isActive !== false);
 
@@ -288,12 +338,7 @@ export default function InventoryManagement() {
   }, [inventory]);
 
   const categories = useMemo(
-    () =>
-      [
-        ...new Set(
-          inventory.map((item) => clean(item.category)).filter(Boolean),
-        ),
-      ].sort(),
+    () => [...new Set(inventory.map(displayCategory).filter(Boolean))].sort(),
 
     [inventory],
   );
@@ -322,7 +367,8 @@ export default function InventoryManagement() {
 
       const matchesSearch = !term || searchable.includes(term);
 
-      const matchesCategory = category === "ALL" || item.category === category;
+      const matchesCategory =
+        category === "ALL" || displayCategory(item) === category;
 
       const matchesStatus =
         filter === "ALL" ||
@@ -349,8 +395,11 @@ export default function InventoryManagement() {
   }, [search, filter, category, pageSize]);
 
   // ==========================================
+
   // EDIT ITEM
+
   // ==========================================
+
   const openEdit = (item) => {
     setSelectedItem(item);
 
@@ -401,8 +450,11 @@ export default function InventoryManagement() {
     const newCode = clean(editForm.itemCode).toUpperCase();
 
     // Existing assigned codes remain unchanged here.
+
     // Replacing identifiers needs a controlled
+
     // stock-ledger code migration.
+
     if (oldCode && oldCode.toUpperCase() !== newCode) {
       notify(
         "Existing Item Codes cannot be renamed here because stock history may reference them.",
@@ -420,6 +472,7 @@ export default function InventoryManagement() {
     }
 
     setSaving(true);
+
     savingRef.current = true;
 
     try {
@@ -438,7 +491,9 @@ export default function InventoryManagement() {
       };
 
       // Assign a missing code; never replace a code
+
       // or modify stock quantities from this form.
+
       if (!oldCode) {
         payload.itemCode = newCode;
       }
@@ -464,13 +519,17 @@ export default function InventoryManagement() {
       );
     } finally {
       savingRef.current = false;
+
       setSaving(false);
     }
   };
 
   // ==========================================
+
   // CSV EXPORT
+
   // ==========================================
+
   const exportCSV = () => {
     if (!filteredItems.length) {
       notify("No inventory records available to export.", "error");
@@ -507,7 +566,7 @@ export default function InventoryManagement() {
 
       item.unit || "",
 
-      item.category || "",
+      displayCategory(item),
 
       item.openingQuantity ?? "",
 
@@ -525,7 +584,7 @@ export default function InventoryManagement() {
     const escapeCSV = (value) => {
       const text = String(value ?? "");
 
-      const safe = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+      const safe = /^[=+@\t\r-]/.test(text) ? `'${text}` : text;
 
       return `"${safe.replace(/"/g, '""')}"`;
     };
@@ -564,8 +623,17 @@ export default function InventoryManagement() {
   };
 
   // ==========================================
+
   // RENDER
+
   // ==========================================
+
+  // Show the existing Add Inventory + Manage Categories page
+  // under the already-registered /store/inventory route.
+  if (isAddView) {
+    return <AddInventory />;
+  }
+
   return (
     <div className="min-w-0 space-y-6 pb-10">
       <Toast toast={toast} onClose={() => setToast(null)} />
@@ -591,6 +659,16 @@ export default function InventoryManagement() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => navigate("/store/inventory?view=add")}
+              className="inline-flex items-center gap-2 rounded-xl bg-[#E6C777] px-4 py-3 text-sm font-extrabold text-[#001B54] shadow-lg hover:bg-[#F2D991]"
+            >
+              <PackagePlus size={18} />
+              Add Inventory
+              <ArrowRight size={16} />
+            </button>
+
             <button
               type="button"
               onClick={() => fetchInventory("manual")}
@@ -881,7 +959,7 @@ export default function InventoryManagement() {
                     </td>
 
                     <td className="px-4 py-4 text-slate-600">
-                      {item.category || "—"}
+                      {displayCategory(item)}
                     </td>
 
                     <td className="px-4 py-4">
