@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import { useRealtime } from "../../context/RealtimeProvider";
 
 import axios from "axios";
+import api from "../../services/api";
 
 import toast from "react-hot-toast";
 
@@ -23,61 +25,79 @@ import {
   Building2,
 } from "lucide-react";
 
+const CATALOG_API = "/maintenance/material-requests/catalog";
+
 const MaterialRequest = () => {
   // ======================================
-
   // NAVIGATION
-
   // ======================================
-
   const location = useLocation();
 
   const navigate = useNavigate();
 
   // ======================================
-
   // COMPLAINT FROM ASSIGNED JOBS
-
   // ======================================
-
   const selectedComplaint = location.state?.complaint || null;
 
   const selectedComplaintId =
     location.state?.complaintId || selectedComplaint?._id || "";
 
   // ======================================
-
   // API
-
   // ======================================
-
   const MATERIAL_API =
     "https://complaine-backend.vercel.app/api/maintenance/material-requests";
 
   // Assumes storeRoutes.js mounts:
-
   // router.use("/requests", requestRoutes)
-
   const GENERAL_REQUEST_API =
     "https://complaine-backend.vercel.app/api/store/requests";
 
   // ======================================
-
   // TAB
-
   // ======================================
-
   const [activeTab, setActiveTab] = useState(
     selectedComplaint ? "COMPLAINT" : "GENERAL",
   );
 
   // ======================================
-
   // STATES
-
   // ======================================
-
   const [requests, setRequests] = useState([]);
+  const [catalog, setCatalog] = useState({ categories: [], items: [] });
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState("");
+
+  const loadCatalog = useCallback(async (silent = false) => {
+    if (!silent) setCatalogLoading(true);
+    try {
+      const { data } = await api.get(CATALOG_API);
+      if (
+        data?.success !== true ||
+        data?.source !== "CATEGORY_MASTER" ||
+        !Array.isArray(data.categories) ||
+        !Array.isArray(data.items)
+      )
+        throw new Error("Invalid Material Catalog response");
+      setCatalog({ categories: data.categories, items: data.items });
+      setCatalogError("");
+    } catch (error) {
+      console.error("MATERIAL CATALOG ERROR:", error);
+      if (!silent) {
+        setCatalogError(
+          error.response?.data?.message ||
+            error.message ||
+            "Unable to load Store inventory",
+        );
+      }
+    } finally {
+      if (!silent) setCatalogLoading(false);
+    }
+  }, []);
+
+  const itemsForCategory = (categoryName) =>
+    catalog.items.filter((item) => item.categoryName === categoryName);
 
   const [generalRequests, setGeneralRequests] = useState([]);
 
@@ -86,78 +106,46 @@ const MaterialRequest = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const { refreshKey } = useRealtime();
+
   const fetchSequenceRef = useRef(0);
+
   const lastRefreshKeyRef = useRef(refreshKey);
+
   const submittingRef = useRef(false);
 
   // ======================================
-
   // COMPLAINT MATERIAL FORM
-
   // ======================================
-
   const [materials, setMaterials] = useState([
     {
+      category: "",
+      itemId: "",
       itemName: "",
-
       quantity: "",
-
-      unit: "PIECE",
+      unit: "",
     },
   ]);
 
   const [reason, setReason] = useState("");
 
   // ======================================
-
   // GENERAL STORE REQUEST FORM
-
   // ======================================
-
   const [generalHostel, setGeneralHostel] = useState("");
 
   const [generalItem, setGeneralItem] = useState("");
+  const [generalCategory, setGeneralCategory] = useState("");
+  const [generalItemId, setGeneralItemId] = useState("");
 
   const [generalQuantity, setGeneralQuantity] = useState("");
 
   // ======================================
-
   // UNITS
-
   // ======================================
 
-  const units = [
-    "PIECE",
-
-    "METER",
-
-    "KG",
-
-    "GRAM",
-
-    "LITER",
-
-    "ML",
-
-    "BOX",
-
-    "PACKET",
-
-    "ROLL",
-
-    "SET",
-
-    "PAIR",
-
-    "OTHER",
-  ];
-
   // ======================================
-
   // TOKEN
-
   // ======================================
-
   const getHeaders = () => {
     const token = localStorage.getItem("token");
 
@@ -167,14 +155,12 @@ const MaterialRequest = () => {
   };
 
   // ======================================
-
   // FETCH COMPLAINT MATERIAL REQUESTS
-
   // ======================================
-
   // Load both request lists together; silent mode never resets the page.
   const fetchAllData = useCallback(async (mode = "silent") => {
     const sequence = ++fetchSequenceRef.current;
+
     if (mode === "initial") setLoading(true);
 
     const headers = {
@@ -183,6 +169,7 @@ const MaterialRequest = () => {
 
     const [materialResult, generalResult] = await Promise.allSettled([
       axios.get(MATERIAL_API, { headers }),
+
       axios.get(`${GENERAL_REQUEST_API}/all`, { headers }),
     ]);
 
@@ -192,6 +179,7 @@ const MaterialRequest = () => {
       setRequests(materialResult.value?.data?.requests || []);
     } else {
       console.error("MATERIAL REQUEST ERROR:", materialResult.reason);
+
       if (mode === "initial") setRequests([]);
     }
 
@@ -199,6 +187,7 @@ const MaterialRequest = () => {
       setGeneralRequests(generalResult.value?.data?.requests || []);
     } else {
       console.error("GENERAL REQUEST ERROR:", generalResult.reason);
+
       if (mode === "initial") setGeneralRequests([]);
     }
 
@@ -206,7 +195,12 @@ const MaterialRequest = () => {
   }, []);
 
   useEffect(() => {
+    void loadCatalog();
+  }, [loadCatalog]);
+
+  useEffect(() => {
     fetchAllData("initial");
+
     return () => {
       fetchSequenceRef.current += 1;
     };
@@ -214,19 +208,22 @@ const MaterialRequest = () => {
 
   useEffect(() => {
     if (lastRefreshKeyRef.current === refreshKey) return;
+
     lastRefreshKeyRef.current = refreshKey;
+
     if (document.visibilityState !== "visible" || submittingRef.current) return;
+
     fetchAllData("silent");
-  }, [refreshKey, fetchAllData]);
+    void loadCatalog(true);
+  }, [refreshKey, fetchAllData, loadCatalog]);
 
   const fetchMaterialRequests = async () => fetchAllData("silent");
+
   const fetchGeneralRequests = async () => fetchAllData("silent");
 
   // ======================================
   // EXISTING REQUEST FOR COMPLAINT
-
   // ======================================
-
   const existingRequest = useMemo(() => {
     if (!selectedComplaintId) {
       return null;
@@ -245,31 +242,25 @@ const MaterialRequest = () => {
   }, [requests, selectedComplaintId]);
 
   // ======================================
-
   // ADD MATERIAL
-
   // ======================================
-
   const addMaterial = () => {
     setMaterials((prev) => [
       ...prev,
 
       {
+        category: "",
+        itemId: "",
         itemName: "",
-
         quantity: "",
-
-        unit: "PIECE",
+        unit: "",
       },
     ]);
   };
 
   // ======================================
-
   // REMOVE MATERIAL
-
   // ======================================
-
   const removeMaterial = (index) => {
     if (materials.length === 1) {
       return toast.error("At least one material is required");
@@ -281,31 +272,44 @@ const MaterialRequest = () => {
   };
 
   // ======================================
-
   // UPDATE MATERIAL
-
   // ======================================
-
   const updateMaterial = (index, field, value) => {
     setMaterials((prev) =>
-      prev.map((material, currentIndex) =>
-        currentIndex === index
-          ? {
-              ...material,
+      prev.map((material, currentIndex) => {
+        if (currentIndex !== index) return material;
 
-              [field]: value,
-            }
-          : material,
-      ),
+        if (field === "category") {
+          return {
+            ...material,
+            category: value,
+            itemId: "",
+            itemName: "",
+            unit: "",
+          };
+        }
+
+        if (field === "itemId") {
+          const found = catalog.items.find(
+            (item) =>
+              item._id === value && item.categoryName === material.category,
+          );
+          return {
+            ...material,
+            itemId: found?._id || "",
+            itemName: found?.itemName || "",
+            unit: found?.unit || "",
+          };
+        }
+
+        return { ...material, [field]: value };
+      }),
     );
   };
 
   // ======================================
-
   // CREATE COMPLAINT MATERIAL REQUEST
-
   // ======================================
-
   const handleComplaintRequest = async (e) => {
     e.preventDefault();
 
@@ -321,13 +325,18 @@ const MaterialRequest = () => {
       return toast.error("Please enter reason");
     }
 
-    const invalidMaterial = materials.some(
-      (material) =>
-        !material.itemName.trim() ||
-        !material.quantity ||
-        Number(material.quantity) <= 0 ||
-        !material.unit,
-    );
+    const invalidMaterial = materials.some((material) => {
+      const selected = catalog.items.find(
+        (item) =>
+          item._id === material.itemId &&
+          item.categoryName === material.category,
+      );
+      return (
+        !selected ||
+        !Number.isFinite(Number(material.quantity)) ||
+        Number(material.quantity) <= 0
+      );
+    });
 
     if (invalidMaterial) {
       return toast.error("Please fill all material details");
@@ -335,6 +344,7 @@ const MaterialRequest = () => {
 
     try {
       submittingRef.current = true;
+
       setSubmitting(true);
 
       const payload = {
@@ -368,13 +378,7 @@ const MaterialRequest = () => {
       );
 
       setMaterials([
-        {
-          itemName: "",
-
-          quantity: "",
-
-          unit: "PIECE",
-        },
+        { category: "", itemId: "", itemName: "", quantity: "", unit: "" },
       ]);
 
       setReason("");
@@ -388,22 +392,25 @@ const MaterialRequest = () => {
       );
     } finally {
       submittingRef.current = false;
+
       setSubmitting(false);
     }
   };
 
   // ======================================
-
   // CREATE GENERAL STORE REQUEST
-
   // ======================================
-
   const handleGeneralRequest = async (e) => {
     e.preventDefault();
 
     if (
       !generalHostel.trim() ||
-      !generalItem.trim() ||
+      !generalCategory.trim() ||
+      !generalItemId ||
+      !catalog.items.some(
+        (item) =>
+          item._id === generalItemId && item.categoryName === generalCategory,
+      ) ||
       !generalQuantity ||
       Number(generalQuantity) <= 0
     ) {
@@ -412,6 +419,7 @@ const MaterialRequest = () => {
 
     try {
       submittingRef.current = true;
+
       setSubmitting(true);
 
       const payload = {
@@ -439,6 +447,8 @@ const MaterialRequest = () => {
       setGeneralHostel("");
 
       setGeneralItem("");
+      setGeneralCategory("");
+      setGeneralItemId("");
 
       setGeneralQuantity("");
 
@@ -451,16 +461,14 @@ const MaterialRequest = () => {
       );
     } finally {
       submittingRef.current = false;
+
       setSubmitting(false);
     }
   };
 
   // ======================================
-
   // STATUS COLOR
-
   // ======================================
-
   const getStatusColor = (status) => {
     switch (status) {
       case "PENDING":
@@ -502,11 +510,8 @@ const MaterialRequest = () => {
   };
 
   // ======================================
-
   // ITEM STATUS
-
   // ======================================
-
   const getItemStatusColor = (status) => {
     switch (status) {
       case "APPROVED":
@@ -527,11 +532,8 @@ const MaterialRequest = () => {
   };
 
   // ======================================
-
   // DATE
-
   // ======================================
-
   const formatDate = (date) => {
     if (!date) return "--";
 
@@ -539,11 +541,8 @@ const MaterialRequest = () => {
   };
 
   // ======================================
-
   // LOADING
-
   // ======================================
-
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -557,40 +556,74 @@ const MaterialRequest = () => {
       <div
         className="
 
+
+
           bg-gradient-to-r
+
+
 
           from-[#001B54]
 
+
+
           via-[#002B7F]
+
+
 
           to-[#7A0019]
 
+
+
           text-white
+
+
 
           rounded-3xl
 
+
+
           shadow-2xl
+
+
 
           p-6
 
+
+
           md:p-8
+
+
 
         "
       >
         <div
           className="
 
+
+
             flex
+
+
 
             flex-col
 
+
+
             lg:flex-row
+
+
 
             lg:items-center
 
+
+
             lg:justify-between
 
+
+
             gap-5
+
+
 
           "
         >
@@ -613,21 +646,39 @@ const MaterialRequest = () => {
               onClick={() => navigate(-1)}
               className="
 
+
+
                 bg-white/20
+
+
 
                 px-5
 
+
+
                 py-3
+
+
 
                 rounded-2xl
 
+
+
                 font-bold
+
+
 
                 flex
 
+
+
                 items-center
 
+
+
                 gap-2
+
+
 
               "
             >
@@ -639,23 +690,43 @@ const MaterialRequest = () => {
               onClick={() => fetchAllData("silent")}
               className="
 
+
+
                 bg-white
+
+
 
                 text-[#001B54]
 
+
+
                 px-5
+
+
 
                 py-3
 
+
+
                 rounded-2xl
+
+
 
                 font-bold
 
+
+
                 flex
+
+
 
                 items-center
 
+
+
                 gap-2
+
+
 
               "
             >
@@ -669,21 +740,39 @@ const MaterialRequest = () => {
       <div
         className="
 
+
+
           bg-white
+
+
 
           rounded-3xl
 
+
+
           shadow-xl
+
+
 
           p-3
 
+
+
           grid
+
+
 
           grid-cols-1
 
+
+
           sm:grid-cols-2
 
+
+
           gap-3
+
+
 
         "
       >
@@ -691,45 +780,83 @@ const MaterialRequest = () => {
           onClick={() => setActiveTab("COMPLAINT")}
           className={`
 
+
+
             px-5
+
+
 
             py-4
 
+
+
             rounded-2xl
+
+
 
             font-bold
 
+
+
             flex
+
+
 
             items-center
 
+
+
             justify-center
+
+
 
             gap-2
 
+
+
             transition
+
+
 
             ${
               activeTab === "COMPLAINT"
                 ? `
 
+
+
                   bg-gradient-to-r
+
+
 
                   from-[#001B54]
 
+
+
                   to-[#7A0019]
 
+
+
                   text-white
+
+
 
                 `
                 : `
 
+
+
                   bg-gray-100
+
+
 
                   text-gray-600
 
+
+
                 `
             }
+
+
 
           `}
         >
@@ -741,45 +868,83 @@ const MaterialRequest = () => {
           onClick={() => setActiveTab("GENERAL")}
           className={`
 
+
+
             px-5
+
+
 
             py-4
 
+
+
             rounded-2xl
+
+
 
             font-bold
 
+
+
             flex
+
+
 
             items-center
 
+
+
             justify-center
+
+
 
             gap-2
 
+
+
             transition
+
+
 
             ${
               activeTab === "GENERAL"
                 ? `
 
+
+
                   bg-gradient-to-r
+
+
 
                   from-[#001B54]
 
+
+
                   to-[#7A0019]
 
+
+
                   text-white
+
+
 
                 `
                 : `
 
+
+
                   bg-gray-100
+
+
 
                   text-gray-600
 
+
+
                 `
             }
+
+
 
           `}
         >
@@ -788,23 +953,50 @@ const MaterialRequest = () => {
         </button>
       </div>
 
+      {catalogError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-800">
+          Store inventory catalog could not be loaded: {catalogError}
+          <button
+            type="button"
+            onClick={() => void loadCatalog()}
+            className="ml-3 underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {activeTab === "COMPLAINT" && (
         <>
           {selectedComplaint ? (
             <div
               className="
 
+
+
                 bg-white
+
+
 
                 rounded-3xl
 
+
+
                 shadow-xl
+
+
 
                 border
 
+
+
                 border-gray-100
 
+
+
                 overflow-hidden
+
+
 
               "
             >
@@ -825,17 +1017,31 @@ const MaterialRequest = () => {
               <div
                 className="
 
+
+
                   grid
+
+
 
                   grid-cols-1
 
+
+
                   md:grid-cols-2
+
+
 
                   xl:grid-cols-4
 
+
+
                   gap-5
 
+
+
                   p-6
+
+
 
                 "
               >
@@ -905,19 +1111,35 @@ const MaterialRequest = () => {
             <div
               className="
 
+
+
                 bg-yellow-50
+
+
 
                 border
 
+
+
                 border-yellow-200
+
+
 
                 rounded-3xl
 
+
+
                 p-6
+
+
 
                 flex
 
+
+
                 gap-4
+
+
 
               "
             >
@@ -940,15 +1162,27 @@ const MaterialRequest = () => {
               <div
                 className="
 
+
+
                     bg-gradient-to-r
+
+
 
                     from-[#001B54]
 
+
+
                     to-[#7A0019]
+
+
 
                     text-white
 
+
+
                     p-6
+
+
 
                   "
               >
@@ -964,21 +1198,39 @@ const MaterialRequest = () => {
                   <span
                     className={`
 
+
+
                         bg-white
+
+
 
                         h-fit
 
+
+
                         px-4
+
+
 
                         py-2
 
+
+
                         rounded-full
+
+
 
                         text-sm
 
+
+
                         font-bold
 
+
+
                         ${getStatusColor(existingRequest.status)}
+
+
 
                       `}
                   >
@@ -993,23 +1245,43 @@ const MaterialRequest = () => {
                     key={material._id || index}
                     className="
 
+
+
                           bg-gray-50
+
+
 
                           rounded-2xl
 
+
+
                           p-4
+
+
 
                           flex
 
+
+
                           flex-col
+
+
 
                           sm:flex-row
 
+
+
                           sm:items-center
+
+
 
                           sm:justify-between
 
+
+
                           gap-3
+
+
 
                         "
                   >
@@ -1024,17 +1296,31 @@ const MaterialRequest = () => {
                     <span
                       className={`
 
+
+
                             px-3
+
+
 
                             py-1.5
 
+
+
                             rounded-full
+
+
 
                             text-xs
 
+
+
                             font-bold
 
+
+
                             ${getItemStatusColor(material.status)}
+
+
 
                           `}
                     >
@@ -1057,17 +1343,31 @@ const MaterialRequest = () => {
               onSubmit={handleComplaintRequest}
               className="
 
+
+
                   bg-white
+
+
 
                   rounded-3xl
 
+
+
                   shadow-2xl
+
+
 
                   p-6
 
+
+
                   md:p-8
 
+
+
                   space-y-6
+
+
 
                 "
             >
@@ -1080,7 +1380,7 @@ const MaterialRequest = () => {
                   </h2>
 
                   <p className="text-gray-500 text-sm">
-                    Multiple materials add kar sakte ho.
+                    Select Store Category, then its inventory material name.
                   </p>
                 </div>
               </div>
@@ -1090,13 +1390,23 @@ const MaterialRequest = () => {
                   key={index}
                   className="
 
+
+
                         bg-gray-50
+
+
 
                         border
 
+
+
                         rounded-2xl
 
+
+
                         p-5
+
+
 
                       "
                 >
@@ -1111,13 +1421,23 @@ const MaterialRequest = () => {
                         onClick={() => removeMaterial(index)}
                         className="
 
+
+
                               bg-red-100
+
+
 
                               text-red-700
 
+
+
                               p-2
 
+
+
                               rounded-xl
+
+
 
                             "
                       >
@@ -1129,45 +1449,72 @@ const MaterialRequest = () => {
                   <div
                     className="
 
+
+
                           grid
+
+
 
                           grid-cols-1
 
+
+
                           md:grid-cols-12
+
+
 
                           gap-4
 
+
+
                         "
                   >
-                    <div className="md:col-span-6">
-                      <label className="font-semibold">Material Name</label>
-
-                      <input
-                        type="text"
-                        value={material.itemName}
+                    <div className="md:col-span-4">
+                      <label className="font-semibold">Store Category</label>
+                      <select
+                        className="mt-2 w-full rounded-2xl border bg-white px-4 py-4"
+                        value={material.category}
+                        disabled={catalogLoading || !!catalogError}
                         onChange={(e) =>
-                          updateMaterial(index, "itemName", e.target.value)
+                          updateMaterial(index, "category", e.target.value)
                         }
-                        placeholder="Electrical Wire"
-                        className="
-
-                              w-full
-
-                              mt-2
-
-                              border
-
-                              rounded-2xl
-
-                              px-4
-
-                              py-4
-
-                            "
-                      />
+                      >
+                        <option value="">Select Category</option>
+                        {catalog.categories.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
-                    <div className="md:col-span-3">
+                    <div className="md:col-span-4">
+                      <label className="font-semibold">Material Name</label>
+                      <select
+                        className="mt-2 w-full rounded-2xl border bg-white px-4 py-4"
+                        value={material.itemId}
+                        disabled={!material.category || catalogLoading}
+                        onChange={(e) =>
+                          updateMaterial(index, "itemId", e.target.value)
+                        }
+                      >
+                        <option value="">Select Material</option>
+                        {itemsForCategory(material.category).map((item) => (
+                          <option key={item._id} value={item._id}>
+                            {item.itemName} ({item.itemCode || "No code"}) ·
+                            Stock {item.currentStock}
+                          </option>
+                        ))}
+                      </select>
+                      {material.category &&
+                        itemsForCategory(material.category).length === 0 && (
+                          <p className="mt-1 text-xs text-amber-700">
+                            No assigned inventory materials in this category.
+                          </p>
+                        )}
+                    </div>
+
+                    <div className="md:col-span-2">
                       <label className="font-semibold">Quantity</label>
 
                       <input
@@ -1181,17 +1528,31 @@ const MaterialRequest = () => {
                         placeholder="10"
                         className="
 
+
+
                               w-full
+
+
 
                               mt-2
 
+
+
                               border
+
+
 
                               rounded-2xl
 
+
+
                               px-4
 
+
+
                               py-4
+
+
 
                             "
                       />
@@ -1200,35 +1561,12 @@ const MaterialRequest = () => {
                     <div className="md:col-span-3">
                       <label className="font-semibold">Unit</label>
 
-                      <select
+                      <input
                         value={material.unit}
-                        onChange={(e) =>
-                          updateMaterial(index, "unit", e.target.value)
-                        }
-                        className="
-
-                              w-full
-
-                              mt-2
-
-                              border
-
-                              rounded-2xl
-
-                              px-4
-
-                              py-4
-
-                              bg-white
-
-                            "
-                      >
-                        {units.map((unit) => (
-                          <option key={unit} value={unit}>
-                            {unit}
-                          </option>
-                        ))}
-                      </select>
+                        readOnly
+                        placeholder="Auto from inventory"
+                        className="mt-2 w-full rounded-2xl border bg-slate-100 px-4 py-4 text-slate-700"
+                      />
                     </div>
                   </div>
                 </div>
@@ -1239,21 +1577,39 @@ const MaterialRequest = () => {
                 onClick={addMaterial}
                 className="
 
+
+
                     w-full
+
+
 
                     border-2
 
+
+
                     border-dashed
+
+
 
                     border-[#001B54]
 
+
+
                     text-[#001B54]
+
+
 
                     py-4
 
+
+
                     rounded-2xl
 
+
+
                     font-bold
+
+
 
                   "
               >
@@ -1270,19 +1626,35 @@ const MaterialRequest = () => {
                   placeholder="Why are these materials required?"
                   className="
 
+
+
                       w-full
+
+
 
                       mt-2
 
+
+
                       border
+
+
 
                       rounded-2xl
 
+
+
                       px-4
+
+
 
                       py-4
 
+
+
                       resize-none
+
+
 
                     "
                 />
@@ -1293,31 +1665,59 @@ const MaterialRequest = () => {
                 disabled={submitting}
                 className="
 
+
+
                     w-full
+
+
 
                     bg-gradient-to-r
 
+
+
                     from-[#001B54]
+
+
 
                     to-[#7A0019]
 
+
+
                     text-white
+
+
 
                     py-4
 
+
+
                     rounded-2xl
+
+
 
                     font-bold
 
+
+
                     flex
+
+
 
                     items-center
 
+
+
                     justify-center
+
+
 
                     gap-2
 
+
+
                     disabled:opacity-50
+
+
 
                   "
               >
@@ -1344,17 +1744,31 @@ const MaterialRequest = () => {
             onSubmit={handleGeneralRequest}
             className="
 
+
+
               bg-white
+
+
 
               rounded-3xl
 
+
+
               shadow-2xl
+
+
 
               p-6
 
+
+
               md:p-8
 
+
+
               space-y-6
+
+
 
             "
           >
@@ -1375,13 +1789,23 @@ const MaterialRequest = () => {
             <div
               className="
 
+
+
                 grid
+
+
 
                 grid-cols-1
 
-                md:grid-cols-3
+
+
+                md:grid-cols-4
+
+
 
                 gap-5
+
+
 
               "
             >
@@ -1395,46 +1819,81 @@ const MaterialRequest = () => {
                   placeholder="Example: H1"
                   className="
 
+
+
                     w-full
+
+
 
                     mt-2
 
+
+
                     border
+
+
 
                     rounded-2xl
 
+
+
                     px-4
 
+
+
                     py-4
+
+
 
                   "
                 />
               </div>
 
               <div>
-                <label className="font-semibold">Item</label>
+                <label className="font-semibold">Store Category</label>
+                <select
+                  className="mt-2 w-full rounded-2xl border bg-white px-4 py-4"
+                  value={generalCategory}
+                  onChange={(e) => {
+                    setGeneralCategory(e.target.value);
+                    setGeneralItemId("");
+                    setGeneralItem("");
+                  }}
+                  disabled={catalogLoading || !!catalogError}
+                >
+                  <option value="">Select Category</option>
+                  {catalog.categories.map((name) => (
+                    <option key={name} value={name}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                <input
-                  type="text"
-                  value={generalItem}
-                  onChange={(e) => setGeneralItem(e.target.value)}
-                  placeholder="Example: Cleaning Gloves"
-                  className="
-
-                    w-full
-
-                    mt-2
-
-                    border
-
-                    rounded-2xl
-
-                    px-4
-
-                    py-4
-
-                  "
-                />
+              <div>
+                <label className="font-semibold">Material Name</label>
+                <select
+                  className="mt-2 w-full rounded-2xl border bg-white px-4 py-4"
+                  value={generalItemId}
+                  disabled={!generalCategory}
+                  onChange={(e) => {
+                    const matched = catalog.items.find(
+                      (item) =>
+                        item._id === e.target.value &&
+                        item.categoryName === generalCategory,
+                    );
+                    setGeneralItemId(matched?._id || "");
+                    setGeneralItem(matched?.itemName || "");
+                  }}
+                >
+                  <option value="">Select Material</option>
+                  {itemsForCategory(generalCategory).map((item) => (
+                    <option key={item._id} value={item._id}>
+                      {item.itemName} ({item.itemCode || "No code"}) · Stock{" "}
+                      {item.currentStock}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -1448,17 +1907,31 @@ const MaterialRequest = () => {
                   placeholder="20"
                   className="
 
+
+
                     w-full
+
+
 
                     mt-2
 
+
+
                     border
+
+
 
                     rounded-2xl
 
+
+
                     px-4
 
+
+
                     py-4
+
+
 
                   "
                 />
@@ -1470,31 +1943,59 @@ const MaterialRequest = () => {
               disabled={submitting}
               className="
 
+
+
                 w-full
+
+
 
                 bg-gradient-to-r
 
+
+
                 from-[#001B54]
+
+
 
                 to-[#7A0019]
 
+
+
                 text-white
+
+
 
                 py-4
 
+
+
                 rounded-2xl
+
+
 
                 font-bold
 
+
+
                 flex
+
+
 
                 justify-center
 
+
+
                 items-center
+
+
 
                 gap-2
 
+
+
                 disabled:opacity-50
+
+
 
               "
             >
@@ -1515,13 +2016,23 @@ const MaterialRequest = () => {
           <div
             className="
 
+
+
               bg-white
+
+
 
               rounded-3xl
 
+
+
               shadow-xl
 
+
+
               p-6
+
+
 
             "
           >
@@ -1537,17 +2048,31 @@ const MaterialRequest = () => {
               <span
                 className="
 
+
+
                   bg-blue-100
+
+
 
                   text-blue-700
 
+
+
                   px-4
+
+
 
                   py-2
 
+
+
                   rounded-full
 
+
+
                   font-bold
+
+
 
                 "
               >
@@ -1568,21 +2093,39 @@ const MaterialRequest = () => {
                     key={request._id}
                     className="
 
+
+
                         border
+
+
 
                         rounded-2xl
 
+
+
                         p-5
+
+
 
                         grid
 
+
+
                         grid-cols-1
+
+
 
                         md:grid-cols-5
 
+
+
                         gap-4
 
+
+
                         items-center
+
+
 
                       "
                   >
@@ -1614,19 +2157,35 @@ const MaterialRequest = () => {
                       <span
                         className={`
 
+
+
                             inline-block
+
+
 
                             px-3
 
+
+
                             py-1.5
+
+
 
                             rounded-full
 
+
+
                             text-xs
+
+
 
                             font-bold
 
+
+
                             ${getStatusColor(request.status)}
+
+
 
                           `}
                       >
@@ -1645,13 +2204,23 @@ const MaterialRequest = () => {
         <div
           className="
 
+
+
             bg-white
+
+
 
             rounded-3xl
 
+
+
             shadow-xl
 
+
+
             p-6
+
+
 
           "
         >
@@ -1669,17 +2238,31 @@ const MaterialRequest = () => {
             <span
               className="
 
+
+
                 bg-blue-100
+
+
 
                 text-blue-700
 
+
+
                 px-4
+
+
 
                 py-2
 
+
+
                 rounded-full
 
+
+
                 font-bold
+
+
 
               "
             >
@@ -1700,32 +2283,58 @@ const MaterialRequest = () => {
                   key={request._id}
                   className="
 
+
+
                     border
+
+
 
                     rounded-2xl
 
+
+
                     overflow-hidden
+
+
 
                   "
                 >
                   <div
                     className="
 
+
+
                       bg-gray-50
+
+
 
                       p-5
 
+
+
                       flex
+
+
 
                       flex-col
 
+
+
                       md:flex-row
+
+
 
                       md:items-center
 
+
+
                       md:justify-between
 
+
+
                       gap-4
+
+
 
                     "
                   >
@@ -1742,19 +2351,35 @@ const MaterialRequest = () => {
                     <span
                       className={`
 
+
+
                         h-fit
+
+
 
                         px-4
 
+
+
                         py-2
+
+
 
                         rounded-full
 
+
+
                         text-sm
+
+
 
                         font-bold
 
+
+
                         ${getStatusColor(request.status)}
+
+
 
                       `}
                     >
@@ -1766,13 +2391,23 @@ const MaterialRequest = () => {
                     <div
                       className="
 
+
+
                         grid
+
+
 
                         grid-cols-1
 
+
+
                         md:grid-cols-2
 
+
+
                         gap-3
+
+
 
                       "
                     >
@@ -1781,11 +2416,19 @@ const MaterialRequest = () => {
                           key={material._id || index}
                           className="
 
+
+
                               bg-blue-50
+
+
 
                               rounded-xl
 
+
+
                               p-4
+
+
 
                             "
                         >
@@ -1803,19 +2446,35 @@ const MaterialRequest = () => {
                             <span
                               className={`
 
+
+
                                   h-fit
+
+
 
                                   px-3
 
+
+
                                   py-1
+
+
 
                                   rounded-full
 
+
+
                                   text-xs
+
+
 
                                   font-bold
 
+
+
                                   ${getItemStatusColor(material.status)}
+
+
 
                                 `}
                             >
