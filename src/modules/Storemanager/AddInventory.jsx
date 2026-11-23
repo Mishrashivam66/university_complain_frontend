@@ -850,7 +850,7 @@ export default function AddInventory() {
 
                 {categories.map((value) => (
                   <option key={value} value={value}>
-                    {value}
+                    {value === "Other" ? "+ Create New Category" : value}
                   </option>
                 ))}
               </select>
