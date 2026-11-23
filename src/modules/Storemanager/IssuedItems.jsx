@@ -4,6 +4,8 @@ import { useLocation } from "react-router-dom";
 
 import {
   AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
   CheckCircle2,
   ClipboardCheck,
   Clock3,
@@ -27,65 +29,121 @@ import { useRealtime } from "../../context/RealtimeProvider";
 const REQUEST_API = "/store/requests/all";
 const ISSUE_API = "/store/issued-items";
 const RECEIVING_API = "/store/material-receiving/all";
+const INVENTORY_API = "/store/inventory/all";
 
 const fieldClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none transition focus:border-[#D4B66D] focus:ring-2 focus:ring-[#D4B66D]/20";
+  "w-full min-w-0 rounded-xl border border-slate-200 bg-white " +
+  "px-3 py-2.5 text-sm text-slate-800 outline-none transition " +
+  "focus:border-[#D4B66D] focus:ring-2 focus:ring-amber-100";
+
+const clean = (value) => String(value ?? "").trim();
+
+const number = (value) => Number(value || 0);
+
+const round = (value) =>
+  Math.round((Number(value) + Number.EPSILON) * 1000) / 1000;
 
 const formatQty = (value) =>
-  Number(value || 0).toLocaleString("en-IN", {
+  number(value).toLocaleString("en-IN", {
     maximumFractionDigits: 3,
   });
+
+const validQuantity = (value) =>
+  Number.isFinite(value) &&
+  value > 0 &&
+  Math.abs(value * 1000 - Math.round(value * 1000)) < 1e-7;
 
 const formatDate = (value) => {
   if (!value) return "—";
 
   const date = new Date(value);
 
-  return Number.isNaN(date.getTime())
-    ? "—"
-    : date.toLocaleString("en-IN", {
-        timeZone: "Asia/Kolkata",
-        dateStyle: "medium",
-        timeStyle: "short",
-      });
+  if (Number.isNaN(date.getTime())) return "—";
+
+  return date.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
 };
 
 const userIdOf = (user) => {
   if (!user) return "";
   if (typeof user === "string") return user;
-  return String(user._id || "");
+  return clean(user._id);
 };
 
 const nameOf = (user) => {
   if (!user) return "Not assigned";
+
   if (typeof user === "string") {
     return "Assigned Technician";
   }
+
   return user.name || "Unnamed Technician";
 };
 
 const staffCodeOf = (user) => {
-  if (!user || typeof user !== "object") {
-    return "";
-  }
+  if (!user || typeof user !== "object") return "";
 
   return user.technicianId || user.workerId || user.employeeId || "";
 };
 
-const round = (number) =>
-  Math.round((Number(number) + Number.EPSILON) * 1000) / 1000;
+const getError = (error, fallback) =>
+  error?.response?.data?.message || error?.message || fallback;
 
-const validQuantity = (quantity) =>
-  Number.isFinite(quantity) &&
-  quantity > 0 &&
-  Math.abs(quantity * 1000 - Math.round(quantity * 1000)) < 1e-7;
+const idOf = (value) => {
+  if (!value) return "";
+  return clean(typeof value === "object" ? value._id : value);
+};
+
+// ==========================================
+// MATCH STOCK WITH REQUEST MATERIAL
+// ==========================================
+// Matches the existing backend issue flow:
+// Item Code first, otherwise exact item name.
+// ==========================================
+
+function findInventoryItem(items, material) {
+  const active = items.filter((item) => item.isActive !== false);
+
+  const code = clean(material.itemCode).toUpperCase();
+  const itemName = clean(material.itemName).toLowerCase();
+
+  const matches = code
+    ? active.filter((item) => clean(item.itemCode).toUpperCase() === code)
+    : active.filter((item) => clean(item.itemName).toLowerCase() === itemName);
+
+  if (matches.length > 1) {
+    return {
+      item: null,
+      error:
+        "Multiple inventory items match this material. " +
+        "Assign an exact Item Code before issuing.",
+    };
+  }
+
+  if (matches.length === 0) {
+    return {
+      item: null,
+      error:
+        "Matching inventory item not found. " +
+        "Check its Item Code or material name.",
+    };
+  }
+
+  return {
+    item: matches[0],
+    error: "",
+  };
+}
 
 // ==========================================
 // RECEIVING STATUS
 // ==========================================
 
 function ReceivingBadge({ status }) {
-  const normalized = status || "AWAITING_CONFIRMATION";
+  const value = status || "AWAITING_CONFIRMATION";
 
   const colors = {
     AWAITING_CONFIRMATION: "bg-amber-50 text-amber-800",
@@ -97,11 +155,25 @@ function ReceivingBadge({ status }) {
   return (
     <span
       className={`inline-flex rounded-full px-3 py-1.5 text-xs font-bold ${
-        colors[normalized] || "bg-slate-100 text-slate-700"
+        colors[value] || "bg-slate-100 text-slate-700"
       }`}
     >
-      {normalized.replaceAll("_", " ")}
+      {value.replaceAll("_", " ")}
     </span>
+  );
+}
+
+function StatCard({ title, value, Icon, color }) {
+  return (
+    <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+      <div className={`inline-flex rounded-xl p-3 ${color}`}>
+        <Icon size={21} />
+      </div>
+
+      <p className="mt-3 text-xs font-bold text-slate-500">{title}</p>
+
+      <p className="mt-2 text-3xl font-extrabold text-[#001B54]">{value}</p>
+    </div>
   );
 }
 
@@ -112,13 +184,12 @@ function ReceivingBadge({ status }) {
 function IssueModal({ selected, onClose, onSaved }) {
   const { request, material } = selected;
 
-  const remaining = round(
-    Number(material.approvedQuantity || 0) -
-      Number(material.issuedQuantity || 0),
-  );
+  const approved = round(material.approvedQuantity || 0);
+  const alreadyIssued = round(material.issuedQuantity || 0);
+
+  const remaining = round(Math.max(0, approved - alreadyIssued));
 
   const assigned = request.assignedWorker;
-
   const receiverUserId = userIdOf(assigned);
   const receiverName = nameOf(assigned);
   const technicianId = staffCodeOf(assigned);
@@ -132,21 +203,39 @@ function IssueModal({ selected, onClose, onSaved }) {
   );
 
   const [remarks, setRemarks] = useState("");
+
+  const [inventoryItem, setInventoryItem] = useState(null);
+  const [stockLoading, setStockLoading] = useState(true);
+  const [stockError, setStockError] = useState("");
+
+  const [step, setStep] = useState("edit");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   const issueQty = Number(quantity);
   const retrievalQty = Number(expectedRetrievalQty);
 
+  const availableStock = inventoryItem
+    ? round(inventoryItem.currentStock || 0)
+    : null;
+
+  const maxIssuable =
+    availableStock === null
+      ? 0
+      : round(Math.max(0, Math.min(remaining, availableStock)));
+
   const receiverVerified =
     Boolean(receiverUserId) &&
     Boolean(receiverName) &&
-    receiverName !== "Not assigned" &&
-    receiverName !== "Assigned Technician" &&
-    receiverName !== "Unnamed Technician";
+    !["Not assigned", "Assigned Technician", "Unnamed Technician"].includes(
+      receiverName,
+    );
+
+  const basicQuantityValid =
+    quantity.trim() !== "" && validQuantity(issueQty) && issueQty <= remaining;
 
   const quantityValid =
-    quantity.trim() !== "" && validQuantity(issueQty) && issueQty <= remaining;
+    basicQuantityValid && availableStock !== null && issueQty <= availableStock;
 
   const retrievalValid =
     !retrievalRequired ||
@@ -154,36 +243,142 @@ function IssueModal({ selected, onClose, onSaved }) {
       validQuantity(retrievalQty) &&
       retrievalQty <= issueQty);
 
-  // ==========================================
-  // SUBMIT MATERIAL ISSUE
-  // ==========================================
+  const category = inventoryItem
+    ? inventoryItem.category === "Other"
+      ? inventoryItem.otherCategory || "Other"
+      : inventoryItem.category || "Uncategorized"
+    : "—";
 
-  const submit = async (event) => {
-    event.preventDefault();
+  // ========================================
+  // LIVE STOCK REFRESH
+  // ========================================
 
-    if (saving) return;
+  const loadStock = useCallback(async () => {
+    setStockLoading(true);
+    setStockError("");
 
-    if (!receiverVerified) {
-      setError(
-        "Assigned Technician account is not available. Cannot issue without a verified receiver.",
+    try {
+      const { data } = await api.get(INVENTORY_API);
+
+      const items = Array.isArray(data.inventory)
+        ? data.inventory
+        : Array.isArray(data.items)
+          ? data.items
+          : [];
+
+      const result = findInventoryItem(items, material);
+
+      setInventoryItem(result.item);
+      setStockError(result.error);
+
+      return result.item;
+    } catch (err) {
+      const message = getError(
+        err,
+        "Unable to fetch available inventory stock.",
       );
-      return;
+
+      setInventoryItem(null);
+      setStockError(message);
+
+      return null;
+    } finally {
+      setStockLoading(false);
+    }
+  }, [material]);
+
+  useEffect(() => {
+    void loadStock();
+  }, [loadStock]);
+
+  // ========================================
+  // VERIFY ISSUE DETAILS
+  // ========================================
+
+  const validate = (currentStock) => {
+    if (!receiverVerified) {
+      return (
+        "A verified Technician account must be " +
+        "assigned before issuing material."
+      );
     }
 
-    if (!quantityValid) {
-      setError("Enter a valid issue quantity.");
-      return;
+    if (!basicQuantityValid) {
+      return (
+        "Enter a valid quantity greater than zero " +
+        "and not exceeding the approved balance."
+      );
+    }
+
+    if (!currentStock) {
+      return (
+        "Inventory could not be verified. " +
+        "Refresh available stock and try again."
+      );
+    }
+
+    const available = round(currentStock.currentStock || 0);
+
+    if (issueQty > available) {
+      return (
+        `Insufficient stock. Available: ${formatQty(available)} ` +
+        `${currentStock.unit || material.unit || "Nos"}. ` +
+        "Reduce the issue quantity or receive more stock."
+      );
     }
 
     if (!retrievalValid) {
-      setError("Enter a valid old-material retrieval quantity.");
+      return (
+        "Expected old-material retrieval quantity must " +
+        "be positive and cannot exceed the issue quantity."
+      );
+    }
+
+    return "";
+  };
+
+  // ========================================
+  // REVIEW BEFORE CONFIRMATION
+  // ========================================
+
+  const reviewIssue = async () => {
+    setError("");
+
+    const currentStock = await loadStock();
+    const validationError = validate(currentStock);
+
+    if (validationError) {
+      setError(validationError);
       return;
     }
+
+    setStep("review");
+  };
+
+  // ========================================
+  // FINAL MATERIAL ISSUE
+  // ========================================
+
+  const confirmIssue = async () => {
+    if (saving) return;
 
     setSaving(true);
     setError("");
 
     try {
+      // Refresh the stock just before the
+      // final issue operation.
+      const currentStock = await loadStock();
+      const validationError = validate(currentStock);
+
+      if (validationError) {
+        setStep("edit");
+        setError(validationError);
+        return;
+      }
+
+      // Stock is not deducted by the frontend.
+      // The backend transaction handles it.
       const { data } = await api.post(`${ISSUE_API}/issue`, {
         materialRequestId: request._id,
         materialItemId: material._id,
@@ -205,30 +400,45 @@ function IssueModal({ selected, onClose, onSaved }) {
 
       await onSaved(data);
     } catch (err) {
-      setError(
-        err.response?.data?.message || err.message || "Material issue failed.",
-      );
+      setError(getError(err, "Material issue failed."));
     } finally {
       setSaving(false);
     }
   };
 
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+
+    if (saving || stockLoading) return;
+
+    if (step === "edit") {
+      await reviewIssue();
+    } else {
+      await confirmIssue();
+    }
+  };
+
+  // ========================================
+  // UI
+  // ========================================
+
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#00142E]/70 p-4 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#00142E]/75 p-3 backdrop-blur-sm sm:p-4">
       <form
-        onSubmit={submit}
-        className="max-h-[92vh] w-full max-w-xl space-y-4 overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"
+        onSubmit={handleSubmit}
+        className="max-h-[94vh] w-full max-w-xl space-y-4 overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6"
       >
         {/* HEADER */}
-
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-bold uppercase tracking-widest text-[#A3833A]">
-              AMI MAINT.
+              AMI MAINT. · STORE MANAGER
             </p>
 
-            <h2 className="mt-1 text-xl font-extrabold text-[#001B54]">
-              Issue Approved Material
+            <h2 className="mt-2 text-xl font-extrabold text-[#001B54]">
+              {step === "review"
+                ? "Review Material Issue"
+                : "Issue Approved Material"}
             </h2>
           </div>
 
@@ -236,45 +446,133 @@ function IssueModal({ selected, onClose, onSaved }) {
             type="button"
             disabled={saving}
             onClick={onClose}
-            className="rounded-lg bg-slate-100 p-2 disabled:opacity-50"
             aria-label="Close issue form"
+            className="rounded-lg bg-slate-100 p-2 disabled:opacity-50"
           >
             <X size={18} />
           </button>
         </div>
 
-        {/* MATERIAL DETAILS */}
+        {/* APPROVED MATERIAL */}
+        <div className="rounded-2xl bg-blue-50 p-4">
+          <p className="text-lg font-extrabold text-[#001B54]">
+            {material.itemName}
+          </p>
 
-        <div className="space-y-2 rounded-xl bg-blue-50 p-4">
-          <p className="font-bold text-[#001B54]">{material.itemName}</p>
-
-          <p className="text-xs text-slate-600">
+          <p className="mt-1 break-all text-xs text-slate-600">
             Request: {request.requestId || request._id}
           </p>
 
-          <p className="text-xs text-slate-600">
-            Approved quantity remaining:{" "}
-            <strong>
-              {formatQty(remaining)} {material.unit || "Nos"}
-            </strong>
-          </p>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {[
+              ["Approved", approved],
+              ["Already Issued", alreadyIssued],
+              ["Remaining", remaining],
+            ].map(([title, value]) => (
+              <div key={title} className="rounded-xl bg-white p-3 text-center">
+                <p className="text-[11px] text-slate-500">{title}</p>
+
+                <p className="mt-2 text-lg font-extrabold text-[#001B54]">
+                  {formatQty(value)}
+                </p>
+
+                <p className="text-[10px] text-slate-400">
+                  {material.unit || "Nos"}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* RECEIVING TECHNICIAN */}
-
-        <div className="rounded-xl border border-[#E7D4AC] bg-[#FFFBF1] p-4">
-          <div className="flex items-center gap-2">
-            <UserRound size={17} className="text-[#9B792E]" />
-
-            <p className="text-xs font-bold uppercase text-[#001B54]">
-              Verified Receiving Technician
+        {/* CURRENT STORE INVENTORY */}
+        <div className="rounded-2xl border border-[#E8D8B5] bg-[#FFFBF1] p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="flex items-center gap-2 text-sm font-extrabold text-[#001B54]">
+              <ShieldCheck size={18} />
+              Current Store Stock
             </p>
+
+            <button
+              type="button"
+              disabled={saving || stockLoading}
+              onClick={() => {
+                setError("");
+                void loadStock();
+              }}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-white px-3 py-2 text-xs font-bold text-[#001B54] disabled:opacity-50"
+            >
+              <RefreshCw
+                size={15}
+                className={stockLoading ? "animate-spin" : ""}
+              />
+              Refresh Stock
+            </button>
           </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <div>
+              <p className="text-xs text-slate-500">Available Quantity</p>
+
+              <p className="mt-1 text-2xl font-extrabold text-[#001B54]">
+                {stockLoading
+                  ? "Checking..."
+                  : availableStock === null
+                    ? "Unavailable"
+                    : formatQty(availableStock)}
+              </p>
+
+              <p className="text-xs text-slate-500">
+                {inventoryItem?.unit || material.unit || "Nos"}
+              </p>
+            </div>
+
+            <div>
+              <p className="text-xs text-slate-500">Maximum Issuable Now</p>
+
+              <p className="mt-1 text-2xl font-extrabold text-emerald-700">
+                {stockLoading ? "..." : formatQty(maxIssuable)}
+              </p>
+
+              <p className="text-xs text-slate-500">
+                {inventoryItem?.unit || material.unit || "Nos"}
+              </p>
+            </div>
+          </div>
+
+          {inventoryItem && (
+            <p className="mt-3 text-xs text-slate-600">
+              Category: <strong>{category}</strong>
+              {" · "}
+              Item Code: <strong>{inventoryItem.itemCode || "Missing"}</strong>
+            </p>
+          )}
+
+          {stockError && (
+            <p className="mt-3 rounded-lg bg-red-50 p-3 text-xs font-semibold text-red-700">
+              {stockError}
+            </p>
+          )}
+
+          {availableStock !== null && availableStock < remaining && (
+            <p className="mt-3 rounded-lg bg-amber-100 p-3 text-xs leading-5 text-amber-900">
+              Approved balance exceeds current stock. You can issue available
+              quantity now. After new stock arrives, refresh and issue the
+              remaining approved quantity.
+            </p>
+          )}
+        </div>
+
+        {/* VERIFIED TECHNICIAN */}
+        <div className="rounded-2xl border border-slate-200 p-4">
+          <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-[#001B54]">
+            <UserRound size={17} />
+            Verified Receiving Technician
+          </p>
 
           <p className="mt-3 font-extrabold text-[#001B54]">{receiverName}</p>
 
           <p className="mt-1 text-xs text-slate-600">
-            Technician ID: {technicianId || "Not assigned"}
+            Technician ID: {technicianId || "—"}
           </p>
 
           <p className="mt-1 break-all text-xs text-slate-500">
@@ -283,121 +581,212 @@ function IssueModal({ selected, onClose, onSaved }) {
 
           {!receiverVerified && (
             <p className="mt-3 text-xs font-bold text-red-700">
-              A populated assigned Technician account is required before
-              material can be issued.
+              A populated assigned Technician account is required for material
+              issuing.
             </p>
           )}
-
-          <p className="mt-3 text-xs leading-5 text-slate-500">
-            This issue will be assigned to the verified Technician account shown
-            above. That Technician can confirm physical receipt from My
-            Materials.
-          </p>
         </div>
 
-        {/* ISSUE QUANTITY */}
+        {step === "edit" ? (
+          <>
+            {/* ISSUE QUANTITY */}
+            <label className="block space-y-2">
+              <span className="text-xs font-bold text-slate-700">
+                Quantity to Issue *
+              </span>
 
-        <label className="block space-y-1">
-          <span className="text-xs font-bold text-slate-600">
-            Quantity to Issue *
-          </span>
+              <input
+                type="number"
+                min="0.001"
+                step="0.001"
+                max={availableStock === null ? remaining : maxIssuable}
+                value={quantity}
+                onChange={(event) => {
+                  const value = event.target.value;
 
-          <input
-            type="number"
-            min="0.001"
-            step="0.001"
-            max={remaining}
-            className={fieldClass}
-            value={quantity}
-            onChange={(event) => {
-              setQuantity(event.target.value);
-              setExpectedRetrievalQty(event.target.value);
-            }}
-          />
-        </label>
+                  setExpectedRetrievalQty((previous) =>
+                    previous === quantity ? value : previous,
+                  );
 
-        {/* OLD MATERIAL RETURN */}
+                  setQuantity(value);
+                  setError("");
+                }}
+                disabled={saving}
+                className={fieldClass}
+              />
 
-        <label className="flex gap-3 rounded-xl border border-[#E8D8B5] bg-[#FFFBF1] p-4">
-          <input
-            type="checkbox"
-            checked={retrievalRequired}
-            onChange={(event) => setRetrievalRequired(event.target.checked)}
-            className="mt-1"
-          />
+              <p className="text-xs leading-5 text-slate-500">
+                Edit this quantity before confirming. No stock is deducted while
+                editing.
+              </p>
+            </label>
 
-          <span>
-            <span className="block text-sm font-bold text-[#001B54]">
-              Old Damaged Material Must Be Returned
-            </span>
+            {/* RETRIEVAL */}
+            <label className="flex gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+              <input
+                type="checkbox"
+                checked={retrievalRequired}
+                onChange={(event) => setRetrievalRequired(event.target.checked)}
+                disabled={saving}
+                className="mt-1"
+              />
 
-            <span className="mt-1 block text-xs leading-5 text-slate-500">
-              Enable this when replacing old lights, switches, fans or other
-              returnable materials.
-            </span>
-          </span>
-        </label>
+              <span>
+                <span className="block text-sm font-bold text-[#001B54]">
+                  Old Damaged Material Must Be Returned
+                </span>
 
-        {retrievalRequired && (
-          <label className="block space-y-1">
-            <span className="text-xs font-bold text-slate-600">
-              Expected Old Material Quantity
-            </span>
+                <span className="mt-1 block text-xs leading-5 text-slate-600">
+                  Enable this for replacement items, such as switches, fans,
+                  lights or other returnable materials.
+                </span>
+              </span>
+            </label>
 
-            <input
-              type="number"
-              min="0.001"
-              step="0.001"
-              max={issueQty || undefined}
-              className={fieldClass}
-              value={expectedRetrievalQty}
-              onChange={(event) => setExpectedRetrievalQty(event.target.value)}
-            />
-          </label>
+            {retrievalRequired && (
+              <label className="block space-y-2">
+                <span className="text-xs font-bold text-slate-700">
+                  Expected Old Material Quantity *
+                </span>
+
+                <input
+                  type="number"
+                  min="0.001"
+                  step="0.001"
+                  max={issueQty || undefined}
+                  value={expectedRetrievalQty}
+                  onChange={(event) =>
+                    setExpectedRetrievalQty(event.target.value)
+                  }
+                  disabled={saving}
+                  className={fieldClass}
+                />
+
+                <p className="text-xs text-slate-500">
+                  Faulty materials returned to Store will not increase usable
+                  stock.
+                </p>
+              </label>
+            )}
+
+            {/* REMARKS */}
+            <label className="block space-y-2">
+              <span className="text-xs font-bold text-slate-700">
+                Store Remarks
+              </span>
+
+              <textarea
+                rows={3}
+                value={remarks}
+                onChange={(event) => setRemarks(event.target.value)}
+                disabled={saving}
+                className={fieldClass}
+                placeholder="Optional issue remarks"
+              />
+            </label>
+          </>
+        ) : (
+          /* FINAL REVIEW */
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+            <p className="flex items-center gap-2 text-sm font-extrabold text-[#001B54]">
+              <ClipboardCheck size={18} />
+              Final Issue Confirmation
+            </p>
+
+            <div className="mt-4 space-y-3 text-sm">
+              {[
+                ["Material", material.itemName],
+                ["Category", category],
+                [
+                  "Actual Issue Quantity",
+                  `${formatQty(issueQty)} ${
+                    inventoryItem?.unit || material.unit || ""
+                  }`,
+                ],
+                [
+                  "Balance After Issue",
+                  `${formatQty(
+                    Math.max(0, number(availableStock) - issueQty),
+                  )} ${inventoryItem?.unit || material.unit || ""}`,
+                ],
+                ["Receiving Technician", receiverName],
+                [
+                  "Old Material Retrieval",
+                  retrievalRequired
+                    ? `${formatQty(retrievalQty)} ${material.unit || ""}`
+                    : "Not Required",
+                ],
+              ].map(([title, value]) => (
+                <div
+                  key={title}
+                  className="flex flex-wrap justify-between gap-2 border-b border-blue-100 pb-2"
+                >
+                  <span className="text-slate-600">{title}</span>
+
+                  <span className="font-bold text-[#001B54]">{value}</span>
+                </div>
+              ))}
+            </div>
+
+            <p className="mt-4 text-xs leading-5 text-blue-900">
+              Confirming will create the issue voucher, deduct stock once and
+              generate a stock ledger transaction. Technician receiving
+              confirmation remains a separate step.
+            </p>
+          </div>
         )}
 
-        {/* REMARKS */}
-
-        <label className="block space-y-1">
-          <span className="text-xs font-bold text-slate-600">
-            Store Remarks
-          </span>
-
-          <textarea
-            rows={3}
-            className={fieldClass}
-            value={remarks}
-            onChange={(event) => setRemarks(event.target.value)}
-            placeholder="Optional issue remarks"
-          />
-        </label>
-
+        {/* ERRORS */}
         {error && (
-          <p className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700">
+          <p
+            role="alert"
+            className="rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-700"
+          >
             {error}
           </p>
         )}
 
-        <p className="text-xs leading-5 text-slate-500">
-          Material issue will deduct inventory once. Technician receiving
-          confirmation will not deduct stock again.
-        </p>
-
-        <button
-          type="submit"
-          disabled={
-            saving || !receiverVerified || !quantityValid || !retrievalValid
-          }
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#001B54] px-5 py-3.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {saving ? (
-            <Loader2 size={18} className="animate-spin" />
-          ) : (
-            <PackageCheck size={18} />
+        {/* ACTIONS */}
+        <div className="flex flex-wrap gap-3">
+          {step === "review" && (
+            <button
+              type="button"
+              disabled={saving || stockLoading}
+              onClick={() => {
+                setStep("edit");
+                setError("");
+              }}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold text-slate-700 disabled:opacity-50"
+            >
+              <ArrowLeft size={17} />
+              Edit Quantity
+            </button>
           )}
 
-          {saving ? "Issuing Material..." : "Confirm Material Issue"}
-        </button>
+          <button
+            type="submit"
+            disabled={
+              saving ||
+              stockLoading ||
+              !receiverVerified ||
+              !quantityValid ||
+              !retrievalValid
+            }
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#001B54] px-5 py-3.5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {saving || stockLoading ? (
+              <Loader2 size={18} className="animate-spin" />
+            ) : (
+              <PackageCheck size={18} />
+            )}
+
+            {saving
+              ? "Issuing Material..."
+              : step === "review"
+                ? "Confirm Material Issue"
+                : "Review Issue"}
+          </button>
+        </div>
       </form>
     </div>
   );
@@ -414,12 +803,8 @@ export default function IssuedItems() {
   const refreshKey = realtime?.refreshKey ?? 0;
 
   const handledNavigation = useRef("");
-
-  // Prevent older API responses overwriting newer data.
   const requestVersionRef = useRef(0);
   const previousRefreshKeyRef = useRef(refreshKey);
-
-  // Prevent background refresh during mutations.
   const mutationRef = useRef(false);
 
   const [requests, setRequests] = useState([]);
@@ -434,19 +819,18 @@ export default function IssuedItems() {
 
   const [notice, setNotice] = useState(null);
   const [search, setSearch] = useState("");
-
   const [tab, setTab] = useState("pending");
+
   const [selected, setSelected] = useState(null);
   const [busyId, setBusyId] = useState("");
 
-  // ==========================================
-  // FETCH DATA
-  // ==========================================
+  // ========================================
+  // FETCH REQUESTS, ISSUES AND RECEIVING
+  // ========================================
 
   const fetchData = useCallback(async (mode = "initial") => {
     const manual = mode === "manual";
     const silent = mode === "silent";
-
     const version = ++requestVersionRef.current;
 
     if (manual) {
@@ -461,68 +845,60 @@ export default function IssuedItems() {
     }
 
     try {
-      const [requestsResult, issuesResult, receivingResult] =
+      const [requestResult, issueResult, receivingResult] =
         await Promise.allSettled([
           api.get(REQUEST_API),
           api.get(`${ISSUE_API}/all`),
           api.get(RECEIVING_API),
         ]);
 
-      // Ignore stale responses.
       if (version !== requestVersionRef.current) {
         return;
       }
 
       const coreFailed =
-        requestsResult.status === "rejected" ||
-        issuesResult.status === "rejected";
+        requestResult.status === "rejected" ||
+        issueResult.status === "rejected";
 
-      if (requestsResult.status === "fulfilled") {
-        setRequests(
-          Array.isArray(requestsResult.value.data?.requests)
-            ? requestsResult.value.data.requests
-            : [],
-        );
+      if (requestResult.status === "fulfilled") {
+        const data = requestResult.value.data;
+
+        setRequests(Array.isArray(data.requests) ? data.requests : []);
       }
 
-      if (issuesResult.status === "fulfilled") {
-        setIssuedItems(
-          Array.isArray(issuesResult.value.data?.issuedItems)
-            ? issuesResult.value.data.issuedItems
-            : [],
-        );
+      if (issueResult.status === "fulfilled") {
+        const data = issueResult.value.data;
+
+        setIssuedItems(Array.isArray(data.issuedItems) ? data.issuedItems : []);
       }
 
       if (coreFailed) {
         const failure =
-          requestsResult.status === "rejected"
-            ? requestsResult.reason
-            : issuesResult.reason;
+          requestResult.status === "rejected"
+            ? requestResult.reason
+            : issueResult.reason;
 
         if (!silent) {
-          setError(
-            failure?.response?.data?.message ||
-              "Unable to load material issue records.",
-          );
+          setError(getError(failure, "Unable to load material issue records."));
         } else {
-          console.error("Issued Items auto-refresh failed:", failure);
+          console.error("Issued Items silent refresh failed:", failure);
         }
       } else {
         setError("");
       }
 
       if (receivingResult.status === "fulfilled") {
-        setReceivingRecords(
-          Array.isArray(receivingResult.value.data?.records)
-            ? receivingResult.value.data.records
-            : [],
-        );
+        const data = receivingResult.value.data;
+
+        setReceivingRecords(Array.isArray(data.records) ? data.records : []);
 
         setReceivingError("");
       } else if (!silent) {
         setReceivingError(
-          receivingResult.reason?.response?.data?.message ||
+          getError(
+            receivingResult.reason,
             "Technician receiving records could not be loaded.",
+          ),
         );
       }
     } catch (err) {
@@ -531,9 +907,7 @@ export default function IssuedItems() {
       }
 
       if (!silent) {
-        setError(
-          err.response?.data?.message || "Unable to refresh Store records.",
-        );
+        setError(getError(err, "Unable to refresh Store records."));
       } else {
         console.error("Silent Store refresh failed:", err);
       }
@@ -545,10 +919,7 @@ export default function IssuedItems() {
     }
   }, []);
 
-  // ==========================================
-  // INITIAL LOAD
-  // ==========================================
-
+  // Initial fetch
   useEffect(() => {
     void fetchData("initial");
 
@@ -557,10 +928,7 @@ export default function IssuedItems() {
     };
   }, [fetchData]);
 
-  // ==========================================
-  // GLOBAL 20-SECOND SILENT REFRESH
-  // ==========================================
-
+  // Global 20-second silent refresh
   useEffect(() => {
     if (previousRefreshKeyRef.current === refreshKey) {
       return;
@@ -572,19 +940,15 @@ export default function IssuedItems() {
       return;
     }
 
-    // Never interrupt material issue modal.
+    // Never interrupt active operations.
     if (selected || mutationRef.current || busyId) {
       return;
     }
 
-    // Refresh data without page reload or spinner.
     void fetchData("silent");
   }, [refreshKey, selected, busyId, fetchData]);
 
-  // ==========================================
-  // NOTICE TIMEOUT
-  // ==========================================
-
+  // Notification timeout
   useEffect(() => {
     if (!notice) return undefined;
 
@@ -596,9 +960,9 @@ export default function IssuedItems() {
     return () => window.clearTimeout(timer);
   }, [notice]);
 
-  // ==========================================
-  // APPROVED MATERIALS
-  // ==========================================
+  // ========================================
+  // APPROVED MATERIALS TO ISSUE
+  // ========================================
 
   const approvedMaterials = useMemo(
     () =>
@@ -606,8 +970,8 @@ export default function IssuedItems() {
         (request.materials || [])
           .filter((material) => {
             const remaining =
-              Number(material.approvedQuantity || 0) -
-              Number(material.issuedQuantity || 0);
+              number(material.approvedQuantity) -
+              number(material.issuedQuantity);
 
             return (
               remaining > 0 &&
@@ -622,9 +986,9 @@ export default function IssuedItems() {
     [requests],
   );
 
-  // ==========================================
-  // OPEN FROM MATERIAL REQUESTS
-  // ==========================================
+  // ========================================
+  // OPEN ISSUE FROM REQUEST MANAGEMENT
+  // ========================================
 
   useEffect(() => {
     const incoming = location.state;
@@ -658,9 +1022,9 @@ export default function IssuedItems() {
     }
   }, [location.key, location.state, loading, approvedMaterials]);
 
-  // ==========================================
+  // ========================================
   // SEARCH
-  // ==========================================
+  // ========================================
 
   const query = search.trim().toLowerCase();
 
@@ -702,21 +1066,14 @@ export default function IssuedItems() {
     ),
   );
 
-  // ==========================================
-  // RECEIVING DATA MAP
-  // ==========================================
+  // ========================================
+  // TECHNICIAN RECEIVING DATA
+  // ========================================
 
   const receivingMap = useMemo(
     () =>
       new Map(
-        receivingRecords.map((record) => [
-          String(
-            typeof record.issuedItem === "object"
-              ? record.issuedItem?._id
-              : record.issuedItem,
-          ),
-          record,
-        ]),
+        receivingRecords.map((record) => [idOf(record.issuedItem), record]),
       ),
     [receivingRecords],
   );
@@ -737,54 +1094,43 @@ export default function IssuedItems() {
     };
   };
 
-  // ==========================================
-  // STATS
-  // ==========================================
+  // ========================================
+  // STATISTICS
+  // ========================================
 
   const stats = useMemo(() => {
-    const receivingByIssue = new Map(
+    const byIssue = new Map(
       receivingRecords.map((record) => [
-        String(
-          typeof record.issuedItem === "object"
-            ? record.issuedItem?._id
-            : record.issuedItem,
-        ),
+        idOf(record.issuedItem),
         record.status,
       ]),
     );
 
     const statusOf = (item) =>
-      receivingByIssue.get(String(item._id)) ||
+      byIssue.get(String(item._id)) ||
       item.receivingStatus ||
       "AWAITING_CONFIRMATION";
 
     return {
       pending: approvedMaterials.length,
       issued: issuedItems.length,
-
       awaiting: issuedItems.filter(
         (item) => statusOf(item) === "AWAITING_CONFIRMATION",
       ).length,
-
       disputed: issuedItems.filter((item) => statusOf(item) === "DISPUTED")
         .length,
     };
   }, [approvedMaterials, issuedItems, receivingRecords]);
 
-  // ==========================================
-  // MARK DELIVERED
-  // ==========================================
+  // ========================================
+  // MARK MATERIAL DELIVERED
+  // ========================================
 
   const markDelivered = async (item) => {
-    if (mutationRef.current || busyId) {
-      return;
-    }
+    if (mutationRef.current || busyId) return;
 
     mutationRef.current = true;
-
-    // Invalidate in-flight background refresh.
     requestVersionRef.current += 1;
-
     setBusyId(String(item._id));
 
     try {
@@ -799,8 +1145,7 @@ export default function IssuedItems() {
     } catch (err) {
       setNotice({
         type: "error",
-        text:
-          err.response?.data?.message || "Unable to update delivery status.",
+        text: getError(err, "Unable to mark material delivered."),
       });
     } finally {
       mutationRef.current = false;
@@ -808,9 +1153,9 @@ export default function IssuedItems() {
     }
   };
 
-  // ==========================================
-  // MATERIAL ISSUE SUCCESS
-  // ==========================================
+  // ========================================
+  // ISSUE SUCCESS
+  // ========================================
 
   const handleIssueSaved = async (data) => {
     mutationRef.current = true;
@@ -824,7 +1169,7 @@ export default function IssuedItems() {
       text:
         "Material issued successfully. " +
         `Voucher: ${data.voucherNo || "Generated"}. ` +
-        `Inventory Balance: ${formatQty(data.stockAfter)}.`,
+        `Stock Remaining: ${formatQty(data.stockAfter)}.`,
     });
 
     try {
@@ -834,14 +1179,13 @@ export default function IssuedItems() {
     }
   };
 
-  // ==========================================
-  // RENDER
-  // ==========================================
+  // ========================================
+  // PAGE
+  // ========================================
 
   return (
     <div className="min-w-0 space-y-6 pb-10">
       {/* HEADER */}
-
       <section className="rounded-3xl bg-gradient-to-br from-[#001A49] via-[#002A68] to-[#06214D] p-6 text-white shadow-xl md:p-8">
         <p className="text-xs font-bold uppercase tracking-widest text-[#E6C777]">
           AMI MAINT. · STORE MANAGER
@@ -852,60 +1196,43 @@ export default function IssuedItems() {
         </h1>
 
         <p className="mt-3 max-w-3xl text-sm leading-6 text-blue-100">
-          Issue approved materials to verified Technicians, monitor physical
-          receiving confirmations, investigate quantity differences and maintain
-          issue voucher history.
+          Issue approved materials to verified Technicians, maintain voucher
+          history and monitor receiving confirmations.
         </p>
       </section>
 
-      {/* SUMMARY CARDS */}
-
+      {/* KPI CARDS */}
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {[
-          {
-            title: "Pending Issue",
-            value: stats.pending,
-            Icon: Clock3,
-            color: "bg-amber-50 text-amber-700",
-          },
-          {
-            title: "Issue Records",
-            value: stats.issued,
-            Icon: PackageCheck,
-            color: "bg-blue-50 text-blue-700",
-          },
-          {
-            title: "Awaiting Receiving",
-            value: stats.awaiting,
-            Icon: ClipboardCheck,
-            color: "bg-violet-50 text-violet-700",
-          },
-          {
-            title: "Disputed",
-            value: stats.disputed,
-            Icon: AlertTriangle,
-            color: "bg-red-50 text-red-700",
-          },
-        ].map(({ title, value, Icon, color }) => (
-          <div
-            key={title}
-            className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm"
-          >
-            <div className={`inline-flex rounded-xl p-3 ${color}`}>
-              <Icon size={21} />
-            </div>
+        <StatCard
+          title="Pending Issue"
+          value={stats.pending}
+          Icon={Clock3}
+          color="bg-amber-50 text-amber-700"
+        />
 
-            <p className="mt-3 text-xs font-bold text-slate-500">{title}</p>
+        <StatCard
+          title="Issue Records"
+          value={stats.issued}
+          Icon={PackageCheck}
+          color="bg-blue-50 text-blue-700"
+        />
 
-            <p className="mt-2 text-3xl font-extrabold text-[#001B54]">
-              {value}
-            </p>
-          </div>
-        ))}
+        <StatCard
+          title="Awaiting Receiving"
+          value={stats.awaiting}
+          Icon={ClipboardCheck}
+          color="bg-violet-50 text-violet-700"
+        />
+
+        <StatCard
+          title="Disputed"
+          value={stats.disputed}
+          Icon={AlertTriangle}
+          color="bg-red-50 text-red-700"
+        />
       </div>
 
-      {/* MESSAGES */}
-
+      {/* NOTIFICATIONS */}
       {notice && (
         <div
           role="status"
@@ -932,10 +1259,8 @@ export default function IssuedItems() {
       )}
 
       {/* MAIN PANEL */}
-
       <section className="rounded-3xl border border-slate-100 bg-white p-4 shadow-sm sm:p-6">
-        {/* TABS AND REFRESH */}
-
+        {/* TABS */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex flex-wrap gap-2">
             {[
@@ -973,7 +1298,6 @@ export default function IssuedItems() {
         </div>
 
         {/* SEARCH */}
-
         <div className="relative mt-5">
           <Search
             size={18}
@@ -989,17 +1313,12 @@ export default function IssuedItems() {
           />
         </div>
 
-        {/* LOADING / CONTENT */}
-
         {loading ? (
           <div className="flex justify-center py-16">
             <Loader2 size={32} className="animate-spin text-[#001B54]" />
           </div>
         ) : tab === "pending" ? (
-          // ===================================
-          // PENDING ISSUES
-          // ===================================
-
+          /* PENDING ISSUE */
           <div className="mt-5 space-y-3">
             {filteredApproved.length === 0 && (
               <p className="py-12 text-center text-sm text-slate-500">
@@ -1009,19 +1328,17 @@ export default function IssuedItems() {
 
             {filteredApproved.map(({ request, material }) => {
               const remaining = round(
-                Number(material.approvedQuantity || 0) -
-                  Number(material.issuedQuantity || 0),
+                number(material.approvedQuantity) -
+                  number(material.issuedQuantity),
               );
-
-              const technician = request.assignedWorker;
 
               return (
                 <div
                   key={`${request._id}-${material._id}`}
                   className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 p-4"
                 >
-                  <div>
-                    <p className="text-xs font-bold text-[#A3833A]">
+                  <div className="min-w-0">
+                    <p className="break-all text-xs font-bold text-[#A3833A]">
                       {request.requestId || request._id}
                     </p>
 
@@ -1034,7 +1351,7 @@ export default function IssuedItems() {
                     </p>
 
                     <p className="mt-1 text-xs text-slate-500">
-                      Assigned Technician: {nameOf(technician)}
+                      Assigned Technician: {nameOf(request.assignedWorker)}
                     </p>
 
                     <p className="mt-2 text-sm font-bold text-[#001B54]">
@@ -1055,16 +1372,14 @@ export default function IssuedItems() {
                   >
                     <PackageCheck size={17} />
                     Issue Material
+                    <ArrowRight size={15} />
                   </button>
                 </div>
               );
             })}
           </div>
         ) : tab === "history" ? (
-          // ===================================
-          // ISSUE HISTORY
-          // ===================================
-
+          /* ISSUE HISTORY */
           <div className="mt-5 overflow-x-auto rounded-xl border border-slate-200">
             <table className="w-full min-w-[1050px] text-left text-sm">
               <thead className="bg-[#001B54] text-white">
@@ -1091,6 +1406,11 @@ export default function IssuedItems() {
                 {filteredHistory.map((item) => {
                   const receiving = getReceiving(item);
 
+                  const receiver =
+                    nameOf(item.receivedByTechnician) === "Not assigned"
+                      ? item.issuedTo || "—"
+                      : nameOf(item.receivedByTechnician);
+
                   return (
                     <tr key={item._id} className="hover:bg-slate-50">
                       <td className="px-4 py-4 font-bold text-[#001B54]">
@@ -1099,7 +1419,6 @@ export default function IssuedItems() {
 
                       <td className="px-4 py-4">
                         <p className="font-semibold">{item.item || "—"}</p>
-
                         <p className="text-xs text-slate-400">
                           {item.itemCode || "—"}
                         </p>
@@ -1109,11 +1428,7 @@ export default function IssuedItems() {
                         {formatQty(item.quantity)} {item.unit || ""}
                       </td>
 
-                      <td className="px-4 py-4">
-                        {nameOf(item.receivedByTechnician) === "Not assigned"
-                          ? item.issuedTo || "—"
-                          : nameOf(item.receivedByTechnician)}
-                      </td>
+                      <td className="px-4 py-4">{receiver}</td>
 
                       <td className="px-4 py-4">
                         {item.receiverTechnicianId || item.technicianId || "—"}
@@ -1169,22 +1484,18 @@ export default function IssuedItems() {
             </table>
           </div>
         ) : (
-          // ===================================
-          // TECHNICIAN RECEIVING & DISPUTES
-          // ===================================
-
+          /* TECHNICIAN RECEIVING */
           <div className="mt-5 space-y-4">
-            <div className="rounded-xl border border-[#E6D7B5] bg-[#FFFAED] p-4">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
               <p className="flex items-center gap-2 text-sm font-bold text-[#001B54]">
                 <ShieldCheck size={18} />
                 Physical Receiving Confirmation
               </p>
 
               <p className="mt-2 text-xs leading-6 text-slate-600">
-                The assigned receiving Technician confirms the actual quantity
-                from My Materials. If the quantity differs, the issue will be
-                marked Disputed and the reason will appear below. Receiving
-                confirmation does not change inventory quantities again.
+                The assigned Technician confirms physically received quantity
+                from My Materials. Disputes appear below. Receiving confirmation
+                does not deduct inventory a second time.
               </p>
             </div>
 
@@ -1235,14 +1546,16 @@ export default function IssuedItems() {
                     </div>
 
                     {/* RECEIVING QUANTITIES */}
-
                     <div className="mt-5 grid grid-cols-3 gap-2">
                       {[
                         ["Store Issued", item.quantity],
                         ["Tech Received", receiving.received],
                         ["Difference", receiving.shortage],
                       ].map(([title, value]) => (
-                        <div key={title} className="rounded-xl bg-slate-50 p-3">
+                        <div
+                          key={title}
+                          className="min-w-0 rounded-xl bg-slate-50 p-3"
+                        >
                           <p className="text-[11px] text-slate-500">{title}</p>
 
                           <p className="mt-2 text-lg font-extrabold text-[#001B54]">
@@ -1259,14 +1572,13 @@ export default function IssuedItems() {
                       ))}
                     </div>
 
-                    {/* DISPUTE DETAILS */}
-
+                    {/* DISPUTE */}
                     {receiving.status === "DISPUTED" && (
                       <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-4">
-                        <div className="flex items-center gap-2 text-sm font-bold text-red-700">
+                        <p className="flex items-center gap-2 text-sm font-bold text-red-700">
                           <AlertTriangle size={18} />
                           Quantity Dispute
-                        </div>
+                        </p>
 
                         <p className="mt-2 text-sm text-red-800">
                           {receiving.remarks ||
@@ -1294,7 +1606,6 @@ export default function IssuedItems() {
       </section>
 
       {/* ISSUE MODAL */}
-
       {selected && (
         <IssueModal
           key={`${selected.request._id}-${selected.material._id}`}

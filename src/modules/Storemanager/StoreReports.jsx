@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import UnifiedStoreReports from "./UnifiedStoreReports";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -18,7 +19,6 @@ import {
 
 import api from "../../services/api";
 import { useRealtime } from "../../context/RealtimeProvider";
-import DailyStoreReport from "./DailyStoreReport";
 
 const API = "/store/reports";
 
@@ -956,7 +956,7 @@ export default function StoreReports({ onBack }) {
 
       {/* CONSOLIDATED DAILY STORE REPORT */}
 
-      <DailyStoreReport />
+      <UnifiedStoreReports />
 
       {/* DATE FILTER */}
 

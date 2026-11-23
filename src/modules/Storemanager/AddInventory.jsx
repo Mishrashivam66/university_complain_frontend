@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+
 import {
   AlertCircle,
   ArrowRight,
@@ -18,9 +19,9 @@ import {
 
 import api from "../../services/api";
 
-const API = "/store/stock/create";
+const API_BASE = "/store/inventory";
 
-const categories = [
+const DEFAULT_CATEGORIES = [
   "Electrical",
   "Plumbing",
   "Hardware",
@@ -33,7 +34,7 @@ const categories = [
   "Other",
 ];
 
-const units = [
+const UNITS = [
   "Nos",
   "Piece",
   "Meter",
@@ -49,6 +50,15 @@ const units = [
   "Other",
 ];
 
+const inputClass =
+  "w-full min-w-0 rounded-xl border border-slate-200 " +
+  "bg-white px-4 py-3 text-sm font-medium text-slate-800 " +
+  "outline-none transition focus:border-[#C7A45D] " +
+  "focus:ring-2 focus:ring-amber-100";
+
+const labelClass =
+  "mb-2 block text-xs font-bold uppercase tracking-wide text-slate-600";
+
 const initialForm = () => ({
   itemCode: "",
   itemName: "",
@@ -56,29 +66,24 @@ const initialForm = () => ({
   category: "",
   otherCategory: "",
   unit: "Nos",
-  quantity: "0",
   minimumStock: "5",
 });
 
-const inputClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-800 outline-none transition focus:border-[#C7A45D] focus:ring-2 focus:ring-[#C7A45D]/20";
-
-const labelClass =
-  "mb-2 block text-xs font-bold uppercase tracking-wide text-slate-600";
-
 const trim = (value) => String(value ?? "").trim();
 
-function Field({ title, required, children, hint }) {
+function Field({ title, required, hint, children }) {
   return (
     <div className="min-w-0">
       <label className={labelClass}>
         {title}
-        {required && <span className="ml-1 text-red-500">*</span>}
+        {required && <span className="ml-1 text-red-600">*</span>}
       </label>
 
       {children}
 
-      {hint && <p className="mt-1.5 text-xs text-slate-400">{hint}</p>}
+      {hint && (
+        <p className="mt-1.5 text-xs leading-5 text-slate-500">{hint}</p>
+      )}
     </div>
   );
 }
@@ -86,31 +91,24 @@ function Field({ title, required, children, hint }) {
 function Notice({ notice, onClose }) {
   if (!notice) return null;
 
-  const isError = notice.type === "error";
+  const failed = notice.type === "error";
 
   return (
     <div
       role="status"
-      className={`fixed right-4 top-4 z-[100] flex max-w-sm items-start gap-3 rounded-2xl border bg-white p-4 shadow-xl ${
-        isError ? "border-red-200" : "border-emerald-200"
-      }`}
+      className="fixed right-4 top-4 z-[120] flex max-w-sm items-start gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl"
     >
-      {isError ? (
-        <AlertCircle className="shrink-0 text-red-600" size={21} />
+      {failed ? (
+        <AlertCircle size={20} className="shrink-0 text-red-600" />
       ) : (
-        <CheckCircle2 className="shrink-0 text-emerald-600" size={21} />
+        <CheckCircle2 size={20} className="shrink-0 text-emerald-600" />
       )}
 
       <p className="flex-1 text-sm font-medium text-slate-700">
         {notice.message}
       </p>
 
-      <button
-        type="button"
-        onClick={onClose}
-        aria-label="Close notification"
-        className="text-slate-400 hover:text-slate-700"
-      >
+      <button type="button" onClick={onClose} aria-label="Close notification">
         <X size={17} />
       </button>
     </div>
@@ -121,103 +119,101 @@ export default function AddInventory() {
   const navigate = useNavigate();
 
   const [form, setForm] = useState(initialForm);
+  const [categories, setCategories] = useState(DEFAULT_CATEGORIES);
+
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(null);
   const [createdItem, setCreatedItem] = useState(null);
 
-  const updateField = (field, value) => {
-    setForm((previous) => ({
-      ...previous,
-      [field]: value,
+  const updateField = (name, value) => {
+    setForm((prev) => ({
+      ...prev,
+      [name]: value,
+      ...(name === "category" ? { otherCategory: "" } : {}),
     }));
+
     setCreatedItem(null);
   };
-
-  useEffect(() => {
-    if (!notice) return;
-
-    const timer = setTimeout(
-      () => setNotice(null),
-      notice.type === "error" ? 3500 : 1500,
-    );
-
-    return () => clearTimeout(timer);
-  }, [notice]);
 
   const notify = (message, type = "success") => {
     setNotice({ message, type });
   };
 
-  const openingStock = Number(form.quantity);
-  const minimumStock = Number(form.minimumStock);
+  useEffect(() => {
+    if (!notice) return;
 
-  const currentStatus = useMemo(() => {
-    if (
-      form.quantity === "" ||
-      !Number.isFinite(openingStock) ||
-      openingStock < 0
-    ) {
-      return "Invalid Quantity";
+    const timer = window.setTimeout(
+      () => setNotice(null),
+      notice.type === "error" ? 3500 : 1500,
+    );
+
+    return () => window.clearTimeout(timer);
+  }, [notice]);
+
+  // LOAD CATEGORIES FROM DATABASE
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadCategories() {
+      try {
+        const { data } = await api.get(`${API_BASE}/categories`);
+
+        if (mounted && data.success && Array.isArray(data.categories)) {
+          const values = data.categories.filter(
+            (value) => typeof value === "string" && value.trim(),
+          );
+
+          setCategories(
+            [...new Set(values)].includes("Other")
+              ? [...new Set(values)]
+              : [...new Set([...values, "Other"])],
+          );
+        }
+      } catch (error) {
+        console.error("Unable to load categories:", error);
+
+        // Keep default categories available.
+      }
     }
 
-    if (openingStock === 0) return "Out of Stock";
+    void loadCategories();
 
-    if (Number.isFinite(minimumStock) && openingStock <= minimumStock) {
-      return "Low Stock";
-    }
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
-    return "Available";
-  }, [openingStock, minimumStock, form.quantity]);
-
-  const resetForm = () => {
-    setForm(initialForm());
-    setCreatedItem(null);
-  };
-
-  const validate = () => {
+  function validate() {
     if (!trim(form.itemName)) {
-      return "Please enter the item name.";
+      return "Please enter the material name.";
     }
 
     if (!trim(form.category)) {
-      return "Please select a category.";
+      return "Please select the material category.";
     }
 
     if (form.category === "Other" && !trim(form.otherCategory)) {
-      return "Please specify the other category.";
+      return "Please enter your custom category name.";
     }
 
     if (!trim(form.unit)) {
-      return "Please select a unit of measurement.";
+      return "Please select the unit of measurement.";
     }
 
-    if (
-      form.quantity === "" ||
-      !Number.isFinite(openingStock) ||
-      openingStock < 0
-    ) {
-      return "Opening quantity must be zero or greater.";
+    const minimum = Number(form.minimumStock);
+
+    if (form.minimumStock === "" || !Number.isFinite(minimum) || minimum < 0) {
+      return "Enter a valid minimum stock quantity.";
     }
 
-    if (
-      form.minimumStock === "" ||
-      !Number.isFinite(minimumStock) ||
-      minimumStock < 0
-    ) {
-      return "Minimum stock must be zero or greater.";
-    }
-
-    const quantityPrecision = (number) =>
-      Math.abs(number * 1000 - Math.round(number * 1000)) < 1e-7;
-
-    if (!quantityPrecision(openingStock) || !quantityPrecision(minimumStock)) {
-      return "Quantities may have a maximum of three decimal places.";
+    if (Math.abs(minimum * 1000 - Math.round(minimum * 1000)) > 1e-7) {
+      return "Maximum three decimal places are allowed.";
     }
 
     return null;
-  };
+  }
 
-  const submit = async (event) => {
+  async function submit(event) {
     event.preventDefault();
 
     if (saving) return;
@@ -240,43 +236,55 @@ export default function AddInventory() {
         otherCategory:
           form.category === "Other" ? trim(form.otherCategory) : "",
         unit: trim(form.unit),
-        quantity: openingStock,
-        minimumStock,
+
+        // Inventory master only.
+        // Actual stock arrives through Stock Inward.
+        quantity: 0,
+        minimumStock: Number(form.minimumStock),
       };
 
-      // If empty, backend generates Item Code.
       if (trim(form.itemCode)) {
         payload.itemCode = trim(form.itemCode).toUpperCase();
       }
 
-      const { data } = await api.post(API, payload);
+      const { data } = await api.post(`${API_BASE}/add`, payload);
 
       if (!data?.success) {
-        throw new Error(data?.message || "Failed to create inventory item.");
+        throw new Error(data?.message || "Material creation failed.");
       }
 
       setCreatedItem(data.item);
-      notify("Inventory item created successfully.");
+
+      notify("Material created successfully.");
     } catch (error) {
       console.error("CREATE INVENTORY ERROR:", error);
 
       notify(
         error.response?.data?.message ||
           error.message ||
-          "Unable to create inventory item.",
+          "Unable to create material.",
         "error",
       );
     } finally {
       setSaving(false);
     }
+  }
+
+  const resetForm = () => {
+    setForm(initialForm());
+    setCreatedItem(null);
   };
+
+  const selectedCategory =
+    form.category === "Other"
+      ? trim(form.otherCategory) || "Custom Category"
+      : form.category || "Not selected";
 
   return (
     <div className="min-w-0 space-y-6 pb-10">
       <Notice notice={notice} onClose={() => setNotice(null)} />
 
       {/* HEADER */}
-
       <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-[#001A49] via-[#002A68] to-[#09264E] p-6 text-white shadow-xl md:p-8">
         <div className="flex flex-wrap items-start justify-between gap-5">
           <div>
@@ -290,15 +298,15 @@ export default function AddInventory() {
             </h1>
 
             <p className="mt-3 max-w-xl text-sm leading-6 text-blue-100">
-              Create a university inventory item with an Item Code, description,
-              category, unit and opening balance.
+              Register materials with their category, item code and unit of
+              measurement.
             </p>
           </div>
 
           <button
             type="button"
             onClick={() => navigate("/store/inventory")}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-bold transition hover:bg-white/20"
+            className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-4 py-3 text-sm font-bold hover:bg-white/20"
           >
             <Boxes size={18} />
             View Inventory
@@ -308,21 +316,19 @@ export default function AddInventory() {
       </section>
 
       <form onSubmit={submit} noValidate className="space-y-6">
-        {/* ITEM INFORMATION */}
-
+        {/* MATERIAL INFORMATION */}
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-7">
           <div className="mb-6 flex items-center gap-3">
-            <div className="rounded-xl bg-[#FFF6E5] p-3 text-[#9A752D]">
+            <div className="rounded-xl bg-amber-50 p-3 text-[#9A752D]">
               <Tag size={22} />
             </div>
 
             <div>
               <h2 className="text-lg font-extrabold text-[#001B54]">
-                Item Information
+                Material Information
               </h2>
-
               <p className="mt-1 text-xs text-slate-500">
-                Identification and material classification
+                Register a material under the correct category.
               </p>
             </div>
           </div>
@@ -330,40 +336,38 @@ export default function AddInventory() {
           <div className="grid gap-5 md:grid-cols-2">
             <Field
               title="Item Code"
-              hint="Optional. A unique code will be generated automatically if left blank."
+              hint="Optional. Automatically generated if left blank."
             >
               <input
                 className={inputClass}
                 value={form.itemCode}
-                onChange={(event) =>
-                  updateField("itemCode", event.target.value.toUpperCase())
-                }
                 maxLength={60}
-                placeholder="Example: RDET38240"
+                placeholder="Auto-generated"
+                onChange={(e) =>
+                  updateField("itemCode", e.target.value.toUpperCase())
+                }
               />
             </Field>
 
-            <Field title="Item Name" required>
+            <Field title="Material Name" required>
               <input
                 className={inputClass}
                 value={form.itemName}
-                onChange={(event) =>
-                  updateField("itemName", event.target.value)
-                }
-                placeholder="Example: LED Tube Light 20W"
+                placeholder="Example: Switch 16A"
+                onChange={(e) => updateField("itemName", e.target.value)}
               />
             </Field>
 
             <div className="md:col-span-2">
-              <Field title="Item Description">
+              <Field title="Description">
                 <textarea
                   rows={3}
                   className={inputClass}
                   value={form.itemDescription}
-                  onChange={(event) =>
-                    updateField("itemDescription", event.target.value)
+                  placeholder="Material specifications"
+                  onChange={(e) =>
+                    updateField("itemDescription", e.target.value)
                   }
-                  placeholder="Enter material specifications or a description"
                 />
               </Field>
             </div>
@@ -372,11 +376,10 @@ export default function AddInventory() {
               <select
                 className={inputClass}
                 value={form.category}
-                onChange={(event) =>
-                  updateField("category", event.target.value)
-                }
+                onChange={(e) => updateField("category", e.target.value)}
               >
                 <option value="">Select Category</option>
+
                 {categories.map((value) => (
                   <option key={value} value={value}>
                     {value}
@@ -389,9 +392,9 @@ export default function AddInventory() {
               <select
                 className={inputClass}
                 value={form.unit}
-                onChange={(event) => updateField("unit", event.target.value)}
+                onChange={(e) => updateField("unit", e.target.value)}
               >
-                {units.map((value) => (
+                {UNITS.map((value) => (
                   <option key={value} value={value}>
                     {value}
                   </option>
@@ -401,14 +404,18 @@ export default function AddInventory() {
 
             {form.category === "Other" && (
               <div className="md:col-span-2">
-                <Field title="Other Category Name" required>
+                <Field
+                  title="New Category Name"
+                  required
+                  hint="The new category will become available after a material is registered under it."
+                >
                   <input
                     className={inputClass}
                     value={form.otherCategory}
-                    onChange={(event) =>
-                      updateField("otherCategory", event.target.value)
+                    placeholder="Enter custom category"
+                    onChange={(e) =>
+                      updateField("otherCategory", e.target.value)
                     }
-                    placeholder="Enter category name"
                   />
                 </Field>
               </div>
@@ -416,47 +423,34 @@ export default function AddInventory() {
           </div>
         </section>
 
-        {/* OPENING STOCK */}
-
+        {/* STOCK SETTINGS */}
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-7">
-          <div className="mb-6 flex items-center gap-3">
-            <div className="rounded-xl bg-blue-50 p-3 text-[#001B54]">
-              <PackagePlus size={22} />
-            </div>
+          <h2 className="text-lg font-extrabold text-[#001B54]">
+            Stock Settings
+          </h2>
 
-            <div>
-              <h2 className="text-lg font-extrabold text-[#001B54]">
-                Opening Stock
-              </h2>
+          <p className="mt-1 text-xs text-slate-500">
+            Initial quantity is zero. Received stock is recorded separately
+            through GRN.
+          </p>
 
-              <p className="mt-1 text-xs text-slate-500">
-                Initial stock for this newly created item
-              </p>
-            </div>
-          </div>
-
-          <div className="grid gap-5 md:grid-cols-2">
+          <div className="mt-5 grid gap-5 md:grid-cols-2">
             <Field
               title="Opening Quantity"
-              required
-              hint="Enter 0 if this item has no available stock."
+              hint="New master item starts with 0 stock."
             >
               <input
                 type="number"
-                min="0"
-                step="0.001"
-                className={inputClass}
-                value={form.quantity}
-                onChange={(event) =>
-                  updateField("quantity", event.target.value)
-                }
+                value="0"
+                disabled
+                className={`${inputClass} bg-slate-100`}
               />
             </Field>
 
             <Field
               title="Minimum Stock"
               required
-              hint="Low-stock alerts will use this threshold."
+              hint="Used to calculate low-stock alerts."
             >
               <input
                 type="number"
@@ -464,74 +458,39 @@ export default function AddInventory() {
                 step="0.001"
                 className={inputClass}
                 value={form.minimumStock}
-                onChange={(event) =>
-                  updateField("minimumStock", event.target.value)
-                }
+                onChange={(e) => updateField("minimumStock", e.target.value)}
               />
             </Field>
           </div>
 
-          <div className="mt-6 rounded-2xl border border-[#E8D8B5] bg-[#FFFBF1] p-4">
-            <div className="flex items-start gap-3">
-              <Info size={20} className="mt-0.5 shrink-0 text-[#9A752D]" />
+          <div className="mt-5 flex gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+            <Info size={20} className="shrink-0 text-amber-700" />
 
-              <div>
-                <p className="text-sm font-bold text-[#001B54]">
-                  Opening Balance Rule
-                </p>
-
-                <p className="mt-1 text-xs leading-6 text-slate-600">
-                  Opening Quantity is the initial balance of a new item. For
-                  stock received later, use Stock Inward with Bill Number,
-                  Vendor and GRN.
-                </p>
-              </div>
-            </div>
+            <p className="text-xs leading-6 text-slate-700">
+              To add physical stock, open Stock Inward and enter the received
+              quantity, vendor, bill and GRN information. Existing stock and
+              issue history will remain unchanged.
+            </p>
           </div>
         </section>
 
         {/* PREVIEW */}
-
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-7">
           <h2 className="text-lg font-extrabold text-[#001B54]">
             Inventory Preview
           </h2>
 
-          <p className="mt-1 text-xs text-slate-500">
-            Review the item before saving it.
-          </p>
-
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              {
-                label: "Item Code",
-                value: form.itemCode || "Auto-generated",
-              },
-              {
-                label: "Item",
-                value: form.itemName || "Not entered",
-              },
-              {
-                label: "Opening Stock",
-                value: `${
-                  Number.isFinite(openingStock) ? openingStock : "—"
-                } ${form.unit}`,
-              },
-              {
-                label: "Stock Status",
-                value: currentStatus,
-              },
-            ].map((entry) => (
-              <div
-                key={entry.label}
-                className="min-w-0 rounded-2xl bg-[#F5F7FC] p-4"
-              >
-                <p className="text-xs font-semibold text-slate-500">
-                  {entry.label}
-                </p>
-
-                <p className="mt-2 break-words text-base font-extrabold text-[#001B54]">
-                  {entry.value}
+              ["Item Code", form.itemCode || "Auto-generated"],
+              ["Material", form.itemName || "Not entered"],
+              ["Category", selectedCategory],
+              ["Initial Stock", `0 ${form.unit}`],
+            ].map(([label, value]) => (
+              <div key={label} className="min-w-0 rounded-2xl bg-slate-50 p-4">
+                <p className="text-xs font-semibold text-slate-500">{label}</p>
+                <p className="mt-2 break-words font-extrabold text-[#001B54]">
+                  {value}
                 </p>
               </div>
             ))}
@@ -539,20 +498,13 @@ export default function AddInventory() {
         </section>
 
         {/* ACTIONS */}
-
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E8D8B5] bg-[#FFF9EA] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-center gap-2">
-            <ShieldCheck size={20} className="text-[#96712C]" />
+            <ShieldCheck size={20} className="text-amber-700" />
 
-            <div>
-              <p className="text-sm font-bold text-[#001B54]">
-                Inventory Master Record
-              </p>
-
-              <p className="mt-1 text-xs text-slate-600">
-                Existing inventory will not be overwritten.
-              </p>
-            </div>
+            <p className="text-xs font-medium text-slate-600">
+              Existing inventory records will not be overwritten.
+            </p>
           </div>
 
           <div className="flex flex-wrap gap-3">
@@ -569,7 +521,7 @@ export default function AddInventory() {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#001B54] px-6 py-3 text-sm font-extrabold text-white shadow-lg transition hover:bg-[#002C72] disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl bg-[#001B54] px-6 py-3 text-sm font-extrabold text-white disabled:opacity-50"
             >
               {saving ? (
                 <Loader2 size={18} className="animate-spin" />
@@ -583,44 +535,36 @@ export default function AddInventory() {
         </div>
       </form>
 
-      {/* SUCCESS RESULT */}
-
+      {/* SUCCESS */}
       {createdItem && (
         <section className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 md:p-6">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <CheckCircle2 size={23} className="text-emerald-700" />
 
-            <div>
-              <h2 className="text-lg font-extrabold text-emerald-800">
-                Inventory Item Created
-              </h2>
-
-              <p className="mt-1 text-sm text-emerald-700">
-                The item has been saved successfully.
-              </p>
-            </div>
+            <h2 className="text-lg font-extrabold text-emerald-800">
+              Inventory Item Created
+            </h2>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {[
-              {
-                label: "Item Code",
-                value: createdItem.itemCode || "—",
-              },
-              {
-                label: "Item Name",
-                value: createdItem.itemName,
-              },
-              {
-                label: "Available Quantity",
-                value: `${createdItem.currentStock} ${createdItem.unit || ""}`,
-              },
-            ].map((entry) => (
-              <div key={entry.label} className="rounded-xl bg-white p-4">
-                <p className="text-xs text-slate-500">{entry.label}</p>
-
+              ["Item Code", createdItem.itemCode || "—"],
+              ["Material", createdItem.itemName],
+              [
+                "Category",
+                createdItem.category === "Other"
+                  ? createdItem.otherCategory
+                  : createdItem.category,
+              ],
+              [
+                "Available Stock",
+                `${createdItem.currentStock} ${createdItem.unit || ""}`,
+              ],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl bg-white p-4">
+                <p className="text-xs text-slate-500">{label}</p>
                 <p className="mt-2 break-words font-bold text-[#001B54]">
-                  {entry.value}
+                  {value || "—"}
                 </p>
               </div>
             ))}
@@ -648,18 +592,15 @@ export default function AddInventory() {
       )}
 
       {/* NEXT OPERATION */}
-
       <section className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5">
         <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-blue-50 p-3 text-[#001B54]">
-            <FileSpreadsheet size={21} />
-          </div>
+          <FileSpreadsheet size={22} className="text-[#001B54]" />
 
           <div>
             <h3 className="font-bold text-[#001B54]">Received New Stock?</h3>
 
             <p className="mt-1 text-xs text-slate-500">
-              Use Stock Inward to record supplier, bill and received quantity.
+              Record materials through Stock Inward.
             </p>
           </div>
         </div>
@@ -667,7 +608,7 @@ export default function AddInventory() {
         <button
           type="button"
           onClick={() => navigate("/store/dashboard?view=stock-inward")}
-          className="inline-flex items-center gap-2 rounded-xl border border-[#D9C18C] bg-[#FFFBF1] px-4 py-3 text-sm font-bold text-[#001B54]"
+          className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-[#001B54]"
         >
           Open Stock Inward
           <ArrowRight size={16} />
