@@ -936,14 +936,18 @@ export default function IssuedItems() {
 
     previousRefreshKeyRef.current = refreshKey;
 
+    console.log("AMI MAINT. Auto-refresh tick:", refreshKey);
+
     if (document.visibilityState !== "visible") {
       return;
     }
 
-    // Never interrupt active operations.
     if (selected || mutationRef.current || busyId) {
+      console.log("Auto-refresh skipped: operation active");
       return;
     }
+
+    console.log("Fetching updated Store records...");
 
     void fetchData("silent");
   }, [refreshKey, selected, busyId, fetchData]);
