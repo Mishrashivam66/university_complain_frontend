@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowDownToLine,
   ArrowRight,
+  CheckSquare,
   Boxes,
   CheckCircle2,
   ChevronLeft,
@@ -26,6 +27,7 @@ import AddInventory from "./AddInventory";
 
 const API = "/store/inventory";
 const UNASSIGNED = "Uncategorized";
+const BULK_LIMIT = 500;
 const inputClass =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm " +
   "text-slate-800 outline-none transition focus:border-[#D0AE61] " +
@@ -162,6 +164,9 @@ export default function InventoryManagement() {
   });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkCategory, setBulkCategory] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
 
   const notify = (message, type = "success") => setToast({ message, type });
 
@@ -338,6 +343,117 @@ export default function InventoryManagement() {
     (safePage - 1) * pageSize,
     safePage * pageSize,
   );
+
+  // Selections persist across pages and filters until explicitly cleared.
+  const pageIds = paginatedItems
+    .map((item) => String(item._id))
+    .filter(Boolean);
+  const allPageSelected =
+    pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+
+  const toggleItem = (id, checked) => {
+    if (savingRef.current || !id) return;
+    setSelectedIds((current) => {
+      if (!checked) return current.filter((itemId) => itemId !== id);
+      if (current.includes(id)) return current;
+      if (current.length >= BULK_LIMIT) {
+        notify(
+          `Maximum ${BULK_LIMIT} materials can be selected at once.`,
+          "error",
+        );
+        return current;
+      }
+      return [...current, id];
+    });
+  };
+
+  const toggleCurrentPage = (checked) => {
+    if (savingRef.current) return;
+    setSelectedIds((current) => {
+      if (!checked) return current.filter((id) => !pageIds.includes(id));
+      const union = [...new Set([...current, ...pageIds])];
+      if (union.length > BULK_LIMIT) {
+        notify(
+          `Maximum ${BULK_LIMIT} items allowed. Deselect some first.`,
+          "error",
+        );
+        return current;
+      }
+      return union;
+    });
+  };
+
+  const selectAllFiltered = () => {
+    if (savingRef.current) return;
+    const ids = filteredItems.map((item) => String(item._id)).filter(Boolean);
+    const union = [...new Set([...selectedIds, ...ids])];
+    if (union.length > BULK_LIMIT) {
+      notify(
+        `Select no more than ${BULK_LIMIT} items per bulk assignment.`,
+        "error",
+      );
+      return;
+    }
+    setSelectedIds(union);
+  };
+
+  const selectUnassigned = () => {
+    if (savingRef.current || !categoryReady) return;
+    const ids = inventory
+      .filter((item) => categoryOf(item) === UNASSIGNED)
+      .map((item) => String(item._id))
+      .filter(Boolean);
+    if (ids.length > BULK_LIMIT) {
+      notify(
+        `There are more than ${BULK_LIMIT} unassigned items. Please filter first.`,
+        "error",
+      );
+      return;
+    }
+    setSelectedIds(ids);
+  };
+
+  const assignBulkCategory = async () => {
+    if (savingRef.current || bulkSaving) return;
+    const name = categoryNames.find(
+      (item) => normalized(item) === normalized(bulkCategory),
+    );
+    if (!categoryReady || !name) {
+      notify("Select a category created in Add Inventory.", "error");
+      return;
+    }
+    if (selectedIds.length === 0 || selectedIds.length > BULK_LIMIT) {
+      notify(`Select between 1 and ${BULK_LIMIT} inventory items.`, "error");
+      return;
+    }
+
+    savingRef.current = true;
+    setBulkSaving(true);
+    try {
+      const { data } = await api.put(`${API}/categories/bulk-assign`, {
+        itemIds: selectedIds,
+        categoryName: name,
+      });
+      if (data?.success !== true)
+        throw new Error(data?.message || "Bulk category assignment failed.");
+      setSelectedIds([]);
+      setBulkCategory("");
+      await Promise.all([fetchInventory("silent"), fetchCategories(true)]);
+      notify(
+        `${data.updatedCount ?? selectedIds.length} material(s) assigned to ${name}.`,
+      );
+    } catch (err) {
+      notify(
+        err.response?.data?.message ||
+          err.message ||
+          "Unable to assign selected materials.",
+        "error",
+      );
+    } finally {
+      savingRef.current = false;
+      setBulkSaving(false);
+    }
+  };
 
   useEffect(() => setPage(1), [search, filter, category, pageSize]);
 
@@ -682,6 +798,92 @@ export default function InventoryManagement() {
           )}
         </div>
 
+        {/* BULK CATEGORY ASSIGNMENT: only Store Manager-created categories */}
+        <div className="mt-5 rounded-2xl border border-[#E8D9AD] bg-[#FFFBF1] p-4 md:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="flex items-center gap-2 text-base font-extrabold text-[#001B54]">
+                <CheckSquare size={19} /> Bulk Assign Category
+              </h3>
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                Tick material checkboxes, select a saved category, then assign.
+                No stock quantities or Item Codes change.
+              </p>
+            </div>
+            <span className="rounded-full bg-white px-3 py-2 text-xs font-bold text-[#001B54]">
+              {selectedIds.length} selected
+            </span>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={selectAllFiltered}
+              disabled={bulkSaving || !filteredItems.length}
+              className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-[#001B54] disabled:opacity-40"
+            >
+              Select All Filtered ({filteredItems.length})
+            </button>
+            <button
+              type="button"
+              onClick={selectUnassigned}
+              disabled={bulkSaving || !categoryReady || !unassignedCount}
+              className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-bold text-[#001B54] disabled:opacity-40"
+            >
+              Select Uncategorized ({unassignedCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              disabled={bulkSaving || !selectedIds.length}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-bold text-slate-700 disabled:opacity-40"
+            >
+              Clear Selection
+            </button>
+          </div>
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <select
+              value={bulkCategory}
+              onChange={(e) => setBulkCategory(e.target.value)}
+              disabled={!categoryReady || categoryLoading || bulkSaving}
+              className={`${inputClass} min-w-0 flex-1`}
+              aria-label="Choose category for selected items"
+            >
+              <option value="">Select Category to Assign</option>
+              {categoryNames.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => void assignBulkCategory()}
+              disabled={
+                !selectedIds.length ||
+                !bulkCategory ||
+                !categoryReady ||
+                bulkSaving ||
+                saving
+              }
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#001B54] px-5 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {bulkSaving ? (
+                <Loader2 className="animate-spin" size={17} />
+              ) : (
+                <CheckCircle2 size={17} />
+              )}
+              {bulkSaving
+                ? "Assigning..."
+                : `Assign to ${selectedIds.length} Item(s)`}
+            </button>
+          </div>
+          {!categoryNames.length && (
+            <p className="mt-3 text-xs font-semibold text-amber-800">
+              No saved categories yet. Create categories in Add Inventory first.
+            </p>
+          )}
+        </div>
+
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-slate-500">
             Showing{" "}
@@ -703,9 +905,19 @@ export default function InventoryManagement() {
         </div>
 
         <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
-          <table className="w-full min-w-[1160px] text-left text-sm">
+          <table className="w-full min-w-[1200px] text-left text-sm">
             <thead className="bg-[#001B54] text-white">
               <tr>
+                <th className="px-4 py-4">
+                  <input
+                    type="checkbox"
+                    checked={allPageSelected}
+                    onChange={(e) => toggleCurrentPage(e.target.checked)}
+                    disabled={bulkSaving || !pageIds.length}
+                    aria-label="Select or deselect all materials on this page"
+                    className="h-4 w-4 accent-[#E6C777]"
+                  />
+                </th>
                 {[
                   "Item Code",
                   "Item Description",
@@ -731,7 +943,7 @@ export default function InventoryManagement() {
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr>
-                  <td colSpan={11} className="py-14 text-center">
+                  <td colSpan={12} className="py-14 text-center">
                     <Loader2
                       size={29}
                       className="mx-auto animate-spin text-[#001B54]"
@@ -744,6 +956,18 @@ export default function InventoryManagement() {
               ) : paginatedItems.length ? (
                 paginatedItems.map((item) => (
                   <tr key={item._id} className="hover:bg-[#F9FBFF]">
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.includes(String(item._id))}
+                        onChange={(e) =>
+                          toggleItem(String(item._id), e.target.checked)
+                        }
+                        disabled={bulkSaving}
+                        aria-label={`Select ${item.itemName || item.itemDescription || item.itemCode || "material"}`}
+                        className="h-4 w-4 accent-[#001B54]"
+                      />
+                    </td>
                     <td className="px-4 py-4">
                       {item.itemCode ? (
                         <span className="break-all text-xs font-bold text-[#001B54]">
@@ -818,7 +1042,7 @@ export default function InventoryManagement() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={11} className="px-4 py-14 text-center">
+                  <td colSpan={12} className="px-4 py-14 text-center">
                     <Package size={35} className="mx-auto text-slate-300" />
                     <p className="mt-3 font-semibold text-slate-600">
                       No inventory items found
