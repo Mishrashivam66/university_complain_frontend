@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import { useSearchParams } from "react-router-dom";
+
 import {
   AlertTriangle,
   ArrowRight,
@@ -12,12 +15,16 @@ import {
   RefreshCw,
   ShieldCheck,
 } from "lucide-react";
-import { useSearchParams } from "react-router-dom";
 
 import api from "../../services/api";
 import { useRealtime } from "../../context/RealtimeProvider";
+
 import StockInward from "./StockInward";
-import StoreReports from "./StoreReports";
+import UnifiedStoreReports from "./UnifiedStoreReports";
+
+// ==========================================
+// INITIAL DASHBOARD STATE
+// ==========================================
 
 const initialStats = {
   totalInventory: 0,
@@ -52,6 +59,10 @@ const cards = [
     color: "bg-emerald-50 text-emerald-700",
   },
 ];
+
+// ==========================================
+// HELPERS
+// ==========================================
 
 function requestTitle(request) {
   const materials = request.materials || [];
@@ -100,10 +111,19 @@ function StatCard({ title, value, Icon, color }) {
   );
 }
 
+// ==========================================
+// MAIN STORE DASHBOARD
+// ==========================================
+
 export default function StoreDashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
+
   const realtime = useRealtime();
   const refreshKey = realtime?.refreshKey ?? 0;
+
+  // ----------------------------------------
+  // CURRENT VIEW
+  // ----------------------------------------
 
   const view = searchParams.get("view");
 
@@ -126,6 +146,10 @@ export default function StoreDashboard() {
     setSearchParams(next);
   };
 
+  // ----------------------------------------
+  // STATE
+  // ----------------------------------------
+
   const [stats, setStats] = useState(initialStats);
   const [requests, setRequests] = useState([]);
 
@@ -137,6 +161,10 @@ export default function StoreDashboard() {
   const mountedRef = useRef(false);
   const latestRequestRef = useRef(0);
   const previousRefreshKeyRef = useRef(refreshKey);
+
+  // ========================================
+  // FETCH DASHBOARD DATA
+  // ========================================
 
   const fetchDashboard = useCallback(async (showLoader = false) => {
     if (fetchingRef.current) return;
@@ -159,7 +187,9 @@ export default function StoreDashboard() {
 
       if (!mountedRef.current) return;
 
-      if (requestId !== latestRequestRef.current) return;
+      if (requestId !== latestRequestRef.current) {
+        return;
+      }
 
       const dashboard =
         dashboardResult.status === "fulfilled"
@@ -228,7 +258,10 @@ export default function StoreDashboard() {
     }
   }, []);
 
-  // Initial fetch and cleanup
+  // ========================================
+  // INITIAL LOAD AND CLEANUP
+  // ========================================
+
   useEffect(() => {
     mountedRef.current = true;
 
@@ -242,7 +275,10 @@ export default function StoreDashboard() {
     };
   }, [activePage, fetchDashboard]);
 
-  // Global silent refresh every 20 seconds
+  // ========================================
+  // GLOBAL 20-SECOND SILENT REFRESH
+  // ========================================
+
   useEffect(() => {
     if (previousRefreshKeyRef.current === refreshKey) {
       return;
@@ -261,15 +297,28 @@ export default function StoreDashboard() {
     void fetchDashboard(false);
   }, [refreshKey, activePage, fetchDashboard]);
 
-  // Stock inward
+  // ========================================
+  // STOCK INWARD VIEW
+  // ========================================
+
   if (activePage === "stock-inward") {
     return <StockInward onBack={() => openPage("dashboard")} />;
   }
 
-  // Reports and receipts
+  // ========================================
+  // NEW UNIFIED STORE REPORT VIEW
+  // ========================================
+  // Previous StoreReports.jsx is no longer
+  // rendered by the Dashboard.
+  // ========================================
+
   if (activePage === "reports") {
-    return <StoreReports onBack={() => openPage("dashboard")} />;
+    return <UnifiedStoreReports />;
   }
+
+  // ========================================
+  // LOADING
+  // ========================================
 
   if (loading) {
     return (
@@ -279,8 +328,12 @@ export default function StoreDashboard() {
     );
   }
 
+  // ========================================
+  // DASHBOARD CONTENT
+  // ========================================
+
   return (
-    <div className="space-y-6 pb-10">
+    <div className="min-w-0 space-y-6 pb-10">
       {/* HEADER */}
 
       <section className="overflow-hidden rounded-3xl bg-gradient-to-br from-[#001A49] via-[#002C72] to-[#09244F] p-6 text-white shadow-xl md:p-8">
@@ -296,7 +349,7 @@ export default function StoreDashboard() {
 
             <p className="mt-3 text-sm leading-6 text-blue-100">
               University inventory, complaint-wise material requests, stock
-              inward, issue records, reports and receipts.
+              inward, issue records and consolidated Store reports.
             </p>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -316,7 +369,7 @@ export default function StoreDashboard() {
                 className="inline-flex items-center gap-2 rounded-xl border border-[#E3BF6C] bg-white/10 px-5 py-3 text-sm font-bold text-white hover:bg-white/20"
               >
                 <FileBarChart2 size={18} />
-                Reports & Receipts
+                Store Reports
                 <ArrowRight size={16} />
               </button>
             </div>
@@ -348,7 +401,7 @@ export default function StoreDashboard() {
         </div>
       )}
 
-      {/* METRICS */}
+      {/* KPI CARDS */}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {cards.map(({ key, title, icon: Icon, color }) => (
@@ -362,10 +415,10 @@ export default function StoreDashboard() {
         ))}
       </div>
 
-      {/* MAIN CONTENT */}
+      {/* MAIN DASHBOARD GRID */}
 
       <div className="grid gap-5 xl:grid-cols-[1.6fr_1fr]">
-        {/* RECENT REQUESTS */}
+        {/* RECENT MATERIAL REQUESTS */}
 
         <section className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm md:p-6">
           <div className="mb-5 flex items-center justify-between gap-3">
@@ -454,6 +507,8 @@ export default function StoreDashboard() {
             University inventory and reporting workflow
           </p>
 
+          {/* STOCK INWARD CARD */}
+
           <button
             type="button"
             onClick={() => openPage("stock-inward")}
@@ -476,6 +531,8 @@ export default function StoreDashboard() {
             <ArrowRight size={19} className="shrink-0 text-[#001B54]" />
           </button>
 
+          {/* NEW STORE REPORT CARD */}
+
           <button
             type="button"
             onClick={() => openPage("reports")}
@@ -487,16 +544,19 @@ export default function StoreDashboard() {
 
             <div className="min-w-0 flex-1">
               <p className="font-bold text-[#001B54]">
-                Store Reports & Receipts
+                Centralized Store Reports
               </p>
 
               <p className="mt-1 text-xs text-slate-500">
-                Daily reports, GRN, Issue Voucher, Receiving and Return Receipts
+                Category-wise reports, daily summary, Stock Ledger, GRN and
+                PDF/Excel exports
               </p>
             </div>
 
             <ArrowRight size={19} className="shrink-0 text-[#001B54]" />
           </button>
+
+          {/* ADDITIVE IMPORT RULE */}
 
           <div className="mt-4 rounded-2xl bg-slate-50 p-4">
             <p className="text-sm font-bold text-[#001B54]">
@@ -513,6 +573,8 @@ export default function StoreDashboard() {
               remain unchanged.
             </p>
           </div>
+
+          {/* OTHER MODULES */}
 
           <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50 p-4">
             <div className="flex items-center gap-2">
