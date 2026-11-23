@@ -417,10 +417,22 @@ export default function UnifiedStoreReports() {
               key={reportSection.name}
               className="overflow-hidden rounded-xl border border-slate-200"
             >
-              <div className="flex justify-between gap-2 bg-slate-50 p-3 text-sm font-bold text-[#001B54]">
-                <span>{reportSection.name}</span>
+              <div className="flex flex-wrap items-start justify-between gap-3 bg-slate-50 p-3 text-sm font-bold text-[#001B54]">
+                <div className="min-w-0">
+                  <h3 className="text-sm font-extrabold text-[#001B54]">
+                    {reportSection.name}
+                  </h3>
 
-                <span>{reportSection.total} records</span>
+                  {reportSection.receiptNo && (
+                    <p className="mt-2 break-all text-xs font-semibold text-slate-600">
+                      Receipt No: {reportSection.receiptNo}
+                    </p>
+                  )}
+                </div>
+
+                <span className="rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-[#001B54]">
+                  {reportSection.total} records
+                </span>
               </div>
 
               <div className="overflow-x-auto">
